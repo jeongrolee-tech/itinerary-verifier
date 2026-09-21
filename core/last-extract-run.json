@@ -1,0 +1,553 @@
+{
+  "run_id": "extract-20260921-203159",
+  "ran_at": "2026-09-21T11:31:59.623077+00:00",
+  "model": "claude-opus-5",
+  "effort": "low",
+  "facts_snapshot": "facts-2026-09-21",
+  "tokens": {
+    "in": 1043,
+    "out": 3768,
+    "cache_read": 50064,
+    "cache_write": 3576
+  },
+  "pricing_per_mtok": {
+    "input": 5.0,
+    "output": 25.0,
+    "cache_write": 6.25,
+    "cache_read": 0.5
+  },
+  "estimated_cost_usd": 0.1468,
+  "estimated_cost_per_case_usd": 0.0098,
+  "results": [
+    {
+      "id": "T01-정상",
+      "set": "dev",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "13:00",
+            "dwell_minutes": 60
+          },
+          {
+            "place": "경복궁",
+            "start": "15:00",
+            "dwell_minutes": 120
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 5118,
+        "input_tokens": 101,
+        "output_tokens": 296,
+        "cache_read": 0,
+        "cache_write": 3576,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-21) 기준 가장 가까운 미래의 10월 8일로 추정함"
+      ],
+      "verdict": "feasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T02-입장마감위반",
+      "set": "dev",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "17:30",
+            "dwell_minutes": 60
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 3709,
+        "input_tokens": 64,
+        "output_tokens": 212,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 명시되지 않아 오늘(2026-09-21) 기준 가장 가까운 미래인 2026년으로 추정함"
+      ],
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T03-운영정보없음",
+      "set": "dev",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "15:00",
+            "dwell_minutes": 120
+          },
+          {
+            "place": "광장시장",
+            "start": "18:00"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 4504,
+        "input_tokens": 76,
+        "output_tokens": 311,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-21) 기준 가장 가까운 미래의 10월 8일로 추정",
+        "광장시장 저녁 체류시간 언급 없음"
+      ],
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T04-필수조건KTX",
+      "set": "dev",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "17:30",
+            "dwell_minutes": 60
+          },
+          {
+            "place": "광장시장",
+            "start": "19:00"
+          }
+        ],
+        "hard_constraints": [
+          {
+            "id": "HC1",
+            "type": "TRAIN_DEPARTURE",
+            "place": "서울역",
+            "time": "20:30",
+            "buffer_rule": "rail_boarding",
+            "source": "user_stated",
+            "raw": "20시 30분 서울역에서 KTX를 탑니다. 이 기차는 꼭 타야 해요"
+          }
+        ]
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 4543,
+        "input_tokens": 131,
+        "output_tokens": 333,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "광장시장 체류시간은 명시되지 않음"
+      ],
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T05-대체공휴일연쇄",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-06",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "10:00"
+          },
+          {
+            "place": "창덕궁",
+            "start": "14:00"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 3628,
+        "input_tokens": 76,
+        "output_tokens": 218,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "체류시간이 두 스톱 모두 명시되지 않음"
+      ],
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T06-기관별규칙차이",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-06",
+        "stops": [
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "14:00",
+            "dwell_minutes": 60
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 4831,
+        "input_tokens": 62,
+        "output_tokens": 258,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-21) 기준 가장 가까운 미래인 2026년으로 추정함",
+        "'한 시간 정도'를 60분으로 옮김"
+      ],
+      "verdict": "feasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T07-체류완료불가",
+      "set": "dev",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "16:30",
+            "dwell_minutes": 120
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 3793,
+        "input_tokens": 61,
+        "output_tokens": 220,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-21) 기준 가장 가까운 미래인 2026-10-08로 추정"
+      ],
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T08-체류시간미입력",
+      "set": "dev",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "16:30"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 3970,
+        "input_tokens": 49,
+        "output_tokens": 218,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 명시되지 않아 오늘(2026-09-21) 기준 가장 가까운 미래인 2026년으로 추정",
+        "체류시간 언급 없음"
+      ],
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T09-계절경계",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-11-05",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "16:30",
+            "dwell_minutes": 60
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 4248,
+        "input_tokens": 59,
+        "output_tokens": 210,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-21) 기준 가장 가까운 미래인 2026년으로 추정"
+      ],
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T10-운영시간미확보",
+      "set": "dev",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "창덕궁",
+            "start": "14:00",
+            "dwell_minutes": 90
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 5104,
+        "input_tokens": 55,
+        "output_tokens": 221,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 적혀 있지 않아 오늘(2026-09-21) 이후 가장 가까운 10월 8일로 추정했다."
+      ],
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T11-이동시간미확보",
+      "set": "dev",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "광장시장",
+            "start": "11:00"
+          },
+          {
+            "place": "경복궁",
+            "start": "13:00"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 6169,
+        "input_tokens": 68,
+        "output_tokens": 368,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-21) 기준 가장 가까운 미래인 2026-10-08로 추정",
+        "두 스톱 모두 체류시간이 명시되지 않음",
+        "광장시장 내 구체적 식당은 특정되지 않음"
+      ],
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T12-기본값이판정을흔듦",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "13:00"
+          },
+          {
+            "place": "광장시장",
+            "start": "15:15"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 4204,
+        "input_tokens": 62,
+        "output_tokens": 302,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-21) 기준 가장 가까운 미래인 2026-10-08로 추정했다.",
+        "두 스톱 모두 체류시간이 적혀 있지 않아 null로 두었다."
+      ],
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T13-장소미등록",
+      "set": "dev",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-08",
+        "stops": [
+          {
+            "place": "종묘",
+            "start": "10:00",
+            "dwell_minutes": 60
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 4285,
+        "input_tokens": 51,
+        "output_tokens": 205,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-21) 기준 가장 가까운 미래의 10월 8일로 추정함"
+      ],
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T14-근거만료",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2027-03-05",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "13:00",
+            "dwell_minutes": 120
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 3419,
+        "input_tokens": 56,
+        "output_tokens": 153,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [],
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T15-공휴일시간표",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extracted": {
+        "date": "2026-10-09",
+        "stops": [
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "18:30",
+            "dwell_minutes": 60
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5",
+        "effort": "low",
+        "latency_ms": 4696,
+        "input_tokens": 72,
+        "output_tokens": 243,
+        "cache_read": 3576,
+        "cache_write": 0,
+        "stop_reason": "end_turn"
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-21) 기준 가장 가까운 미래인 2026-10-09로 추정했다."
+      ],
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    }
+  ]
+}

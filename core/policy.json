@@ -1,0 +1,21 @@
+{
+  "note": "전부 우리가 정한 값이다. 출처 URL이 없다. 사실이 아니라 설정이다.",
+
+  "default_dwell_minutes": {
+    "palace": 90,
+    "museum": 60,
+    "market_meal": 60,
+    "street": 45
+  },
+
+  "buffer_minutes": {
+    "transit_leg": 10,
+    "rail_boarding": 15
+  },
+
+  "dwell_uncertainty_ratio": 0.5,
+  "dwell_uncertainty_note": "기본값으로 채운 체류시간은 ±50% 흔들어본다. 그 범위에서 판정이 뒤집히면 pass/fail로 확정하지 않고 unknown을 낸다.",
+
+  "require_user_dwell_for_completion_check": true,
+  "require_user_dwell_note": "체류시간을 사용자가 말하지 않았으면 '계획한 체류를 마칠 수 있는가'는 판단하지 않는다."
+}
