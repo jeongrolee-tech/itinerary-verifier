@@ -7,3 +7,8 @@ venv/
 # 작업 노트와 참고 문서는 레포 밖(상위 디렉터리)에 둔다
 *.pdf
 노션*.md
+
+# Google Maps Platform 약관상 저장 불가 — docs/data-policy.md 참조
+places-api-check.json
+routes-api-check.json
+travel-times.json
