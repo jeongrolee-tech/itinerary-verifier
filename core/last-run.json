@@ -1,7 +1,7 @@
 {
-  "run_id": "run-20260922-091252",
+  "run_id": "run-20260922-101351",
   "version": "core-0.2",
-  "ran_at": "2026-09-22T00:12:52.416905+00:00",
+  "ran_at": "2026-09-22T01:13:51.622052+00:00",
   "facts_snapshot": "facts-2026-09-21",
   "holidays_verified": true,
   "labeled_at": "2026-09-21",
@@ -10,19 +10,22 @@
       "id": "T01-정상",
       "set": "dev",
       "expect": "feasible",
-      "match": true,
-      "problems": [],
-      "elapsed_ms": 0.78,
+      "match": false,
+      "problems": [
+        "verdict 기대 feasible → 실제 undetermined",
+        "INSUFFICIENT_TRAVEL_TIME / 서울시립미술관 서소문본관 → 경복궁 기대 pass → 실제 unknown"
+      ],
+      "elapsed_ms": 0.0,
       "date": "2026-10-08",
       "weekday": "THU",
       "is_holiday": false,
       "summary": {
-        "verdict": "feasible",
-        "message": "확인한 정보와 검사 범위 내에서 위반이 발견되지 않았습니다",
+        "verdict": "undetermined",
+        "message": "위반은 발견되지 않았지만 1개 항목을 확인하지 못했습니다",
         "counts": {
-          "pass": 7,
+          "pass": 6,
           "fail": 0,
-          "unknown": 0,
+          "unknown": 1,
           "not_applicable": 1
         }
       },
@@ -127,19 +130,30 @@
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
           "target": "서울시립미술관 서소문본관 → 경복궁",
-          "status": "pass",
+          "status": "unknown",
           "severity": null,
-          "evidence": {
+          "unknown_reason": "LOWER_BOUND_ONLY",
+          "detail": "metro 주행시간(6.5분)만으로는 도착하지만 장소→역 도보, 환승 이동시간, 열차 대기시간이 빠져 있어 확정할 수 없다",
+          "how_to_resolve": {
+            "system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"
+          },
+          "reference": {
             "depart_at": "14:00",
-            "travel_minutes": 24,
+            "travel_minutes": 6.5,
             "buffer_minutes": 10,
-            "arrival": "14:34",
+            "arrival": "14:16",
             "planned_arrival": "15:00",
-            "mode": "transit",
-            "method": "google_routes_transit",
-            "source": "api",
-            "snapshot_id": "tt-2026-09-21",
-            "checked_at": "2026-09-21T14:00+09:00"
+            "mode": "metro",
+            "method": "metro_ride_only",
+            "source": "public_data",
+            "snapshot_id": null,
+            "checked_at": "2026-09-22",
+            "is_lower_bound": true,
+            "excluded_from_travel_time": [
+              "장소→역 도보",
+              "환승 이동시간",
+              "열차 대기시간"
+            ]
           },
           "id": "chk-007"
         },
@@ -243,11 +257,11 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 3개 항목을 확인하지 못했습니다",
         "counts": {
-          "pass": 4,
+          "pass": 3,
           "fail": 0,
-          "unknown": 2,
+          "unknown": 3,
           "not_applicable": 2
         }
       },
@@ -344,19 +358,30 @@
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
           "target": "경복궁 → 광장시장",
-          "status": "pass",
+          "status": "unknown",
           "severity": null,
-          "evidence": {
+          "unknown_reason": "LOWER_BOUND_ONLY",
+          "detail": "metro 주행시간(4.5분)만으로는 도착하지만 장소→역 도보, 환승 이동시간, 열차 대기시간이 빠져 있어 확정할 수 없다",
+          "how_to_resolve": {
+            "system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"
+          },
+          "reference": {
             "depart_at": "17:00",
-            "travel_minutes": 31,
+            "travel_minutes": 4.5,
             "buffer_minutes": 10,
-            "arrival": "17:41",
+            "arrival": "17:14",
             "planned_arrival": "18:00",
-            "mode": "transit",
-            "method": "google_routes_transit",
-            "source": "api",
-            "snapshot_id": "tt-2026-09-21",
-            "checked_at": "2026-09-21T14:00+09:00"
+            "mode": "metro",
+            "method": "metro_ride_only",
+            "source": "public_data",
+            "snapshot_id": null,
+            "checked_at": "2026-09-22",
+            "is_lower_bound": true,
+            "excluded_from_travel_time": [
+              "장소→역 도보",
+              "환승 이동시간",
+              "열차 대기시간"
+            ]
           },
           "id": "chk-007"
         },
@@ -375,8 +400,10 @@
       "id": "T04-필수조건KTX",
       "set": "dev",
       "expect": "infeasible",
-      "match": true,
-      "problems": [],
+      "match": false,
+      "problems": [
+        "INSUFFICIENT_TRAVEL_TIME / 경복궁 → 광장시장 기대 fail → 실제 unknown"
+      ],
       "elapsed_ms": 0.0,
       "date": "2026-10-08",
       "weekday": "THU",
@@ -386,8 +413,8 @@
         "message": "확인한 정보에서 실행할 수 없는 부분이 발견되었습니다",
         "counts": {
           "pass": 1,
-          "fail": 2,
-          "unknown": 3,
+          "fail": 1,
+          "unknown": 4,
           "not_applicable": 3
         }
       },
@@ -480,21 +507,31 @@
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
           "target": "경복궁 → 광장시장",
-          "status": "fail",
-          "severity": "blocking",
-          "evidence": {
-            "depart_at": "18:30",
-            "travel_minutes": 31,
-            "buffer_minutes": 10,
-            "arrival": "19:11",
-            "planned_arrival": "19:00",
-            "mode": "transit",
-            "method": "google_routes_transit",
-            "source": "api",
-            "snapshot_id": "tt-2026-09-21",
-            "checked_at": "2026-09-21T14:00+09:00"
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "LOWER_BOUND_ONLY",
+          "detail": "metro 주행시간(4.5분)만으로는 도착하지만 장소→역 도보, 환승 이동시간, 열차 대기시간이 빠져 있어 확정할 수 없다",
+          "how_to_resolve": {
+            "system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"
           },
-          "detail": "19:11 도착 예상인데 계획은 19:00이다",
+          "reference": {
+            "depart_at": "18:30",
+            "travel_minutes": 4.5,
+            "buffer_minutes": 10,
+            "arrival": "18:44",
+            "planned_arrival": "19:00",
+            "mode": "metro",
+            "method": "metro_ride_only",
+            "source": "public_data",
+            "snapshot_id": null,
+            "checked_at": "2026-09-22",
+            "is_lower_bound": true,
+            "excluded_from_travel_time": [
+              "장소→역 도보",
+              "환승 이동시간",
+              "열차 대기시간"
+            ]
+          },
           "id": "chk-007"
         },
         {
@@ -521,12 +558,13 @@
             "buffer_source": "system_default",
             "required_arrival": "20:15",
             "severity": "blocking",
-            "estimated_arrival": "20:16",
-            "travel_minutes": 16,
-            "travel_source": "api",
-            "travel_snapshot": "tt-2026-09-21",
-            "margin_vs_event": 14,
-            "margin_vs_required": -1,
+            "estimated_arrival": "20:07",
+            "travel_minutes": 7.0,
+            "travel_source": "public_data",
+            "travel_snapshot": null,
+            "margin_vs_event": 23,
+            "margin_vs_required": 8,
+            "is_lower_bound": true,
             "status": "unknown",
             "unknown_reason": "DEPENDS_ON_DEFAULT_DWELL",
             "detail": "예상 도착이 기본값 체류시간(60분)에 의존한다. ±50% 범위에서 판정이 뒤집혀 확정할 수 없다",
@@ -536,7 +574,7 @@
             "how_to_resolve": {
               "user": "광장시장에서 몇 시에 나오실 예정인가요?"
             },
-            "confirmed": "설정한 15분 여유 기준으로 1분 부족하다",
+            "confirmed": "설정한 15분 여유 기준으로 8분 여유하다",
             "not_confirmed": "실제 탑승 가능 여부"
           }
         }
@@ -1223,7 +1261,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "date": "2026-10-08",
       "weekday": "THU",
       "is_holiday": false,
@@ -1353,15 +1391,21 @@
           },
           "reference": {
             "depart_at": "14:30",
-            "travel_minutes": 31,
+            "travel_minutes": 4.5,
             "buffer_minutes": 10,
-            "arrival": "15:11",
+            "arrival": "14:44",
             "planned_arrival": "15:15",
-            "mode": "transit",
-            "method": "google_routes_transit",
-            "source": "api",
-            "snapshot_id": "tt-2026-09-21",
-            "checked_at": "2026-09-21T14:00+09:00"
+            "mode": "metro",
+            "method": "metro_ride_only",
+            "source": "public_data",
+            "snapshot_id": null,
+            "checked_at": "2026-09-22",
+            "is_lower_bound": true,
+            "excluded_from_travel_time": [
+              "장소→역 도보",
+              "환승 이동시간",
+              "열차 대기시간"
+            ]
           },
           "id": "chk-007"
         },

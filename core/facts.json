@@ -276,36 +276,94 @@
   },
   "legs": {
     "서울시립미술관 서소문본관|경복궁": {
-      "minutes": 24,
-      "mode": "transit",
-      "method": "google_routes_transit",
-      "source": "api",
-      "snapshot_id": "tt-2026-09-21",
-      "checked_at": "2026-09-21T14:00+09:00"
+      "minutes": 6.5,
+      "is_lower_bound": true,
+      "mode": "metro",
+      "method": "metro_ride_only",
+      "source": "public_data",
+      "from_station": "시청(1)",
+      "to_station": "경복궁(3)",
+      "transfers": 1,
+      "excluded": [
+        "장소→역 도보",
+        "환승 이동시간",
+        "열차 대기시간"
+      ],
+      "note": "지하철 주행시간만 6.5분. 도보·환승·대기가 빠져 있어 실제 이동시간은 이보다 크다",
+      "license": "공공누리 1유형 (출처표시, 상업적 이용 및 변경 가능)",
+      "url": "https://data.seoul.go.kr/dataList/OA-12034/F/1/datasetView.do",
+      "checked_at": "2026-09-22",
+      "valid_until": "2026-12-31"
     },
     "경복궁|서울시립미술관 서소문본관": {
-      "minutes": 24,
-      "mode": "transit",
-      "method": "google_routes_transit",
-      "source": "api",
-      "snapshot_id": "tt-2026-09-21",
-      "checked_at": "2026-09-21T14:00+09:00"
+      "minutes": 6.5,
+      "is_lower_bound": true,
+      "mode": "metro",
+      "method": "metro_ride_only",
+      "source": "public_data",
+      "from_station": "경복궁(3)",
+      "to_station": "시청(1)",
+      "transfers": 1,
+      "excluded": [
+        "장소→역 도보",
+        "환승 이동시간",
+        "열차 대기시간"
+      ],
+      "note": "지하철 주행시간만 6.5분. 도보·환승·대기가 빠져 있어 실제 이동시간은 이보다 크다",
+      "license": "공공누리 1유형 (출처표시, 상업적 이용 및 변경 가능)",
+      "url": "https://data.seoul.go.kr/dataList/OA-12034/F/1/datasetView.do",
+      "checked_at": "2026-09-22",
+      "valid_until": "2026-12-31"
     },
     "경복궁|광장시장": {
-      "minutes": 31,
-      "mode": "transit",
-      "method": "google_routes_transit",
-      "source": "api",
-      "snapshot_id": "tt-2026-09-21",
-      "checked_at": "2026-09-21T14:00+09:00"
+      "minutes": 4.5,
+      "is_lower_bound": true,
+      "mode": "metro",
+      "method": "metro_ride_only",
+      "source": "public_data",
+      "from_station": "경복궁(3)",
+      "to_station": "종로5가(1)",
+      "transfers": 1,
+      "excluded": [
+        "장소→역 도보",
+        "환승 이동시간",
+        "열차 대기시간"
+      ],
+      "note": "지하철 주행시간만 4.5분. 도보·환승·대기가 빠져 있어 실제 이동시간은 이보다 크다",
+      "license": "공공누리 1유형 (출처표시, 상업적 이용 및 변경 가능)",
+      "url": "https://data.seoul.go.kr/dataList/OA-12034/F/1/datasetView.do",
+      "checked_at": "2026-09-22",
+      "valid_until": "2026-12-31"
     },
     "광장시장|서울역": {
-      "minutes": 16,
-      "mode": "transit",
-      "method": "google_routes_transit",
-      "source": "api",
-      "snapshot_id": "tt-2026-09-21",
-      "checked_at": "2026-09-21T14:00+09:00"
+      "minutes": 7.0,
+      "is_lower_bound": true,
+      "mode": "metro",
+      "method": "metro_ride_only",
+      "source": "public_data",
+      "from_station": "종로5가(1)",
+      "to_station": "서울역(1)",
+      "transfers": 0,
+      "excluded": [
+        "장소→역 도보",
+        "환승 이동시간",
+        "열차 대기시간"
+      ],
+      "note": "지하철 주행시간만 7.0분. 도보·환승·대기가 빠져 있어 실제 이동시간은 이보다 크다",
+      "license": "공공누리 1유형 (출처표시, 상업적 이용 및 변경 가능)",
+      "url": "https://data.seoul.go.kr/dataList/OA-12034/F/1/datasetView.do",
+      "checked_at": "2026-09-22",
+      "valid_until": "2026-12-31"
     }
+  },
+  "transit_source": {
+    "name": "서울교통공사 역간거리 및 소요시간",
+    "provider": "서울교통공사",
+    "portal": "서울 열린데이터광장 OA-12034",
+    "url": "https://data.seoul.go.kr/dataList/OA-12034/F/1/datasetView.do",
+    "license": "공공누리 1유형 (출처표시, 상업적 이용 및 변경 가능)",
+    "data_updated": "2024-09-02",
+    "checked_at": "2026-09-22",
+    "caveat": "열차가 출발하여 다음역에 도착하는 표준 운행시간. 열차사정에 따라 변동될 수 있다"
   }
 }

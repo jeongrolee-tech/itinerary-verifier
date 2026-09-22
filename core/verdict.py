@@ -24,8 +24,9 @@ def to_min(hhmm: str) -> int:
     return int(h) * 60 + int(m)
 
 
-def to_hhmm(minutes: int) -> str:
-    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+def to_hhmm(minutes: float) -> str:
+    m = int(minutes)
+    return f"{m // 60:02d}:{m % 60:02d}"
 
 
 def weekday_of(iso: str) -> str:
@@ -246,6 +247,8 @@ def check_travel(frm, to, facts, policy, closed_statuses) -> dict:
         "planned_arrival": to["start"],
         "mode": leg.get("mode"), "method": leg.get("method"), "source": leg.get("source"),
         "snapshot_id": leg.get("snapshot_id"), "checked_at": leg.get("checked_at"),
+        "is_lower_bound": leg.get("is_lower_bound", False),
+        "excluded_from_travel_time": leg.get("excluded"),
     }
 
     # 기본값으로 계산한 결과를 사용자 일정의 확정적인 오류처럼 보여주면 안 된다.
@@ -262,10 +265,23 @@ def check_travel(frm, to, facts, policy, closed_statuses) -> dict:
                          reference=evidence)
         evidence["depends_on_assumptions"] = [frm["dwell"].get("assumption_id")]
 
+    # 하한선의 비대칭: 하한선으로 도착한다는 것은 실제로 도착한다는 뜻이 아니다.
+    # 반대로 하한선으로도 못 가면 빠진 값을 더해도 못 가므로 fail 은 확정된다.
     if ok_at(base):
+        if leg.get("is_lower_bound"):
+            missing = ", ".join(leg.get("excluded") or ["미확인 구성요소"])
+            return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                         unknown_reason="LOWER_BOUND_ONLY",
+                         detail=f"{leg.get('mode', '이동')} 주행시간({leg['minutes']}분)만으로는 "
+                                f"도착하지만 {missing}이 빠져 있어 확정할 수 없다",
+                         how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
+                         reference=evidence)
         return check("INSUFFICIENT_TRAVEL_TIME", label, PASS, evidence=evidence)
-    return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL, evidence=evidence,
-                 detail=f"{evidence['arrival']} 도착 예상인데 계획은 {to['start']}이다")
+
+    detail = f"{evidence['arrival']} 도착 예상인데 계획은 {to['start']}이다"
+    if leg.get("is_lower_bound"):
+        detail += " — 주행시간 하한선만으로도 늦으므로 확정된다"
+    return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL, evidence=evidence, detail=detail)
 
 
 # ── 필수 조건 (KTX 등) ──────────────────────────────────────────────
@@ -315,8 +331,9 @@ def evaluate_hard_constraint(hc, stops, facts, policy) -> dict:
         estimated_arrival=to_hhmm(est),
         travel_minutes=leg["minutes"],
         travel_source=leg.get("source"), travel_snapshot=leg.get("snapshot_id"),
-        margin_vs_event=to_min(hc["time"]) - est,
-        margin_vs_required=required - est,
+        margin_vs_event=round(to_min(hc["time"]) - est),
+        margin_vs_required=round(required - est),
+        is_lower_bound=leg.get("is_lower_bound", False),
     )
 
     if last["dwell"]["source"] != "user_stated":
@@ -331,7 +348,7 @@ def evaluate_hard_constraint(hc, stops, facts, policy) -> dict:
                        f"±{int(r * 100)}% 범위에서 판정이 뒤집혀 확정할 수 없다",
                 depends_on_assumptions=[last["dwell"].get("assumption_id")],
                 how_to_resolve={"user": f"{last['name']}에서 몇 시에 나오실 예정인가요?"},
-                confirmed=f"설정한 {buffer}분 여유 기준으로 {abs(required - est)}분 "
+                confirmed=f"설정한 {buffer}분 여유 기준으로 {round(abs(required - est))}분 "
                           f"{'부족' if est > required else '여유'}하다",
                 not_confirmed="실제 탑승 가능 여부",
             )
@@ -339,11 +356,28 @@ def evaluate_hard_constraint(hc, stops, facts, policy) -> dict:
             return result
         policy_eval["depends_on_assumptions"] = [last["dwell"].get("assumption_id")]
 
-    policy_eval["status"] = PASS if est <= required else FAIL
     if est > required:
-        policy_eval["detail"] = f"설정한 {buffer}분 여유가 {est - required}분 부족하다"
+        policy_eval["status"] = FAIL
+        policy_eval["detail"] = f"설정한 {buffer}분 여유가 {round(est - required)}분 부족하다"
+        if leg.get("is_lower_bound"):
+            policy_eval["detail"] += " — 주행시간 하한선만으로도 부족하므로 확정된다"
         policy_eval["not_confirmed"] = "실제 탑승 불가능 여부. 열차 출발 전에는 도착한다" \
             if est <= to_min(hc["time"]) else None
+    elif leg.get("is_lower_bound"):
+        # 중요한 열차 일정인데 정보가 부족하다면 중요도가 낮은 문제가 아니라
+        # 추가 확인이 필요한 중요한 문제다. severity 는 blocking 으로 둔다.
+        missing = ", ".join(leg.get("excluded") or ["미확인 구성요소"])
+        policy_eval.update(
+            status=UNKNOWN,
+            unknown_reason="LOWER_BOUND_ONLY",
+            detail=f"주행시간 하한선({leg['minutes']}분)으로는 권장 도착 시각에 맞지만 "
+                   f"{missing}이 빠져 있다",
+            confirmed=f"주행시간만으로는 {round(required - est)}분 여유가 있다",
+            not_confirmed="실제 탑승 가능 여부",
+            how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
+        )
+    else:
+        policy_eval["status"] = PASS
     result["policy"] = policy_eval
     return result
 
