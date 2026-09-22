@@ -1,15 +1,41 @@
 {
-  "run_id": "cmp-20260922-163332",
-  "ran_at": "2026-09-22T07:33:32.098608+00:00",
+  "run_id": "cmp-20260922-163403-recovered",
+  "ran_at": "2026-09-22T16:34:03+09:00",
   "facts_snapshot": "facts-2026-09-22",
   "model": "claude-opus-5",
   "effort": "low",
   "arms": [
+    "llm_only",
+    "llm_with_facts",
     "code"
   ],
   "scored": 7,
   "total": 15,
+  "recovered_from": "콘솔 출력. 최종 쓰기가 FileNotFoundError 로 실패했다 (실행 중 작업 디렉터리가 사라짐)",
+  "lost": "케이스별 checks[] 상세와 LLM 의 reason 문구. verdict 과 지표는 보존됨",
   "metrics": {
+    "llm_only": {
+      "n": 7,
+      "verdict_accuracy": 0.286,
+      "precision_on_infeasible": null,
+      "recall_on_infeasible": 0.0,
+      "false_alarm_on_feasible": 0,
+      "false_pass_on_infeasible": 0,
+      "leaked_undetermined_as_feasible": 0,
+      "undetermined_rate": 1.0,
+      "decisive_rate": 0.0
+    },
+    "llm_with_facts": {
+      "n": 7,
+      "verdict_accuracy": 0.857,
+      "precision_on_infeasible": 1.0,
+      "recall_on_infeasible": 1.0,
+      "false_alarm_on_feasible": 0,
+      "false_pass_on_infeasible": 0,
+      "leaked_undetermined_as_feasible": 1,
+      "undetermined_rate": 0.143,
+      "decisive_rate": 0.857
+    },
     "code": {
       "n": 7,
       "verdict_accuracy": 1.0,
@@ -19,12 +45,23 @@
       "false_pass_on_infeasible": 0,
       "leaked_undetermined_as_feasible": 0,
       "undetermined_rate": 0.286,
-      "decisive_rate": 0.714,
-      "counts": {
-        "actual_infeasible": 4,
-        "actual_feasible": 1,
-        "actual_undetermined": 2
-      }
+      "decisive_rate": 0.714
+    }
+  },
+  "cost": {
+    "llm_only": {
+      "total_usd": 0.2487,
+      "per_case_usd": 0.0166,
+      "latency_median_ms": 8231
+    },
+    "llm_with_facts": {
+      "total_usd": 1.0321,
+      "per_case_usd": 0.0688,
+      "latency_median_ms": 12110
+    },
+    "code": {
+      "total_usd": 0.0,
+      "latency_median_ms": 0
     }
   },
   "rows": [
@@ -32,52 +69,15 @@
       "id": "T01-정상",
       "set": "dev",
       "expect": "feasible",
-      "label_current": false,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "undetermined"
+        },
         "code": {
-          "verdict": "undetermined",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "서울시립미술관 서소문본관",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "서울시립미술관 서소문본관",
-              "status": "pass"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "서울시립미술관 서소문본관",
-              "status": "pass"
-            },
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "서울시립미술관 서소문본관 → 경복궁",
-              "status": "unknown"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "undetermined"
         }
       }
     },
@@ -85,32 +85,15 @@
       "id": "T02-입장마감위반",
       "set": "dev",
       "expect": "infeasible",
-      "label_current": true,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "infeasible"
+        },
         "code": {
-          "verdict": "infeasible",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "fail"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "infeasible"
         }
       }
     },
@@ -118,52 +101,15 @@
       "id": "T03-운영정보없음",
       "set": "dev",
       "expect": "undetermined",
-      "label_current": false,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "undetermined"
+        },
         "code": {
-          "verdict": "undetermined",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "CLOSED_DAY",
-              "target": "광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "광장시장",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → 광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "광장시장 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "undetermined"
         }
       }
     },
@@ -171,52 +117,15 @@
       "id": "T04-필수조건KTX",
       "set": "dev",
       "expect": "infeasible",
-      "label_current": false,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "infeasible"
+        },
         "code": {
-          "verdict": "infeasible",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "fail"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "not_applicable"
-            },
-            {
-              "type": "CLOSED_DAY",
-              "target": "광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "광장시장",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → 광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "광장시장 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "infeasible"
         }
       }
     },
@@ -224,52 +133,15 @@
       "id": "T05-대체공휴일연쇄",
       "set": "holdout",
       "expect": "infeasible",
-      "label_current": false,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "infeasible"
+        },
         "code": {
-          "verdict": "infeasible",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "fail"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "not_applicable"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "not_applicable"
-            },
-            {
-              "type": "CLOSED_DAY",
-              "target": "창덕궁",
-              "status": "fail"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "창덕궁",
-              "status": "not_applicable"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "창덕궁",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → 창덕궁",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "창덕궁 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "infeasible"
         }
       }
     },
@@ -277,32 +149,15 @@
       "id": "T06-기관별규칙차이",
       "set": "holdout",
       "expect": "feasible",
-      "label_current": true,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "feasible"
+        },
         "code": {
-          "verdict": "feasible",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "서울시립미술관 서소문본관",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "서울시립미술관 서소문본관",
-              "status": "pass"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "서울시립미술관 서소문본관",
-              "status": "pass"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "서울시립미술관 서소문본관 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "feasible"
         }
       }
     },
@@ -310,32 +165,15 @@
       "id": "T07-체류완료불가",
       "set": "dev",
       "expect": "infeasible",
-      "label_current": true,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "infeasible"
+        },
         "code": {
-          "verdict": "infeasible",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "fail"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "infeasible"
         }
       }
     },
@@ -343,32 +181,15 @@
       "id": "T08-체류시간미입력",
       "set": "dev",
       "expect": "undetermined",
-      "label_current": true,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "feasible"
+        },
         "code": {
-          "verdict": "undetermined",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "unknown"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "undetermined"
         }
       }
     },
@@ -376,32 +197,15 @@
       "id": "T09-계절경계",
       "set": "holdout",
       "expect": "infeasible",
-      "label_current": true,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "infeasible"
+        },
         "code": {
-          "verdict": "infeasible",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "fail"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "infeasible"
         }
       }
     },
@@ -409,32 +213,15 @@
       "id": "T10-운영시간미확보",
       "set": "dev",
       "expect": "undetermined",
-      "label_current": false,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "feasible"
+        },
         "code": {
-          "verdict": "feasible",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "창덕궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "창덕궁",
-              "status": "pass"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "창덕궁",
-              "status": "pass"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "창덕궁 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "feasible"
         }
       }
     },
@@ -442,52 +229,15 @@
       "id": "T11-이동시간미확보",
       "set": "dev",
       "expect": "undetermined",
-      "label_current": false,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "undetermined"
+        },
         "code": {
-          "verdict": "undetermined",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "광장시장",
-              "status": "not_applicable"
-            },
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "unknown"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "광장시장 → 경복궁",
-              "status": "unknown"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "undetermined"
         }
       }
     },
@@ -495,52 +245,15 @@
       "id": "T12-기본값이판정을흔듦",
       "set": "holdout",
       "expect": "undetermined",
-      "label_current": false,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "undetermined"
+        },
         "code": {
-          "verdict": "undetermined",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "pass"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "unknown"
-            },
-            {
-              "type": "CLOSED_DAY",
-              "target": "광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "광장시장",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → 광장시장",
-              "status": "unknown"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "광장시장 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "undetermined"
         }
       }
     },
@@ -548,32 +261,15 @@
       "id": "T13-장소미등록",
       "set": "dev",
       "expect": "undetermined",
-      "label_current": false,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "undetermined"
+        },
         "code": {
-          "verdict": "undetermined",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "종묘",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "종묘",
-              "status": "unknown"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "종묘",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "종묘 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "undetermined"
         }
       }
     },
@@ -581,32 +277,15 @@
       "id": "T14-근거만료",
       "set": "holdout",
       "expect": "undetermined",
-      "label_current": true,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "undetermined"
+        },
         "code": {
-          "verdict": "undetermined",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "경복궁",
-              "status": "unknown"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "경복궁",
-              "status": "unknown"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "경복궁",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "경복궁 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "undetermined"
         }
       }
     },
@@ -614,32 +293,15 @@
       "id": "T15-공휴일시간표",
       "set": "holdout",
       "expect": "infeasible",
-      "label_current": true,
       "arms": {
+        "llm_only": {
+          "verdict": "undetermined"
+        },
+        "llm_with_facts": {
+          "verdict": "infeasible"
+        },
         "code": {
-          "verdict": "infeasible",
-          "checks": [
-            {
-              "type": "CLOSED_DAY",
-              "target": "서울시립미술관 서소문본관",
-              "status": "pass"
-            },
-            {
-              "type": "ADMISSION_NOT_POSSIBLE",
-              "target": "서울시립미술관 서소문본관",
-              "status": "fail"
-            },
-            {
-              "type": "DWELL_NOT_COMPLETABLE",
-              "target": "서울시립미술관 서소문본관",
-              "status": "not_applicable"
-            },
-            {
-              "type": "INSUFFICIENT_TRAVEL_TIME",
-              "target": "서울시립미술관 서소문본관 → (없음)",
-              "status": "not_applicable"
-            }
-          ]
+          "verdict": "infeasible"
         }
       }
     }

@@ -251,6 +251,30 @@ if need_llm:
             raise SystemExit("키가 비어 있다.")
         client = anthropic.Anthropic(api_key=key)
 
+RUN_ID = f"cmp-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+
+def save(payload: dict, name: str) -> bool:
+    """
+    LLM arm 은 건당 10초 넘게 걸리고 돈이 든다. 마지막 쓰기 한 번이 실패해서
+    전체 결과가 날아가면 안 된다. 실제로 그렇게 15건 × 2 arm 을 잃었다 —
+    실행 중에 작업 디렉터리가 사라져서 FileNotFoundError 가 났다.
+
+    그래서 케이스마다 중간 저장하고, 실패하면 홈 디렉터리로 떨어진다.
+    """
+    body = json.dumps(payload, ensure_ascii=False, indent=2)
+    for target in (HERE / name, Path.home() / f"itinerary-verifier-{name}"):
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(body, encoding="utf-8")
+            if target.parent != HERE:
+                print(f"  ⚠ {HERE} 에 쓸 수 없어 {target} 에 저장했다")
+            return True
+        except OSError as e:
+            print(f"  ⚠ {target} 저장 실패: {e}")
+    return False
+
+
 FACTS_LLM = facts_for_llm()
 rows, usage_total = [], {}
 for case in cases:
@@ -280,6 +304,14 @@ for case in cases:
     rows.append(rec)
     print(f"  {case['id']:<24}" + "  ".join(
         f"{a}={rec['arms'][a]['verdict']:<13}" for a in ARMS if a in rec["arms"]))
+
+    # 다음 케이스가 실패하거나 중단돼도 여기까지는 남는다.
+    # LLM arm 은 건당 10초 넘고 돈이 드니 한 번의 쓰기 실패로 전체를 잃으면 안 된다.
+    if need_llm and not DRY:
+        save({"run_id": RUN_ID, "status": "in_progress", "model": MODEL,
+              "facts_snapshot": facts["snapshot_id"], "arms": ARMS,
+              "done": len(rows), "total": len(cases), "rows": rows},
+             "last-compare.json")
 
 # ── 채점 ────────────────────────────────────────────────────────────
 scorable = [r for r in rows if r["label_current"]]
@@ -325,19 +357,24 @@ if stale:
     print(f"\n  라벨 미검토 {len(stale)}건 — 출력은 저장했다. "
           f"워크시트를 채우면 재실행 없이 채점된다.")
 
+cost_report = {}
 for arm, us in usage_total.items():
     pin, pout = PRICE.get(MODEL, (0, 0))
     cost = sum((u["input_tokens"] * pin + u["output_tokens"] * pout
                 + u["cache_write"] * pin * 1.25 + u["cache_read"] * pin * 0.1) / 1e6 for u in us)
     lat = sorted(u["latency_ms"] for u in us)
+    cost_report[arm] = {"n": len(us), "total_usd": round(cost, 4),
+                        "per_case_usd": round(cost / len(us), 4),
+                        "latency_median_ms": lat[len(lat) // 2]}
     print(f"\n  {arm}: {len(us)}건  ${cost:.4f}  건당 ${cost / len(us):.4f}  "
           f"지연 중앙값 {lat[len(lat) // 2]}ms")
 
-out = {"run_id": f"cmp-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
-       "ran_at": datetime.now(timezone.utc).isoformat(),
+out = {"run_id": RUN_ID, "ran_at": datetime.now(timezone.utc).isoformat(),
        "facts_snapshot": facts["snapshot_id"], "model": MODEL, "effort": EFFORT,
        "arms": ARMS, "scored": len(scorable), "total": len(rows),
-       "metrics": report, "rows": rows}
-(HERE / "last-compare.json").write_text(json.dumps(out, ensure_ascii=False, indent=2),
-                                        encoding="utf-8")
+       "metrics": report, "cost": cost_report, "rows": rows}
+if not save(out, "last-compare.json"):
+    # 여기까지 온 실행은 돈과 시간을 이미 썼다. 화면에라도 남긴다.
+    print("\n  파일 저장에 실패했으므로 결과를 아래에 그대로 출력한다.\n")
+    print(json.dumps(out, ensure_ascii=False, indent=2))
 print(f"\n  기록: core/last-compare.json  ({out['run_id']})")
