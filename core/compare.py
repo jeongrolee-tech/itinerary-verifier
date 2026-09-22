@@ -3,6 +3,7 @@
 비교 실험 — 판정 방식 3종을 같은 케이스로 돌려 비교한다.
 
     python core/compare.py                  3종 전부
+    python core/compare.py --dry-run        API 없이 배선만 확인
     python core/compare.py --arms code      코드만 (API 키 불필요)
     python core/compare.py --case T05       한 건만
     python core/compare.py --model claude-sonnet-5
@@ -19,8 +20,6 @@ arm 2 → 3 의 차이는 **판정 방식 효과**다. 입력이 같으므로 �
 채점은 라벨이 현재 데이터 스냅샷 기준으로 검토된 케이스에만 한다.
 미검토 라벨로 점수를 내면 세 arm 전부 틀린 점수가 나온다.
 """
-
-from __future__ import annotations
 
 import json
 import sys
@@ -203,19 +202,54 @@ def metrics(scored: list[dict]) -> dict:
 
 
 # ── 실행 ────────────────────────────────────────────────────────────
+class StubClient:
+    """
+    --dry-run 용. API 를 부르지 않고 배선만 통과시킨다.
+
+    이게 있는 이유: LLM arm 은 키가 있어야 돌아가서, 키 없이 편집하면
+    NameError 같은 것도 발견되지 않는다. 실제로 그렇게 두 번 깨진 파일을 넘겼다.
+    키를 넣기 전에 `--dry-run` 으로 세 arm 의 경로를 전부 지나가 볼 수 있다.
+    """
+
+    class _Usage:
+        input_tokens = output_tokens = 0
+        cache_read_input_tokens = cache_creation_input_tokens = 0
+
+    class _Messages:
+        calls = 0
+
+        def parse(self, **kw):
+            assert kw["messages"][0]["content"].strip(), "payload 가 비어 있다"
+            assert kw["system"][0]["text"].strip(), "system 프롬프트가 비어 있다"
+            StubClient._Messages.calls += 1
+            fmt = kw["output_format"]
+            return type("R", (), {"usage": StubClient._Usage(),
+                                  "parsed_output": fmt(checks=[], verdict="undetermined",
+                                                       message="dry-run")})()
+
+    def __init__(self):
+        self.messages = self._Messages()
+
+
+DRY = "--dry-run" in args
 need_llm = any(a.startswith("llm") for a in ARMS)
 client = Judgment = None
 if need_llm:
-    import anthropic
-    import os
-    from getpass import getpass
-
-    key = next((a[6:].strip() for a in args if a.startswith("--key=")), None) \
-        or os.environ.get("ANTHROPIC_API_KEY") or getpass("Anthropic API 키 입력: ").strip()
-    if not key:
-        raise SystemExit("키가 비어 있다.")
-    client = anthropic.Anthropic(api_key=key)
     Judgment = build_models()
+    if DRY:
+        client = StubClient()
+        print("  [--dry-run] API 를 부르지 않는다. 배선만 확인한다.\n")
+    else:
+        import os
+        from getpass import getpass
+
+        import anthropic
+
+        key = next((a[6:].strip() for a in args if a.startswith("--key=")), None) \
+            or os.environ.get("ANTHROPIC_API_KEY") or getpass("Anthropic API 키 입력: ").strip()
+        if not key:
+            raise SystemExit("키가 비어 있다.")
+        client = anthropic.Anthropic(api_key=key)
 
 FACTS_LLM = facts_for_llm()
 rows, usage_total = [], {}
@@ -237,7 +271,7 @@ for case in cases:
 
     if "llm_with_facts" in ARMS:
         payload = (f"[구조화 일정]\n{json.dumps(itinerary_for(case), ensure_ascii=False, indent=1)}\n\n"
-                   f"[사실 데이터]\n{json.dumps(facts_subset(case), ensure_ascii=False, indent=1)}\n\n"
+                   f"[사실 데이터]\n{json.dumps(FACTS_LLM, ensure_ascii=False, indent=1)}\n\n"
                    f"[정책]\n{json.dumps(policy, ensure_ascii=False, indent=1)}")
         j, u = run_llm(case, client, Judgment, SYSTEM_LLM_FACTS, payload)
         rec["arms"]["llm_with_facts"] = j
