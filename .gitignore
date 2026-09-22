@@ -12,3 +12,6 @@ venv/
 places-api-check.json
 routes-api-check.json
 travel-times.json
+
+# dry-run 산출물
+core/last-compare-dryrun.json

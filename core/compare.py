@@ -8,14 +8,20 @@
     python core/compare.py --case T05       한 건만
     python core/compare.py --model claude-sonnet-5
 
-세 arm 을 나눈 이유는 **개선이 정보 제공 때문인지 판정 방식 때문인지 구분**하기 위해서다.
+arm 을 나눈 이유는 **개선이 어디서 왔는지 구분**하기 위해서다.
 
-    arm 1  llm_only        자연어 일정만 준다.            사실 데이터 없음
-    arm 2  llm_with_facts  구조화 일정 + 사실 + 정책.     판정은 LLM
-    arm 3  code            같은 입력.                    판정은 verdict.py
+    arm 0  llm_naive       자연어 일정만. 상태 정의만 주고 지시는 주지 않는다
+    arm 1  llm_only        같은 입력 + "근거 없으면 unknown 으로 둬라" 지시
+    arm 2  llm_with_facts  구조화 일정 + 사실 + 정책. 판정은 LLM
+    arm 3  code            같은 입력.                  판정은 verdict.py
 
-arm 1 → 2 의 차이는 **정보 제공 효과**다.
-arm 2 → 3 의 차이는 **판정 방식 효과**다. 입력이 같으므로 그 차이만 남는다.
+    arm 0 → 1   지시 효과      프롬프트로 보류를 유도하면 달라지는가
+    arm 1 → 2   정보 제공 효과
+    arm 2 → 3   판정 방식 효과  입력이 같으므로 그 차이만 남는다
+
+arm 0 이 따로 있는 이유: 1차 실험에서 arm1 이 15건 전부 undetermined 였는데,
+그건 "근거 없이 추측하지 말라"고 **지시했기 때문**이다. 지시를 따른 결과를
+발견으로 읽으면 안 된다. 근거가 없을 때 실제로 무엇을 하는지는 arm0 이 본다.
 
 채점은 라벨이 현재 데이터 스냅샷 기준으로 검토된 케이스에만 한다.
 미검토 라벨로 점수를 내면 세 arm 전부 틀린 점수가 나온다.
@@ -43,7 +49,7 @@ flag = lambda name, d: next(
 only = flag("--case", None)
 MODEL = flag("--model", "claude-opus-5")
 EFFORT = flag("--effort", "low")
-ARMS = flag("--arms", "llm_only,llm_with_facts,code").split(",")
+ARMS = flag("--arms", "llm_naive,llm_only,llm_with_facts,code").split(",")
 
 PRICE = {"claude-opus-5": (5.0, 25.0), "claude-sonnet-5": (2.0, 10.0),
          "claude-haiku-4-5": (1.0, 5.0)}
@@ -88,35 +94,59 @@ def build_models():
     return Judgment
 
 
-RULES = """검사 하나당 네 상태 중 하나를 고른다.
+# ── 프롬프트 ────────────────────────────────────────────────────────
+# 정의와 지시를 분리해 둔다.
+#
+# STATES 는 **라벨의 정의**다. 이게 없으면 모델이 unknown 이라는 선택지가
+# 있다는 것조차 모르므로, 네 arm 전부에 준다.
+#
+# GUIDANCE 는 **우리 정책의 지시**다. "근거가 없으면 unknown 으로 둬라" 는
+# 지시이고, 이것을 준 arm 이 unknown 을 많이 내는 것은 발견이 아니라 순응이다.
+# 그래서 llm_naive 에는 주지 않는다.
 
-  pass            근거를 확보했고 조건을 만족한다
-  fail            확보한 근거에서 조건 위반이 확인된다
-  unknown         정보 부족이나 조회 실패로 판단하지 못했다
+STATES = """검사 하나당 네 상태 중 하나를 고른다.
+
+  pass            조건을 만족한다
+  fail            조건 위반이 있다
+  unknown         판단하지 못했다
   not_applicable  그 검사가 적용되지 않는다 (검사 자체가 성립하지 않는다)
 
-검사가 **불필요**하면 not_applicable, 검사가 **필요한데 못 끝냈으면** unknown 이다.
-영업시간을 모르는 것은 not_applicable 이 아니라 unknown 이다.
-
 전체 판정:
-  infeasible     확인된 위반이 하나라도 있다
-  undetermined   위반은 없지만 필수 검사가 미확인이다
-  feasible       필요한 검사가 모두 통과했다
+  infeasible     실행할 수 없는 부분이 있다
+  undetermined   판단을 보류한다
+  feasible       실행할 수 있다
 
 검사 종류는 CLOSED_DAY(휴무일), ADMISSION_NOT_POSSIBLE(도착 시각에 입장 불가),
 DWELL_NOT_COMPLETABLE(입장은 되지만 체류를 마치기 전에 폐장),
 INSUFFICIENT_TRAVEL_TIME(이동시간 + 버퍼 > 여유시간) 네 가지다."""
 
+GUIDANCE = """검사가 **불필요**하면 not_applicable, 검사가 **필요한데 못 끝냈으면** unknown 이다.
+영업시간을 모르는 것은 not_applicable 이 아니라 unknown 이다.
+
+전체 판정은 이 기준으로 계산한다.
+  infeasible     확인된 위반이 하나라도 있다
+  undetermined   위반은 없지만 필수 검사가 미확인이다
+  feasible       필요한 검사가 모두 통과했다"""
+
+# arm 0 — 지시 없이 검토만 요청한다. 근거가 없을 때 무엇을 하는지 본다.
+SYSTEM_LLM_NAIVE = f"""너는 여행 일정의 실행 가능성을 검증한다.
+
+{STATES}"""
+
 SYSTEM_LLM_ONLY = f"""너는 여행 일정의 실행 가능성을 검증한다.
 
-{RULES}
+{STATES}
+
+{GUIDANCE}
 
 **사실 데이터는 주어지지 않는다.** 운영시간·휴무일·이동시간을 확보하지 못한 상태다.
 근거 없이 추측해서 pass 나 fail 을 내지 말고, 확보하지 못한 근거가 필요한 검사는 unknown 으로 둔다."""
 
 SYSTEM_LLM_FACTS = f"""너는 여행 일정의 실행 가능성을 검증한다.
 
-{RULES}
+{STATES}
+
+{GUIDANCE}
 
 사실 데이터(facts)와 정책(policy)이 주어진다. **주어진 값만 쓴다.**
 facts 에 없는 운영시간·휴무일·이동시간을 네 지식으로 메우지 않는다 — 그 검사는 unknown 이다.
@@ -287,9 +317,16 @@ for case in cases:
                                "checks": [{"type": c["type"], "target": c["target"],
                                            "status": c["status"]} for c in out["checks"]]}
 
+    # arm0 과 arm1 은 입력이 완전히 같다. 시스템 프롬프트만 다르다.
+    raw_payload = f"오늘은 2026-09-22 이다.\n\n[일정]\n{case['raw']}"
+
+    if "llm_naive" in ARMS:
+        j, u = run_llm(case, client, Judgment, SYSTEM_LLM_NAIVE, raw_payload)
+        rec["arms"]["llm_naive"] = j
+        usage_total.setdefault("llm_naive", []).append(u)
+
     if "llm_only" in ARMS:
-        payload = f"오늘은 2026-09-22 이다.\n\n[일정]\n{case['raw']}"
-        j, u = run_llm(case, client, Judgment, SYSTEM_LLM_ONLY, payload)
+        j, u = run_llm(case, client, Judgment, SYSTEM_LLM_ONLY, raw_payload)
         rec["arms"]["llm_only"] = j
         usage_total.setdefault("llm_only", []).append(u)
 
@@ -373,8 +410,9 @@ out = {"run_id": RUN_ID, "ran_at": datetime.now(timezone.utc).isoformat(),
        "facts_snapshot": facts["snapshot_id"], "model": MODEL, "effort": EFFORT,
        "arms": ARMS, "scored": len(scorable), "total": len(rows),
        "metrics": report, "cost": cost_report, "rows": rows}
-if not save(out, "last-compare.json"):
+OUT_NAME = "last-compare-dryrun.json" if DRY else "last-compare.json"
+if not save(out, OUT_NAME):
     # 여기까지 온 실행은 돈과 시간을 이미 썼다. 화면에라도 남긴다.
     print("\n  파일 저장에 실패했으므로 결과를 아래에 그대로 출력한다.\n")
     print(json.dumps(out, ensure_ascii=False, indent=2))
-print(f"\n  기록: core/last-compare.json  ({out['run_id']})")
+print(f"\n  기록: core/{OUT_NAME}  ({out['run_id']})")
