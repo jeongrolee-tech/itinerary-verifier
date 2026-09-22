@@ -11,56 +11,71 @@
     "llm_with_facts",
     "code"
   ],
-  "scored": 7,
+  "scored": 15,
   "total": 15,
   "metrics": {
+    "llm_naive": {
+      "n": 15,
+      "verdict_accuracy": 0.533,
+      "precision_on_infeasible": 1.0,
+      "recall_on_infeasible": 0.833,
+      "false_alarm_on_feasible": 0,
+      "false_pass_on_infeasible": 0,
+      "leaked_undetermined_as_feasible": 6,
+      "undetermined_rate": 0.133,
+      "decisive_rate": 0.867,
+      "counts": {
+        "actual_infeasible": 6,
+        "actual_feasible": 2,
+        "actual_undetermined": 7
+      }
+    },
     "llm_only": {
-      "n": 7,
-      "verdict_accuracy": 0.286,
+      "n": 15,
+      "verdict_accuracy": 0.467,
       "precision_on_infeasible": null,
       "recall_on_infeasible": 0.0,
       "false_alarm_on_feasible": 0,
       "false_pass_on_infeasible": 0,
       "leaked_undetermined_as_feasible": 0,
       "undetermined_rate": 1.0,
-      "decisive_rate": 0.0
+      "decisive_rate": 0.0,
+      "counts": {
+        "actual_infeasible": 6,
+        "actual_feasible": 2,
+        "actual_undetermined": 7
+      }
     },
     "llm_with_facts": {
-      "n": 7,
-      "verdict_accuracy": 0.857,
+      "n": 15,
+      "verdict_accuracy": 0.933,
       "precision_on_infeasible": 1.0,
       "recall_on_infeasible": 1.0,
       "false_alarm_on_feasible": 0,
       "false_pass_on_infeasible": 0,
       "leaked_undetermined_as_feasible": 1,
-      "undetermined_rate": 0.143,
-      "decisive_rate": 0.857
-    },
-    "llm_naive": {
-      "n": 7,
-      "verdict_accuracy": 0.714,
-      "precision_on_infeasible": 1.0,
-      "recall_on_infeasible": 0.75,
-      "false_alarm_on_feasible": 0,
-      "false_pass_on_infeasible": 0,
-      "leaked_undetermined_as_feasible": 1,
-      "undetermined_rate": 0.286,
-      "decisive_rate": 0.714
+      "undetermined_rate": 0.4,
+      "decisive_rate": 0.6,
+      "counts": {
+        "actual_infeasible": 6,
+        "actual_feasible": 2,
+        "actual_undetermined": 7
+      }
     },
     "code": {
-      "n": 7,
+      "n": 15,
       "verdict_accuracy": 1.0,
       "precision_on_infeasible": 1.0,
       "recall_on_infeasible": 1.0,
       "false_alarm_on_feasible": 0,
       "false_pass_on_infeasible": 0,
       "leaked_undetermined_as_feasible": 0,
-      "undetermined_rate": 0.286,
-      "decisive_rate": 0.714,
+      "undetermined_rate": 0.467,
+      "decisive_rate": 0.533,
       "counts": {
-        "actual_infeasible": 4,
-        "actual_feasible": 1,
-        "actual_undetermined": 2
+        "actual_infeasible": 6,
+        "actual_feasible": 2,
+        "actual_undetermined": 7
       }
     }
   },
@@ -833,5 +848,6 @@
         }
       }
     }
-  ]
+  ],
+  "rescored_note": "2026-09-22 라벨 재검토 후 기존 arm 출력을 재채점했다. API 재호출은 없다. 채점 대상이 7건에서 15건으로 늘었다."
 }
