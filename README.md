@@ -25,6 +25,8 @@ pip install anthropic pydantic
 python core/run.py                 # 판정만 — API 키 불필요
 python core/run.py --case T05      # 한 케이스 상세
 python core/run_extract.py         # 자연어 → 추출 → 판정 (Anthropic 키 필요)
+python core/compare.py --arms code # 비교 실험, 코드 arm만 — 키 불필요
+python core/compare.py             # 비교 실험 3종 (Anthropic 키 필요)
 ```
 
 키는 실행 시 물어본다. 화면에 안 찍히고 셸 히스토리에도 안 남는다.
@@ -65,6 +67,10 @@ python core/run_extract.py         # 자연어 → 추출 → 판정 (Anthropic 
 | `core/facts.json` | 사실 — 운영정보·이동시간·공휴일. 근거 필드 포함 |
 | `core/policy.json` | 정책 — 기본값·버퍼. **전부 우리가 정한 값** |
 | `core/tests.json` | 골든 테스트 15개 + 라벨 |
+| `core/compare.py` | 비교 실험 — 판정 방식 3종을 같은 입력으로 돌린다 |
+| `core/build_transit_legs.py` | 공공누리 지하철 데이터로 구간 주행시간 하한선 계산 |
+| `core/transit-seoul-metro.csv` | 서울교통공사 역간거리·소요시간 (공공누리 1유형) |
+| `docs/data-policy.md` | 제공사별 저장·캐싱·공개 범위 (약관 인용) |
 
 ## 판정 규칙
 
@@ -106,9 +112,12 @@ python core/run_extract.py         # 자연어 → 추출 → 판정 (Anthropic 
 ## 아직 안 한 것
 
 - 도보 이동시간 (TMAP 미착수 — 도보 구간은 전부 `unknown`)
-- 비교 대상 3종: LLM 검토만 / 같은 데이터로 LLM 판정 / 같은 데이터로 코드 판정
+- 비교 실험 LLM arm 2종 실행 — 하니스는 있고 키를 넣어 돌리면 된다
+- 라벨 재검토 8건 (`docs/label-review-260922.md`)
+- 도보·환승·대기 이동시간 — 실제 이동시간의 73~85%가 여기다
+- 종묘 회차 입장 검사 구현
+- 수정안 생성 + 재검사
 - 결과를 보지 않은 새 holdout 케이스
-- `undetermined` 비율 낮추기 (현재 15건 중 7건)
 
 ## 범위
 

@@ -1,5 +1,5 @@
 {
-  "snapshot_id": "facts-2026-09-21",
+  "snapshot_id": "facts-2026-09-22",
   "note": "판정 코어에 넘기는 사실 데이터. 여기 없는 것은 unknown이 된다.",
   "holidays": {
     "verified": true,
@@ -617,5 +617,32 @@
     "data_updated": "2024-09-02",
     "checked_at": "2026-09-22",
     "caveat": "열차가 출발하여 다음역에 도착하는 표준 운행시간. 열차사정에 따라 변동될 수 있다"
-  }
+  },
+  "snapshot_history": [
+    {
+      "id": "facts-2026-09-21",
+      "note": "Google Routes 파생 이동시간 + 장소 5곳"
+    },
+    {
+      "id": "facts-2026-09-22",
+      "note": "이동시간을 공공누리 지하철 주행시간(하한선)으로 교체, 장소 9곳, 종묘 회차입장 등록",
+      "changed": [
+        "legs 전체 교체 (google_routes → metro_ride_only)",
+        "창덕궁·덕수궁 hours 추가",
+        "종묘·청계천·덕수궁 돌담길·북촌한옥마을 추가"
+      ],
+      "changed_keys": {
+        "places": [
+          "창덕궁",
+          "덕수궁",
+          "종묘",
+          "청계천",
+          "덕수궁 돌담길",
+          "북촌한옥마을"
+        ],
+        "legs": "ALL",
+        "note": "라벨 노후화 판정에 쓴다. 케이스가 건드리는 키와 교집합이 있으면 그 라벨은 미검토다"
+      }
+    }
+  ]
 }

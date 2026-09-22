@@ -37,6 +37,40 @@ only = next((args[i + 1] for i, a in enumerate(args) if a == "--case" and i + 1 
 MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
 LINE = "═" * 78
 
+FACTS_SNAPSHOT = facts["snapshot_id"]
+LABEL_SNAPSHOT = suite.get("labeled_against_snapshot")
+
+
+def stale_reason(case: dict) -> str | None:
+    """
+    라벨은 판정 코드와 독립이어야 하지만 데이터 스냅샷과는 독립일 수 없다.
+    같은 입력의 정답이 facts.json 버전에 따라 달라지기 때문이다 — T10 이 그 증거다.
+
+    다만 스냅샷 id 만 비교하면 너무 거칠다. 데이터가 한 곳 바뀌었다고 15건을 전부
+    무효로 보면 지표가 사라진다. **케이스가 의존하는 키가 바뀌었을 때만** 미검토로 본다.
+
+    판정 결과를 보고 판단하지 않는다는 점이 중요하다. 케이스의 stops 와 changed_keys 의
+    교집합만 본다 — 코드가 무엇을 냈는지는 쓰지 않는다.
+    """
+    if case.get("label_review_needed"):
+        return case["label_review_needed"]
+    if case.get("labeled_against", LABEL_SNAPSHOT) == FACTS_SNAPSHOT:
+        return None
+
+    hist = facts.get("snapshot_history") or []
+    changed = (hist[-1].get("changed_keys") if hist else None) or {}
+    places = [s["place"] for s in case["stops"]]
+    n_legs = max(0, len(places) - 1) + len(case.get("hard_constraints", []))
+
+    hits = [f"places: {p}" for p in places if p in (changed.get("places") or [])]
+    if n_legs and changed.get("legs") == "ALL":
+        hits.append(f"legs {n_legs}구간")
+    return " / ".join(hits) if hits else None
+
+
+def label_is_current(case: dict) -> bool:
+    return stale_reason(case) is None
+
 
 def detail(case, out, problems):
     print(f"\n{LINE}\n  {case['id']}  [{case['set']}]  기대 {case['expect']}\n{LINE}")
@@ -128,7 +162,9 @@ for case in suite["cases"]:
     ms = round((datetime.now(timezone.utc) - started).total_seconds() * 1000, 2)
     problems = grade(case, out)
     results.append({"id": case["id"], "set": case["set"], "expect": case["expect"],
-                    "match": not problems, "problems": problems, "elapsed_ms": ms, **out})
+                    "match": not problems, "problems": problems, "elapsed_ms": ms,
+                    "label_current": label_is_current(case),
+                    "stale_reason": stale_reason(case), **out})
     rows.append((case, out, problems))
 
     if not json_only and (show_all or (only and case["id"].startswith(only)) or (not only and problems)):
@@ -136,21 +172,38 @@ for case in suite["cases"]:
 
 # ── 요약 ────────────────────────────────────────────────────────────
 if not json_only:
-    print(f"\n{LINE}\n  요약\n{LINE}")
+    print(f"\n{LINE}\n  요약   facts={FACTS_SNAPSHOT}\n{LINE}")
     print(f"  {'케이스':<26}{'셋':<10}{'기대':<15}{'실제':<15}판정")
     for case, out, problems in rows:
+        # 미검토 라벨과 일치했다고 ✅ 를 주면 안 된다. 검토되지 않은 정답과 맞은 것뿐이다.
+        if not label_is_current(case):
+            mark = "⚠ 미검토(일치)" if not problems else "⚠ 미검토(불일치)"
+        else:
+            mark = "✅" if not problems else "❌"
         print(f"  {case['id']:<24}{case['set']:<10}{case['expect']:<15}"
-              f"{out['summary']['verdict']:<15}{'✅' if not problems else '❌'}")
+              f"{out['summary']['verdict']:<15}{mark}")
+
+    scored = [r for r in results if r["label_current"]]
+    stale = [r for r in results if not r["label_current"]]
 
     for name in ("dev", "holdout"):
-        sub = [r for r in results if r["set"] == name]
+        sub = [r for r in scored if r["set"] == name]
         hit = sum(1 for r in sub if r["match"])
-        print(f"\n  {name:<9} {hit}/{len(sub)} 일치")
+        print(f"\n  {name:<9} {hit}/{len(sub)} 일치" if sub else f"\n  {name:<9} 채점 대상 없음")
 
-    # 가장 치명적인 오분류: 미확인이어야 하는데 통과로 낸 경우
-    leaked = [r for r in results
+    # 가장 치명적인 오분류: 미확인이어야 하는데 통과로 낸 경우.
+    # 라벨 미검토 케이스를 여기 넣으면 거짓 경보가 난다 — 분모에서 뺀다.
+    leaked = [r for r in scored
               if r["expect"] == "undetermined" and r["summary"]["verdict"] == "feasible"]
-    print(f"  미확인을 통과로 낸 건수: {len(leaked)}  (0이 아니면 다른 지표를 볼 필요가 없다)")
+    print(f"\n  미확인을 통과로 낸 건수: {len(leaked)} / 채점 {len(scored)}건"
+          f"  (0이 아니면 다른 지표를 볼 필요가 없다)")
+
+    if stale:
+        print(f"\n  ⚠ 라벨 미검토 {len(stale)}건 — 채점에서 제외했다.")
+        print(f"    라벨 기준 스냅샷 {LABEL_SNAPSHOT} ≠ 현재 {FACTS_SNAPSHOT}")
+        for r in stale:
+            print(f"    {r['id']:<24}{r.get('stale_reason') or '스냅샷 불일치'}")
+        print("    → docs/label-review-260922.md 워크시트를 채운 뒤 labeled_against 를 갱신한다")
 
 run = {
     "run_id": f"run-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
