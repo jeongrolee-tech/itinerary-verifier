@@ -113,66 +113,479 @@ LLM은 `feasible`을 냈다. `policy.json`의 `require_user_dwell_for_completion
 > 왜 그렇게 했는지와 그렇게 하지 않으면 무엇이 깨지는지를 적었다.
 > JSON은 주석을 달 수 없어 파일 첫 필드에 `_역할` 또는 `note`로 남겼다.
 
-### 판정 — 이 프로젝트의 핵심
+```
+personal-project1/
+├── core/
+│   ├── verdict.py               판정 코어          ← 이 프로젝트의 중심
+│   ├── extract.py               자연어 → 구조화
+│   ├── facts.json               사실
+│   ├── policy.json              정책
+│   ├── tests.json               골든 테스트 + 라벨
+│   ├── transit-seoul-metro.csv  지하철 원본 (공공누리 1유형)
+│   ├── holidays-2026.json       공휴일 원본
+│   ├── fetch_holidays.py        공휴일 조회
+│   ├── build_transit_legs.py    지하철 → 구간 하한선
+│   ├── run.py                   판정 채점 + 기록
+│   ├── run_extract.py           추출 채점 + 전체 파이프라인
+│   ├── compare.py               비교 실험
+│   └── last-*.json              실행 기록 (자동 생성)
+├── docs/
+│   ├── data-policy.md           제공사별 저장·공개 범위
+│   ├── label-review-260922.md   라벨 재검토 워크시트
+│   └── experiments/             실험 기록
+├── check-places-api.mjs         Places API 능력 확인
+├── check-routes-api.mjs         Routes API 모드 확인
+└── fetch-travel-times.mjs       Routes API 이동시간 조회
+```
 
-| 파일 | 역할 | 세부 설명 |
+---
+
+### `core/verdict.py` — 판정 코어 · 549줄
+
+| | |
+| --- | --- |
+| **역할** | 일정이 실행 가능한지 판정한다. 이 프로젝트의 중심 |
+| **입력** | `judge(itinerary, facts, policy)` — 셋 다 **인자로** 받는다 |
+| **출력** | `checks[]` · `hard_constraints[]` · `assumptions[]` · `summary` |
+| **의존** | 없음. 표준 라이브러리만 쓴다 |
+
+**네트워크를 부르지 않는 것이 규칙이다.** 이 파일에 API 호출이 한 줄 들어가는 순간 고정 입력으로 테스트할 수 없게 된다. 그래서 사실과 정책을 전부 인자로 받는다.
+
+**검사 4종**
+
+| 코드 | 무엇을 보나 | 필요한 근거 |
 | --- | --- | --- |
-| [`core/verdict.py`](core/verdict.py) | 판정 코어 | **순수 함수.** 일정·사실·정책을 전부 인자로 받고 네트워크를 부르지 않는다. 검사 4종(`CLOSED_DAY`·`ADMISSION_NOT_POSSIBLE`·`DWELL_NOT_COMPLETABLE`·`INSUFFICIENT_TRAVEL_TIME`)을 각각 4상태로 내고, 가장 나쁜 상태를 전체 판정으로 올린다. ⭐ 주석 15개 |
+| `CLOSED_DAY` | 방문일이 휴무일인가 | 정기휴일 + 공휴일 캘린더 + 기관별 예외 규칙 |
+| `ADMISSION_NOT_POSSIBLE` | 도착 시각에 **입장**할 수 있나 | 운영시간 + 입장마감 |
+| `DWELL_NOT_COMPLETABLE` | 계획한 **체류를 마칠** 수 있나 | 위 + 체류시간 |
+| `INSUFFICIENT_TRAVEL_TIME` | 다음 스톱에 제때 가나 | 구간 이동시간 + 앞 스톱 종료 시각 |
 
-### 입력
+**함수**
 
-| 파일 | 역할 | 세부 설명 |
+| 함수 | 줄 | 하는 일 |
 | --- | --- | --- |
-| [`core/extract.py`](core/extract.py) | 자연어 → 구조화 | Claude structured outputs(pydantic). **옮겨 적기만 하고 값을 채우지 않는다** — 없는 값은 `null`로 둔다. 구역만 지목된 입력(`"명동에서 쇼핑"`)은 `scope: area`로 남기고 임의로 점포를 고르지 않는다. ⭐ 주석 3개 |
+| `to_min` / `to_hhmm` | 28·33 | 시각을 분 단위 정수로 다룬다. 시간 계산 버그를 줄이기 위한 것 |
+| `weekday_of` / `shift_date` | 38·42 | 요일 계산, 날짜 이동 |
+| `is_last_wednesday` | 46 | '문화가 있는 날'(매달 마지막 수요일). 종묘가 이 날 일반관람으로 열린다 |
+| `evidence_usable_on` | 52 | 근거의 **적용 기간** 검사. 방문일이 `valid_until`을 넘으면 그 근거는 못 쓴다 |
+| `check` | 66 | 검사 결과 dict 생성. `fail`일 때만 `severity`를 붙인다 |
+| `closed_date_for` | 77 | 그 주의 실제 휴무일 계산. **기관별 예외 규칙을 facts에서 읽어 분기** |
+| `check_closed_day` | 104 | 휴무일 검사. 공휴일 캘린더가 미검증이면 `unknown` |
+| `hours_for` | 145 | 그 날짜에 적용되는 시간표 선택. **공휴일 시간표가 요일보다 우선** |
+| `check_admission` | 171 | 입장 가능 검사. 회차 입장·상시 개방을 각각 다른 `unknown`으로 처리 |
+| `check_dwell` | 241 | 체류 완료 검사. 사용자가 체류시간을 안 말했으면 판단하지 않는다 |
+| `leg_between` | 276 | `"A\|B"` 키로 구간 조회 |
+| `check_travel` | 280 | 이동시간 검사. 근사값 거부, 하한선 비대칭, 기본값 민감도 검사 |
+| `evaluate_hard_constraint` | 363 | KTX 같은 필수 조건. `event`(사용자)와 `policy`(우리 기준)를 분리 |
+| `judge` | 470 | 본체. 기본값을 `assumptions`에 기록하고 검사를 돌려 전체 판정을 낸다 |
 
-### 데이터 — 사실과 설정을 분리한다
+**`unknown_reason` 종류** — 같은 `unknown`이라도 해결 방법이 다르므로 구분한다
 
-| 파일 | 역할 | 세부 설명 |
+| 이유 | 뜻 | 어떻게 해결하나 |
 | --- | --- | --- |
-| [`core/facts.json`](core/facts.json) (사실) | 운영정보·이동시간·공휴일 | 값마다 `source`·`url`·`checked_at`·`valid_until`이 붙는다. **`snapshot_id`로 버전을 관리**하고 `snapshot_history`에 무엇이 바뀌었는지 남긴다 — 라벨 노후화 검출이 이걸 읽는다 |
-| [`core/policy.json`](core/policy.json) (정책) | 기본값·버퍼 | **전부 우리가 정한 값이고 출처 URL이 없다.** 사실이 아니라 설정이라는 것을 파일 첫 줄에 적어뒀다. 기본 체류시간, 버퍼, 민감도 검사 비율(±50%) |
-| [`core/tests.json`](core/tests.json) (골든 테스트) | 케이스 15개 + 라벨 | 케이스마다 입력 원문·기대 추출값·적용한 사실과 가정·기대 판정·판정 이유를 담는다. `labeled_against_snapshot`으로 어느 데이터 기준에서 검토한 라벨인지 표시한다 |
-| [`core/transit-seoul-metro.csv`](core/transit-seoul-metro.csv) (지하철 원본) | 역간 소요시간 | 서울교통공사, 서울 열린데이터광장 OA-12034. **공공누리 1유형**이라 저장·변경·재배포가 모두 가능하다 |
-| [`core/holidays-2026.json`](core/holidays-2026.json) (공휴일 원본) | API 응답 스냅샷 | 공공데이터포털 특일 정보. 이용허락범위 제한 없음. 2026년 22건 중 대체공휴일 4건 |
+| `NO_CLOSED_DAY_DATA` · `NO_OPERATING_HOURS_DATA` | 정보를 못 구했다 | 데이터 확보 |
+| `EVIDENCE_EXPIRED` | 근거의 적용 기간이 지났다 | 재조회 |
+| `PLACE_NOT_RESOLVED` | 장소를 특정하지 못했다 | 사용자에게 물어본다 |
+| `HOLIDAY_CALENDAR_UNVERIFIED` | 공휴일 캘린더가 미검증이다 | API 호출 |
+| `UNVERIFIED_TRAVEL_TIME` | 구간 이동시간이 없다 | 데이터 확보 |
+| `ESTIMATE_ONLY` | 직선거리 근사값뿐이다 | 실제 경로 확인 |
+| `LOWER_BOUND_ONLY` | 주행시간 하한선뿐이다 | 도보·환승·대기 확보 |
+| `DEPENDS_ON_DEFAULT_DWELL` | 우리가 정한 기본값이 판정을 갈랐다 | 사용자에게 물어본다 |
+| `UNSUPPORTED_ADMISSION_TYPE` | 정보는 있는데 **검사가 없다** | 코드를 고친다 |
+| `UNVERIFIED_ALWAYS_OPEN` | 상시 개방 근거를 안 잡았다 | 공식 출처 확인 |
 
-### 조회 계층 — 외부 데이터를 사실로 바꾼다
+**⭐ 주석 15개** — L15 4상태 · L54 적용기간 · L83 기관별 예외 · L155 공휴일 우선 · L178 `not_applicable`도 근거 필요 · L194 unknown 이유 구분 · L251 입장/체류 분리 · L293 근사값 거부 · L320 민감도 검사 · L337 하한선 비대칭 · L375 사용자 조건과 정책 분리 · L393 status ≠ severity · L478 기본값 기록 · L522 전체 판정 · L532 사용자 문구
 
-| 파일 | 역할 | 세부 설명 |
+---
+
+### `core/extract.py` — 자연어 → 구조화 · 155줄
+
+| | |
+| --- | --- |
+| **역할** | 자연어 일정을 판정 코어가 읽는 구조로 **옮겨 적는다** |
+| **입력** | `extract(text, client, model, today, effort)` |
+| **출력** | `(Extraction, usage)` → `to_itinerary()`로 판정 코어 입력 형태로 |
+| **모델** | `claude-opus-5`, structured outputs (pydantic), `effort: low` |
+
+**LLM이 담당하는 유일한 단계다.** 판정은 시키지 않는다. 자연어를 구조로 바꾸는 데는 강하지만 규칙을 일관되게 적용하는 데는 약하기 때문이다 (비교 실험 T08 참조).
+
+**pydantic 모델**
+
+| 모델 | 필드 | 요점 |
 | --- | --- | --- |
-| [`core/fetch_holidays.py`](core/fetch_holidays.py) | 공휴일 API 조회 | 공공데이터포털 `getRestDeInfo`를 12개월 호출해 원본째로 보관한다. 검증 전에는 `verified: false`이고, 그동안 휴무일 예외 규칙이 걸린 검사는 `unknown`으로 나온다 |
-| [`core/build_transit_legs.py`](core/build_transit_legs.py) | 지하철 주행시간 하한선 계산 | CSV에서 호선별 그래프를 만들어 최단 주행시간을 구한다. **환승 비용을 0으로 두는데 이는 "공짜"가 아니라 "미확인"이라는 표시**이고, 그래서 결과가 하한선이 된다. ⭐ 주석 1개 |
+| `Stop` | `raw` `place` `start` `start_source` `dwell_minutes` `scope` `scope_note` | `dwell_minutes`가 **`int \| None`** 인 것이 핵심 |
+| `HardConstraint` | `raw` `type` `place` `time` | `"꼭 타야 해요"` 처럼 사용자가 못 박은 조건만 |
+| `Extraction` | `date` `date_source` `weekday_stated` `stops` `hard_constraints` `notes` | `weekday_stated`는 검증하지 않고 옮기기만 한다 |
 
-### 채점 · 평가
+`start_source`가 `explicit` / `inferred` / `missing` 셋인 이유 — `"점심 먹고"`를 12:00으로 읽은 것은 추정이고, `"오후 1시"`는 명시다. 그 구분이 없으면 나중에 무엇이 사용자 말인지 알 수 없다.
 
-| 파일 | 역할 | 세부 설명 |
+**시스템 프롬프트 규칙 7개** — 없는 값을 만들지 않는다 / 추정은 표시한다 / 장소명을 고치지 않는다 / 구역은 `area`로 남긴다 / 필수 조건은 `stops`에 중복하지 않는다 / 연도는 가장 가까운 미래로 / 요일은 옮기기만 한다
+
+`effort: low`를 쓰는 이유 — 옮겨 적기는 기계적인 작업이라 깊게 생각할 게 없다. 출력 토큰이 절반으로 줄었는데 정확도는 같았다.
+
+**⭐ 주석 3개** — L31 `int | None` · L36 `scope: area` · L65 LLM 경계
+
+---
+
+### `core/facts.json` — 사실 · 647줄
+
+| | |
+| --- | --- |
+| **역할** | 판정에 쓰는 **사실**. 운영정보·이동시간·공휴일 |
+| **읽는 쪽** | `verdict.py` · `run.py` · `compare.py` |
+| **쓰는 쪽** | 사람(curated) · `build_transit_legs.py --write` |
+
+**최상위 구조**
+
+| 키 | 내용 |
+| --- | --- |
+| `snapshot_id` | `facts-2026-09-22`. **데이터 버전.** 라벨 노후화 검출이 이걸 읽는다 |
+| `snapshot_history` | 버전별로 무엇이 바뀌었는지. `changed_keys`가 노후화 판단의 근거 |
+| `holidays` | `verified` · `dates[]` · 출처 · 적용기간 |
+| `places` | 9곳. 장소별 `closed_days` · `hours` · `admission` · `entrance` |
+| `legs` | 4구간. `"A\|B"` 키 |
+| `transit_source` | 지하철 데이터 출처와 라이선스 |
+
+**값마다 붙는 근거 필드**
+
+| 필드 | 왜 필요한가 |
+| --- | --- |
+| `source` | `curated` / `public_data` / `api`. **스냅샷에 넣어도 되는 출처인지 판단하는 근거** |
+| `url` · `checked_at` | 어디서 언제 확인했나 |
+| `valid_until` | **언제까지 쓸 수 있나.** 이게 없으면 작년 시간표로 올해를 판정한다 |
+| `rule_text` | 공식 안내 문구 원문. 페이지가 바뀌었을 때 비교 기준 |
+| `rule_scope` | 그 규칙이 어디까지 적용되나 |
+| `verified_by` | 확인 방법 (`공식 페이지 화면 확인` 등) |
+
+`place.admission.type`이 `timed_entry`면 회차 입장(종묘 평일), `always_open`이면 상시 개방 후보다. 후자는 `verified: false`인 동안 `unknown`으로 나온다.
+
+`leg`의 `is_lower_bound: true`는 **도보·환승·대기가 빠진 값**이라는 표시다. `excluded[]`에 무엇이 빠졌는지 적혀 있다.
+
+---
+
+### `core/policy.json` — 정책 · 21줄
+
+| | |
+| --- | --- |
+| **역할** | 우리가 정한 **설정**. 기본값·버퍼·판정 기준 |
+| **읽는 쪽** | `verdict.py` · `compare.py` |
+
+**파일 첫 줄에 이렇게 적어뒀다** — `"전부 우리가 정한 값이다. 출처 URL이 없다. 사실이 아니라 설정이다."`
+
+`facts.json`과 분리한 이유가 이것이다. 사실과 설정을 한 파일에 두면 판정 결과를 보고 "이게 공식 정보인가 우리가 정한 값인가"를 구분할 수 없다.
+
+| 키 | 값 | 뜻 |
 | --- | --- | --- |
-| [`core/run.py`](core/run.py) | 판정 채점기 + 실행 기록 | 최종 판정만 남기지 않는다. 케이스별로 **추출값 · 적용한 기본값 · 검사별 상태와 근거 · 해결 방법**을 찍는다. **라벨 노후화를 자동 검출**해 미검토 라벨을 채점에서 뺀다. ⭐ 주석 2개 |
-| [`core/run_extract.py`](core/run_extract.py) | 추출 평가 + 전체 파이프라인 | 추출 문제와 판정 문제를 구분해 재기 위해 두 단계를 따로 채점한다. 모델·비용·지연을 함께 기록한다 |
-| [`core/compare.py`](core/compare.py) | 비교 실험 4종 + 지표 5종 | `llm_naive` / `llm_only` / `llm_with_facts` / `code`. arm0→1이 **지시 효과**, arm1→2가 **정보 제공 효과**, arm2→3이 **판정 방식 효과**다. `--dry-run`으로 API 없이 배선을 확인할 수 있다. ⭐ 주석 3개 |
+| `default_dwell_minutes` | palace 90 · museum 60 · market_meal 60 · street 45 | 체류시간 미입력 시 쓰는 기본값 |
+| `buffer_minutes.transit_leg` | 10 | 구간 이동에 두는 여유 |
+| `buffer_minutes.rail_boarding` | 15 | 열차 탑승 전 권장 도착 여유 |
+| `dwell_uncertainty_ratio` | 0.5 | 기본값을 **±50% 흔들어** 판정이 뒤집히면 `unknown` |
+| `require_user_dwell_for_completion_check` | true | 체류시간을 안 말했으면 체류 검사를 하지 않는다 |
 
-### 실험 스크립트 (루트)
+마지막 두 개가 "우리가 정한 값으로 사용자 일정의 오류를 만들어내지 않는다"를 구현한 것이다. 비교 실험에서 LLM은 이 정책을 **문서로 받고도** 적용하지 않았다.
 
-| 파일 | 역할 | 세부 설명 |
+---
+
+### `core/tests.json` — 골든 테스트 + 라벨 · 592줄
+
+| | |
+| --- | --- |
+| **역할** | 케이스 15개와 정답 라벨 |
+| **읽는 쪽** | `run.py` · `run_extract.py` · `compare.py` |
+
+**케이스 하나에 들어가는 것**
+
+| 필드 | 내용 |
+| --- | --- |
+| `id` · `set` | `T08-체류시간미입력` · `dev` 또는 `holdout` |
+| `raw` | 입력 자연어 원문 |
+| `date` · `stops` · `hard_constraints` | **기대 추출값.** `run_extract.py`가 이것과 대조한다 |
+| `expect_applied` | 적용해야 하는 사실·가정·빠진 정보 |
+| `expect` · `expect_checks` · `expect_hard_constraints` | **기대 판정** |
+| `why` | 왜 그 판정인지. 라벨의 근거 |
+| `label_review_needed` | 데이터가 바뀌어 재검토가 필요할 때 이유가 들어간다 |
+
+**셋 구분** — `dev`는 개발 중 확인용, `holdout`은 최종 성능 확인용으로 구현을 맞추지 않는다.
+
+**`labeled_against_snapshot`** — 이 라벨을 어느 데이터 스냅샷 기준으로 검토했는지. 현재 `facts.json`의 `snapshot_id`와 다르면 그 라벨은 미검토로 취급된다.
+
+> 라벨은 판정 코드와 독립이어야 하지만 **데이터 스냅샷과는 독립일 수 없다.**
+> T10이 그 증거다 — 입력은 그대로인데 창덕궁 운영시간을 확보하자 정답이 바뀌었다.
+
+---
+
+### `core/transit-seoul-metro.csv` — 지하철 원본 · 280줄
+
+| | |
+| --- | --- |
+| **역할** | 1~8호선 역간 거리와 표준 운행시간 |
+| **출처** | 서울교통공사 · [서울 열린데이터광장 OA-12034](https://data.seoul.go.kr/dataList/OA-12034/F/1/datasetView.do) |
+| **라이선스** | **공공누리 1유형** — 출처표시, 상업적 이용 및 변경 가능 |
+| **읽는 쪽** | `build_transit_legs.py` |
+
+컬럼 — `연번` · `호선` · `역명` · `소요시간`(앞 역에서 오는 시간, `mm:ss`) · `역간거리(km)` · `호선별누계(km)`
+
+Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·공개가 허용된 출처**라는 것이 선택 기준이었다.
+
+주의 — 여기 있는 것은 **열차 주행시간뿐**이다. 장소→역 도보, 환승 이동, 열차 대기가 없다. 그래서 계산 결과가 하한선이 된다.
+
+---
+
+### `core/holidays-2026.json` — 공휴일 원본 · 467줄
+
+| | |
+| --- | --- |
+| **역할** | 공휴일 API 응답 스냅샷 |
+| **출처** | 공공데이터포털 한국천문연구원 특일 정보 `getRestDeInfo` |
+| **라이선스** | **이용허락범위 제한 없음** |
+| **쓰는 쪽** | `fetch_holidays.py` |
+
+| 키 | 내용 |
+| --- | --- |
+| `snapshot_id` | `holidays-2026-20260921` |
+| `records` | 22건. `{date, name, is_holiday}` |
+| `raw_responses` | 12개월 원본 응답을 그대로 보관 |
+
+원본을 남기는 이유 — 나중에 파싱을 고쳤을 때 다시 호출하지 않고 검증할 수 있다. 대체공휴일 4건이 여기 있고, `2026-10-05`(대체공휴일)이 골든 테스트 T05의 전제다.
+
+---
+
+### `core/fetch_holidays.py` — 공휴일 조회 · 148줄
+
+| | |
+| --- | --- |
+| **역할** | 특일 정보 API를 12개월 호출해 스냅샷을 만든다 |
+| **실행** | `python core/fetch_holidays.py [연도]` — 공공데이터포털 키 필요 |
+| **출력** | `holidays-2026.json` |
+
+| 함수 | 하는 일 |
+| --- | --- |
+| `ask_key` | 환경변수에 없으면 물어본다. 화면에 안 찍힌다 |
+| `build_url` | **Encoding 키와 Decoding 키를 구분한다.** 잘못 고르면 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR`가 난다 |
+| `fetch` | 호출. 키가 안 풀리면 JSON 요청이어도 XML 에러가 돌아오는 것을 처리 |
+| `items_of` | 응답 파싱. 1건일 때 배열이 아니라 객체로 오는 것을 처리 |
+
+대체공휴일은 이름에 `'대체'`가 들어간다. 이 값이 없으면 T05를 풀 수 없다.
+
+검증 전에는 `facts.json`의 `holidays.verified`가 `false`이고, 그동안 휴무일 예외 규칙이 걸린 검사는 전부 `unknown`으로 나온다. **맞는 값을 손으로 넣어뒀더라도 검증 전에는 믿지 않는다**는 것이 요점이다.
+
+---
+
+### `core/build_transit_legs.py` — 지하철 → 구간 하한선 · 174줄
+
+| | |
+| --- | --- |
+| **역할** | CSV에서 구간별 **주행시간 하한선**을 계산한다 |
+| **실행** | `python core/build_transit_legs.py` (출력만) / `--write` (`facts.json` 갱신) |
+| **입력** | `transit-seoul-metro.csv` |
+| **출력** | `facts.json`의 `legs` |
+
+| 함수 | 하는 일 |
+| --- | --- |
+| `load_lines` | 호선별 `[(역명, 주행시간 초)]`. CSV 순서가 노선 순서다 |
+| `build_graph` | 노드는 `(호선, 역명)`. 인접역은 주행시간으로, **같은 역의 다른 호선은 비용 0으로** 잇는다 |
+| `shortest` | 다익스트라. 주행시간 최소 경로와 환승 횟수 |
+| `compute` | 구간별 `minutes` · `transfers` · `excluded` · 출처 생성 |
+
+`NEAREST_STATION`이 장소 → 역 매핑이다. **사람이 정한 값이고 출입구 기준은 아직 확인하지 않았다.**
+
+**계산 결과와 그 의미**
+
+| 구간 | 주행시간 | 빠진 몫 |
 | --- | --- | --- |
-| [`check-places-api.mjs`](check-places-api.mjs) | Places API 능력 확인 | 지원 후보 12곳을 조회해 **판정에 필요한 필드가 있는지** 확인했다. 결과: 입장마감·계절별 시간표·공휴일 예외 규칙·적용기간이 **전부 없다** |
-| [`check-routes-api.mjs`](check-routes-api.mjs) | Routes API 모드 확인 | 한국에서 `WALK`·`DRIVE`가 경로를 반환하지 않는 것을 확인했다. **HTTP 200인데 결과가 비어 있다** — 이 상태를 "조회했다"로 처리하면 실패가 정상으로 바뀐다 |
-| [`fetch-travel-times.mjs`](fetch-travel-times.mjs) | Routes API 이동시간 조회 | 5구간을 `TRANSIT`으로 조회했다. **응답 값은 약관상 저장할 수 없어** 현재 판정에는 쓰지 않는다 ([`docs/data-policy.md`](docs/data-policy.md)) |
+| 미술관 → 경복궁 | 6.5분 (환승 1회) | 73% |
+| 경복궁 → 광장시장 | 4.5분 (환승 1회) | 85% |
+| 광장시장 → 서울역 | 7.0분 (환승 0회) | 80% |
 
-### 문서
+**⭐ 주석 1개** — L75 환승 비용 0은 "공짜"가 아니라 "미확인"
 
-| 파일 | 역할 | 세부 설명 |
+---
+
+### `core/run.py` — 판정 채점 + 실행 기록 · 236줄
+
+| | |
+| --- | --- |
+| **역할** | 골든 테스트를 돌려 라벨과 대조하고 실행 기록을 남긴다 |
+| **실행** | `python core/run.py [--all] [--case T05] [--json]` — **키 불필요** |
+| **출력** | 화면 + `last-run.json` |
+
+**화면에 찍는 것** — 최종 판정만 남기지 않는다.
+
+```
+[추출]           입력에서 무엇을 읽었나
+[적용한 기본값]   무슨 값을 어떤 규칙으로 넣었나
+[검사]           검사별 상태 · 이유 · 근거 URL · 해결 방법
+[필수 조건]      사용자가 말한 것 / 서비스 권장 기준 / 계산한 예상 도착
+[판정]           전체 판정과 라벨 일치 여부
+```
+
+| 함수 | 하는 일 |
+| --- | --- |
+| `stale_reason` | **라벨 노후화 검출.** 케이스가 의존하는 키가 바뀌었는지만 본다 |
+| `label_is_current` | 위 결과를 bool로 |
+| `detail` | 케이스 상세 출력 |
+| `grade` | 기대 판정·기대 검사·기대 필수조건을 라벨과 대조 |
+
+**표시 구분**
+
+| 표시 | 뜻 |
+| --- | --- |
+| `✅` | 검토된 라벨과 일치 |
+| `❌` | 검토된 라벨과 불일치 — **실제 문제** |
+| `⚠ 미검토(일치)` | 검토되지 않은 라벨과 맞았을 뿐 |
+| `⚠ 미검토(불일치)` | 데이터가 바뀌어 정답이 달라졌을 가능성 |
+
+게이트 지표는 `미확인을 통과로 낸 건수`다. **0이 아니면 다른 지표를 볼 필요가 없다.** 미검토 라벨을 분모에서 빼는 이유는 거짓 경보를 막기 위한 것이다.
+
+**⭐ 주석 2개** — L55 순환 논리 회피 · L198 게이트 지표
+
+---
+
+### `core/run_extract.py` — 추출 채점 + 전체 파이프라인 · 213줄
+
+| | |
+| --- | --- |
+| **역할** | 자연어 → 추출 → 판정을 끝까지 돌리고 **추출과 판정을 따로 채점**한다 |
+| **실행** | `python core/run_extract.py [--case T05] [--extract-only] [--model ...]` — 키 필요 |
+| **출력** | 화면 + `last-extract-run.json` |
+
+두 단계를 따로 채점하는 이유 — 전체가 틀렸을 때 **추출 문제인지 판정 문제인지** 구분해야 고칠 곳을 알 수 있다.
+
+| 함수 | 하는 일 |
+| --- | --- |
+| `grade_extraction` | `tests.json`의 `date`·`stops`·`hard_constraints`를 기대 추출값으로 놓고 대조 |
+| `ask_key` | 환경변수 → `--key=` → 물어보기 순서 |
+
+비용 계산에 **캐시 토큰을 포함한다.** 캐시 쓰기는 입력의 1.25배, 읽기는 0.1배다. 이걸 빼면 실제보다 싸게 나온다.
+
+1차 실행에서 추출 12/15였는데 실패 3건의 원인이 전부 **라벨과 프롬프트 쪽**이었다. 입력에 없는 체류시간이 라벨에 적혀 있었고, 필수 조건으로 뽑은 서울역이 `stops`에도 들어갔다. 모델이 틀린 건 0건이었다.
+
+---
+
+### `core/compare.py` — 비교 실험 · 433줄
+
+| | |
+| --- | --- |
+| **역할** | 판정 방식 4종을 같은 케이스로 돌려 비교한다 |
+| **실행** | `python core/compare.py [--dry-run] [--arms ...] [--case T05] [--model ...]` |
+| **출력** | 화면 + `last-compare.json` |
+
+**arm 구성**
+
+| arm | 입력 | 시스템 프롬프트 | 판정 주체 |
+| --- | --- | --- | --- |
+| `llm_naive` | 자연어 | 상태 **정의만** | LLM |
+| `llm_only` | **같은 자연어** | 정의 + 보류 **지시** | LLM |
+| `llm_with_facts` | 구조화 + 사실 + 정책 | 정의 + 지시 | LLM |
+| `code` | **같은 입력** | — | `verdict.py` |
+
+```
+arm0 → 1   지시 효과        프롬프트로 보류를 유도하면 달라지는가
+arm1 → 2   정보 제공 효과
+arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는다
+```
+
+| 함수 | 하는 일 |
+| --- | --- |
+| `build_models` | LLM 출력 스키마. **코드 출력과 같은 모양**이어야 비교가 된다 |
+| `facts_for_llm` | arm2와 arm3에 **완전히 같은** 사실 데이터를 준다 |
+| `run_llm` | 호출 + 토큰·지연 수집 |
+| `metrics` | 지표 5종 + 유효 판단 제공 비율 |
+| `StubClient` | `--dry-run`용. API 없이 배선만 통과시킨다 |
+| `save` | 케이스마다 중간 저장, 실패 시 홈 디렉터리로 폴백 |
+
+**지표 5종**
+
+| 지표 | 왜 보나 |
+| --- | --- |
+| 오류 표시 중 실제 오류 (정밀도) | 헛경보 비율 |
+| 실제 오류 중 찾아낸 비율 (재현율) | 놓친 비율 |
+| 정상 일정 오탐 | 멀쩡한 일정을 막는가 |
+| **잘못된 일정 정상 통과** | 가장 치명적 |
+| 판정 보류 비율 | 얼마나 자주 답을 못 주나 |
+| 유효 판단 제공 비율 | **전부 보류하면 지표는 완벽해지고 서비스는 쓸모없어진다** |
+
+**⭐ 주석 3개** — L98 지시와 정의 분리 · L178 입력 일치 · L208 정확도만 보면 안 되는 이유
+
+---
+
+### `check-places-api.mjs` — Places API 능력 확인 · 196줄
+
+| | |
+| --- | --- |
+| **역할** | Places API가 **판정에 필요한 필드를 주는지** 확인한다 |
+| **실행** | `GKEY=... node check-places-api.mjs` |
+| **대상** | 지원 후보 12곳 |
+
+`TARGETS`에 장소와 기대 휴무 요일, 공식 출처를 적어두고 응답과 대조한다. `FIELD_MASK`로 요청 필드를 지정한다.
+
+**결과** — 12곳 전부 `regularOpeningHours`를 반환했다. 그런데 판정에 필요한 것으로 보면
+
+| 필요한 것 | 제공 |
+| --- | --- |
+| 요일별 운영시간 · 정기휴일 | ✅ |
+| 입장마감 · 계절별 시간표 · 공휴일 예외 규칙 · 적용기간 | ❌ **전부 없음** |
+
+**채움률만 재면 12/12로 보인다.** 그래서 이 프로젝트는 운영정보를 공식 페이지 curated로 가고 Google은 `place_id`에만 쓴다.
+
+> 응답 원문은 이 레포에 저장하지 않는다. 약관상 저장이 허용되는 것은 `place_id`와 lat/lng(30일)뿐이다.
+
+---
+
+### `check-routes-api.mjs` — Routes API 모드 확인 · 111줄
+
+| | |
+| --- | --- |
+| **역할** | 이동수단별로 경로가 오는지 확인한다 |
+| **실행** | `GKEY=... node check-routes-api.mjs` |
+
+| 모드 | 결과 |
+| --- | --- |
+| `TRANSIT` | 경로 반환 |
+| `WALK` | **경로 없음** (HTTP 200, 빈 결과) |
+| `DRIVE` | **경로 없음** (HTTP 200, 빈 결과) |
+
+**HTTP 200인데 결과가 비어 있다.** 이 상태를 "조회했다"로 처리하면 실패가 정상으로 바뀐다. 조회 계층에서 `시간 초과 / 응답 없음 / 필수 필드 누락`을 구분해야 하는 이유가 이것이다.
+
+도보 구간을 Routes API로 해결할 수 없다는 것이 여기서 확인됐다.
+
+---
+
+### `fetch-travel-times.mjs` — Routes API 이동시간 조회 · 217줄
+
+| | |
+| --- | --- |
+| **역할** | 5구간 대중교통 이동시간 조회 + 도보 근사와 비교 |
+| **실행** | `node fetch-travel-times.mjs` — 키를 터미널에서 입력받는다 |
+
+출발 시각을 **고정한다.** 그래야 스냅샷이 결정론적이 된다. `straightMeters`로 하버사인 직선거리를 구해 우회계수 1.3, 보행속도 4km/h로 도보를 근사한다.
+
+**관찰** — 짧은 구간에서 대중교통 경로가 도보 근사보다 오래 걸렸다. 응답을 보면 도보 → 탑승 → 도보로 쪼개져 있고 대기시간이 붙는다. 확인된 문제는 "예측이 틀렸다"가 아니라 **"구간에 맞는 이동수단을 고르지 않았다"** 다.
+
+> **현재 판정에는 쓰지 않는다.** 응답 값(소요시간·거리)은 약관상 저장할 수 없다.
+> 이동시간은 공공누리 지하철 데이터로 교체했다.
+
+---
+
+### `docs/` — 문서
+
+| 파일 | 역할 | 세부 |
 | --- | --- | --- |
-| [`docs/data-policy.md`](docs/data-policy.md) | 제공사별 저장·캐싱·공개 범위 | Google Maps Platform·TMAP·공공데이터포털 약관 원문을 조항째로 인용했다. **제약은 "사용"이 아니라 "저장"에 걸린다**는 구분이 핵심 |
-| [`docs/label-review-260922.md`](docs/label-review-260922.md) | 라벨 재검토 워크시트 | 데이터가 바뀌어 미검토가 된 8건. **코드가 현재 무엇을 내는지는 일부러 적지 않았다** — 그걸 보면 라벨 독립성이 깨진다 |
-| [`docs/experiments/`](docs/experiments/) | 실험 기록 | 날짜 · 입력 조건 · 관찰 결과 · 해석 · 결정으로 나눠 적는다. 현재 채택한 설계는 이 README에, 폐기한 후보와 그 이유는 여기에 둔다 |
+| [`data-policy.md`](docs/data-policy.md) | 제공사별 저장·캐싱·공개 범위 | Google Maps Platform §3.2.3 / §A.3 / §14.3 / §19.3, TMAP 준수사항, 공공데이터포털 이용허락범위를 **조항째로 인용**했다. 핵심은 **제약이 "사용"이 아니라 "저장"에 걸린다**는 구분 |
+| [`label-review-260922.md`](docs/label-review-260922.md) | 라벨 재검토 워크시트 | 미검토 8건. 입력·기존 라벨·바뀐 데이터·주행시간 하한선 표가 있고 정답 칸은 비어 있다. **코드가 현재 무엇을 내는지는 일부러 적지 않았다** |
+| [`experiments/`](docs/experiments/) | 실험 기록 | 날짜 · 입력 조건 · 관찰 결과 · 해석 · 결정으로 나눠 적는다. 현재 채택한 설계는 README에, 폐기한 후보와 이유는 여기 |
+
+---
 
 ### 실행 기록 (자동 생성)
 
-| 파일 | 역할 |
-| --- | --- |
-| [`core/last-run.json`](core/last-run.json) (판정 기록) | 케이스별 추출값·기본값·검사 상태·근거. `run.py`가 덮어쓴다 |
-| [`core/last-extract-run.json`](core/last-extract-run.json) (추출 기록) | 추출값·기대값 차이·모델·비용·지연. `run_extract.py`가 덮어쓴다 |
-| [`core/last-compare.json`](core/last-compare.json) (비교 기록) | arm별 판정·지표 5종·비용·지연. `compare.py`가 덮어쓴다 |
+| 파일 | 역할 | 들어가는 것 |
+| --- | --- | --- |
+| [`core/last-run.json`](core/last-run.json) (판정 기록) | `run.py`가 덮어쓴다 | 케이스별 추출값 · 적용한 기본값 · 검사별 상태와 근거 · 라벨 일치 여부 · 소요 시간 |
+| [`core/last-extract-run.json`](core/last-extract-run.json) (추출 기록) | `run_extract.py`가 덮어쓴다 | 추출값 · 기대값과의 차이 · 모델 · 토큰 · 비용 · 지연 |
+| [`core/last-compare.json`](core/last-compare.json) (비교 기록) | `compare.py`가 덮어쓴다 | arm별 판정과 검사 · 지표 5종 · 비용 · 지연 |
+
+**스크립트가 덮어쓰는 파일이다.** 의미 있는 실행 결과는 그때그때 커밋해두는 것이 안전하다 — 실제로 한 번 잃었고 git 커밋에서 복원했다.
 
 ---
 
