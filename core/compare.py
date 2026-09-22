@@ -426,6 +426,45 @@ out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·
        "arms": ARMS, "scored": len(scorable), "total": len(rows),
        "metrics": report, "cost": cost_report, "rows": rows}
 OUT_NAME = "last-compare-dryrun.json" if DRY else "last-compare.json"
+
+
+def merge_with_existing(fresh: dict, name: str) -> dict:
+    """
+    arm 일부만 돌렸을 때 나머지 arm 의 결과를 지우지 않는다.
+
+    `--arms llm_naive,code` 로 돌리면 llm_only·llm_with_facts 결과가 사라졌다.
+    그것도 돈과 시간을 들여 얻은 값이다. 같은 데이터 스냅샷·같은 모델이면
+    기존 기록에 새 arm 을 얹는다.
+    """
+    prev_path = HERE / name
+    if not prev_path.exists():
+        return fresh
+    try:
+        prev = json.loads(prev_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return fresh
+    if prev.get("facts_snapshot") != fresh["facts_snapshot"] or prev.get("model") != MODEL:
+        return fresh  # 전제가 다르면 섞으면 안 된다
+
+    kept = [a for a in (prev.get("arms") or []) if a not in ARMS]
+    if not kept:
+        return fresh
+    by_id = {r["id"]: r for r in (prev.get("rows") or [])}
+    for row in fresh["rows"]:
+        for arm in kept:
+            old_arm = (by_id.get(row["id"], {}).get("arms") or {}).get(arm)
+            if old_arm is not None:
+                row["arms"][arm] = old_arm
+    fresh["arms"] = kept + fresh["arms"]
+    for key in ("metrics", "cost"):
+        fresh[key] = {**{a: v for a, v in (prev.get(key) or {}).items() if a in kept},
+                      **fresh[key]}
+    print(f"\n  이전 기록의 arm {', '.join(kept)} 을 유지했다")
+    return fresh
+
+
+if not DRY:
+    out = merge_with_existing(out, OUT_NAME)
 if not save(out, OUT_NAME):
     # 여기까지 온 실행은 돈과 시간을 이미 썼다. 화면에라도 남긴다.
     print("\n  파일 저장에 실패했으므로 결과를 아래에 그대로 출력한다.\n")
