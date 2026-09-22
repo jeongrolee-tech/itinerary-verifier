@@ -72,6 +72,10 @@ def build_graph(lines: dict[str, list[tuple[str, int]]]):
     환승 이동시간을 모르기 때문이다. 0 은 "공짜"가 아니라 "미확인"이라는 뜻이고,
     그래서 결과가 하한선이 된다.
     """
+    # ⭐ 환승 비용 0 은 "환승이 공짜" 라는 주장이 아니다. "모른다" 는 표시다.
+    #    모르는 값에 아무 숫자(예: 5분)를 넣으면 그 숫자가 판정을 만들어낸다.
+    #    0 을 넣으면 결과가 항상 실제보다 작아지므로 **하한선** 이 보장된다.
+    #    하한선은 한 방향으로만 쓸 수 있다 → verdict.py 의 하한선 비대칭 참조.
     graph: dict[tuple[str, str], list[tuple[tuple[str, str], int, str]]] = defaultdict(list)
     by_station: dict[str, list[tuple[str, str]]] = defaultdict(list)
 

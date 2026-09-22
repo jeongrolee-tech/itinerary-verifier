@@ -28,7 +28,14 @@ class Stop(BaseModel):
     start_source: Source = Field(
         description="explicit=시각이 적혀 있음 / inferred='점심 먹고' 처럼 문맥에서 추정 / missing=없음"
     )
+    # ⭐ int 가 아니라 int | None 인 것이 핵심이다.
+    #    "광장시장에서 저녁" 에 60분을 넣어버리면, 나중에 그 60분이 사용자가
+    #    말한 값인지 우리가 채운 값인지 구분할 수 없다. 없으면 null 로 둔다.
+    #    기본값을 채우는 일은 판정 단계(verdict.py)의 정책이다.
     dwell_minutes: int | None = Field(description="체류시간(분). 입력에 없으면 null. 임의로 채우지 않는다")
+    # ⭐ "장소를 찾은 것" 과 "그 활동을 검증한 것" 은 다르다.
+    #    "명동에서 쇼핑" 을 임의로 특정 상점에 연결하면, 그 상점의 운영시간으로
+    #    판정해놓고 사용자가 갈 곳은 다른 데가 된다. 구역은 area 로 남긴다.
     scope: Literal["place", "area"] = Field(
         description="place=특정 시설이나 점포 / area='명동', '북촌' 처럼 구역만 지목한 경우"
     )
@@ -55,6 +62,10 @@ class Extraction(BaseModel):
     notes: list[str] = Field(description="옮기면서 애매했던 점. 없으면 빈 배열")
 
 
+# ⭐ LLM 에게 판정을 시키지 않는다. 옮겨 적는 일만 시킨다.
+#    LLM 은 자연어를 구조로 바꾸는 데 강하지만, 규칙을 일관되게 적용하는 데는
+#    약하다. 비교 실험에서 같은 정책 문서를 주고도 규칙 하나를 건너뛰었다.
+#    그래서 경계를 이렇게 둔다 — 추출은 LLM, 근거 충분성 판단과 판정은 코드.
 SYSTEM = """너는 여행 일정 텍스트를 구조화하는 추출기다. 판정은 하지 않는다.
 
 지켜야 할 것:

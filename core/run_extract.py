@@ -195,6 +195,8 @@ if lat:
 print(f"  모델 {MODEL} / effort {EFFORT}")
 
 run = {
+    "_역할": "추출 실행 기록. 자연어에서 무엇을 뽑았는지, 기대 추출값과 어디가 "
+            "달랐는지, 모델·비용·지연을 남긴다. run_extract.py 가 덮어쓴다.",
     "run_id": f"extract-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
     "ran_at": datetime.now(timezone.utc).isoformat(),
     "model": MODEL,

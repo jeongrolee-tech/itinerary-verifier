@@ -95,6 +95,11 @@ def build_models():
 
 
 # ── 프롬프트 ────────────────────────────────────────────────────────
+# ⭐ 비교 실험을 설계할 때 제일 쉽게 틀리는 지점이다.
+#    1차 실험에서 arm1 이 15건 전부 undetermined 였다. "LLM 도 보류를 잘 하네"
+#    라고 읽을 뻔했는데, 사실은 내가 프롬프트에 "추측하지 말고 unknown 으로
+#    둬라" 고 **지시**했기 때문이었다. 지시를 따른 결과는 발견이 아니다.
+#
 # 정의와 지시를 분리해 둔다.
 #
 # STATES 는 **라벨의 정의**다. 이게 없으면 모델이 unknown 이라는 선택지가
@@ -170,6 +175,9 @@ def facts_for_llm() -> dict:
     케이스별로 부분집합을 주면 arm 2 만 정보가 줄어들어, 차이가 판정 방식 때문인지
     정보량 때문인지 다시 구분할 수 없게 된다. 그래서 전체를 준다.
     """
+    # ⭐ 실제로 이 버그를 한 번 냈다. arm2 에는 케이스별 부분집합을, arm3 에는
+    #    전체 facts 를 주고 있었다. 그러면 arm2 가 못 맞힌 게 판정 능력 때문인지
+    #    정보가 적어서인지 알 수 없다. 비교 실험은 **바꾸는 변수 하나만** 달라야 한다.
     return {k: v for k, v in facts.items() if k != "snapshot_history"}
 
 
@@ -197,6 +205,11 @@ def metrics(scored: list[dict]) -> dict:
     모든 일정을 미확인으로 처리하면 잘못된 확신은 줄지만 사용자가 얻는 결과도 없어지므로,
     얼마나 맞혔는지와 함께 **얼마나 많은 요청에 유효한 판단을 제공했는지**도 본다.
     """
+    # ⭐ 정확도 하나만 보면 안 되는 이유:
+    #    모든 일정을 undetermined 로 내는 검증기는 "틀린 확신" 이 0 이다.
+    #    누출 0, 오탐 0 — 지표가 완벽해 보이는데 사용자는 아무 답도 못 받는다.
+    #    그래서 decisive_rate(유효 판단 제공 비율)를 같이 본다. 이 둘의
+    #    트레이드오프가 실제로 arm2(0.857) vs code(0.714) 에서 드러났다.
     n = len(scored)
     if not n:
         return {"n": 0}
@@ -406,7 +419,9 @@ for arm, us in usage_total.items():
     print(f"\n  {arm}: {len(us)}건  ${cost:.4f}  건당 ${cost / len(us):.4f}  "
           f"지연 중앙값 {lat[len(lat) // 2]}ms")
 
-out = {"run_id": RUN_ID, "ran_at": datetime.now(timezone.utc).isoformat(),
+out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·지연을 남긴다. "
+                "compare.py 가 덮어쓴다.",
+       "run_id": RUN_ID, "ran_at": datetime.now(timezone.utc).isoformat(),
        "facts_snapshot": facts["snapshot_id"], "model": MODEL, "effort": EFFORT,
        "arms": ARMS, "scored": len(scorable), "total": len(rows),
        "metrics": report, "cost": cost_report, "rows": rows}

@@ -12,6 +12,12 @@ from __future__ import annotations
 from datetime import date as Date, timedelta
 from typing import Any
 
+# ⭐ 이 프로젝트의 출발점. 검사 결과를 true/false 두 개로 두지 않는다.
+#    "오류를 못 찾았다" 와 "문제가 없다" 는 다르기 때문이다.
+#      pass   근거를 확보했고 조건을 만족했다
+#      fail   확보한 근거에서 위반이 확인됐다
+#      unknown        검사가 필요한데 끝내지 못했다   ← 이게 없으면 서비스가 거짓말을 한다
+#      not_applicable 검사 자체가 성립하지 않는다     ← 불필요한 것과 못 끝낸 것을 섞지 않는다
 PASS, FAIL, UNKNOWN, NA = "pass", "fail", "unknown", "not_applicable"
 
 # date.weekday() 는 월요일이 0
@@ -45,6 +51,9 @@ def is_last_wednesday(iso: str) -> bool:
 
 def evidence_usable_on(ev: dict | None, visit_date: str) -> bool:
     """오늘 조회했다는 사실만으로 다음 달 방문일에 쓸 수 있는 정보가 되지는 않는다."""
+    # ⭐ 근거에는 '언제 조회했나' 만이 아니라 '언제까지 쓸 수 있나' 가 필요하다.
+    #    2026-09-21 에 확인한 운영시간으로 2027-03-01 방문일을 판정할 수는 없다.
+    #    Google Places 응답에는 이 개념이 아예 없다 (docs/data-policy.md 참조).
     if not ev:
         return False
     if ev.get("valid_from") and visit_date < ev["valid_from"]:
@@ -71,6 +80,10 @@ def closed_date_for(visit_date: str, cd: dict, holidays: dict) -> str | None:
       shift_to_next_nonholiday : 정기휴일이 공휴일이면 개방하고, 다음 첫 비공휴일이 휴일이 된다 (궁궐)
       open_if_holiday_no_shift : 정기휴일이 공휴일이면 개방하고, 밀지 않는다 (미술관)
     """
+    # ⭐ "월요일이면 휴관" 같은 규칙을 코드에 박으면 안 된다.
+    #    2026-10-06 은 궁궐은 휴궁이고 미술관은 개관이다. 규칙이 기관마다 다르다.
+    #    그래서 규칙 이름을 facts 에 두고 코드는 그것을 읽어 분기한다.
+    #    골든 테스트 T05 와 T06 이 같은 날짜로 정답이 반대인 이유가 이것이다.
     target = WEEKDAYS.index(cd["weekly"][0])
     cur = Date.fromisoformat(visit_date).weekday()
     base = shift_date(visit_date, -((cur - target) % 7))  # 가장 가까운 과거(또는 당일) 정기휴일
@@ -139,8 +152,9 @@ def hours_for(place: dict | None, visit_date: str, holidays: dict) -> dict | Non
     def month_ok(h):
         return not h.get("months") or month in h["months"]
 
-    # 공휴일 전용 시간표가 있으면 요일보다 우선한다.
-    # 공휴일이 평일이어도 주말·공휴일 시간표를 따르는 기관이 있다.
+    # ⭐ 공휴일 시간표가 요일 시간표보다 우선한다. 순서가 뒤바뀌면 틀린다.
+    #    2026-10-09 한글날은 '금요일' 이지만 공휴일이라 19시에 닫는다.
+    #    요일만 보면 금요일 시간표(21시)를 골라 18:30 입장을 통과시킨다 → 골든 테스트 T15
     if is_holiday:
         for h in place["hours"]:
             if h.get("holiday") and month_ok(h):
@@ -161,8 +175,10 @@ def check_admission(name, place, visit_date, start, closed_status, holidays) -> 
 
     adm = (place or {}).get("admission") or {}
 
-    # 상시 개방이면 운영시간 개념이 없어 검사가 성립하지 않는다.
-    # 다만 그건 상시 개방임을 **확인했을 때** 얘기다. 확인 전에는 미확인이다.
+    # ⭐ not_applicable 도 근거가 필요하다.
+    #    청계천을 "상시 개방이라 검사 불필요" 로 두고 싶지만, 그걸 공식 출처에서
+    #    확인하지 않았다면 그것도 추측이다. 확인 전에는 unknown 이다.
+    #    검사가 불필요하다는 주장조차 근거 없이 하지 않는다는 뜻이다.
     if adm.get("type") == "always_open":
         if adm.get("verified"):
             return check("ADMISSION_NOT_POSSIBLE", name, NA,
@@ -175,8 +191,11 @@ def check_admission(name, place, visit_date, start, closed_status, holidays) -> 
                                     "상시 개방으로 알려져 있으나 공식 근거를 확보하지 않았다"),
                      how_to_resolve={"system": "관리 주체의 공식 안내에서 상시 개방 여부 확인"})
 
-    # 회차 입장은 연속 운영시간 구간으로 표현할 수 없다.
-    # 정보를 확보했는데도 검사를 끝낼 수 없는 경우다 — 정보 부족과 구분해서 적는다.
+    # ⭐ 같은 unknown 이라도 이유가 다르면 따로 적는다.
+    #      NO_OPERATING_HOURS_DATA     정보를 못 구했다        → 데이터를 확보하면 해결
+    #      UNSUPPORTED_ADMISSION_TYPE  정보는 구했는데 검사가 없다 → 코드를 고쳐야 해결
+    #    종묘 평일은 회차 입장(09:20, 10:20 … 16:20)이라 연속 구간으로 못 적는다.
+    #    연속 구간처럼 적으면 16:20 과 16:40 사이 도착을 통과시켜 버린다.
     if adm.get("type") == "timed_entry":
         general_day = (visit_date in holidays["dates"]) or is_last_wednesday(visit_date)
         if weekday_of(visit_date) in adm.get("timed_weekdays", []) and not general_day:
@@ -229,6 +248,11 @@ def check_dwell(name, place, visit_date, start, dwell, admission_status, policy,
         return check("DWELL_NOT_COMPLETABLE", name, NA,
                      reason="입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다")
 
+    # ⭐ 이 프로젝트가 비교 실험에서 이긴 지점이다 (docs 및 last-compare.json 참조).
+    #    "16:30 에 경복궁" — 입장마감 17:00 전이라 들어갈 수는 있다. 그런데 몇 시간
+    #    볼 건지 사용자가 말하지 않았다. 기본값 90분을 넣으면 18:00 폐장을 넘는다.
+    #    우리가 정한 값으로 사용자 일정의 오류를 만들어내면 안 되므로 판단하지 않는다.
+    #    같은 데이터를 준 LLM 은 이 규칙을 문서로 받고도 feasible 을 냈다 (T08).
     if policy["require_user_dwell_for_completion_check"] and dwell["source"] != "user_stated":
         return check("DWELL_NOT_COMPLETABLE", name, UNKNOWN,
                      unknown_reason="NO_USER_DWELL",
@@ -266,7 +290,9 @@ def check_travel(frm, to, facts, policy, closed_statuses) -> dict:
                      detail="이 구간 이동시간을 확보하지 못했다",
                      how_to_resolve={"system": "도보 구간이면 TMAP, 대중교통이면 Routes API 호출"})
 
-    # 근사값은 참고용이다. 근사값이 여유시간보다 짧다는 이유만으로 통과시키지 않는다.
+    # ⭐ 근사값으로 pass 를 내지 않는다.
+    #    직선거리로 "3분이면 가니까 여유 10분은 충분" 은 실제 보행 경로·출입구·
+    #    우회를 반영하지 않은 계산이다. 참고 안내로만 쓰고 판정은 보류한다.
     if leg.get("method") == "haversine_estimate":
         return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
                      unknown_reason="ESTIMATE_ONLY",
@@ -291,8 +317,11 @@ def check_travel(frm, to, facts, policy, closed_statuses) -> dict:
         "excluded_from_travel_time": leg.get("excluded"),
     }
 
-    # 기본값으로 계산한 결과를 사용자 일정의 확정적인 오류처럼 보여주면 안 된다.
-    # 가정을 흔들어서 판정이 뒤집히면 확정하지 않는다.
+    # ⭐ 가정을 흔들어 보고, 판정이 뒤집히면 확정하지 않는다 (민감도 검사).
+    #    경복궁 체류를 90분으로 가정했을 때 "늦는다" 가 나왔다고 치자.
+    #    45분이면 도착하고 135분이면 못 도착한다면, 그 오류는 사용자 일정의
+    #    오류가 아니라 **우리가 정한 기본값이 만든 오류**다.
+    #    ±50% 범위에서 결과가 갈리면 unknown 을 내고 사용자에게 물어본다 → T12
     if frm["dwell"]["source"] != "user_stated":
         r = policy["dwell_uncertainty_ratio"]
         if ok_at(round(base * (1 - r))) != ok_at(round(base * (1 + r))):
@@ -305,8 +334,14 @@ def check_travel(frm, to, facts, policy, closed_statuses) -> dict:
                          reference=evidence)
         evidence["depends_on_assumptions"] = [frm["dwell"].get("assumption_id")]
 
-    # 하한선의 비대칭: 하한선으로 도착한다는 것은 실제로 도착한다는 뜻이 아니다.
-    # 반대로 하한선으로도 못 가면 빠진 값을 더해도 못 가므로 fail 은 확정된다.
+    # ⭐ 하한선의 비대칭 — 한 방향으로만 확정할 수 있다.
+    #    지금 이동시간은 지하철 주행시간뿐이고 도보·환승·대기가 빠져 있다.
+    #    실제 이동시간의 15~27% 밖에 안 된다.
+    #
+    #      하한선으로도 늦는다  → fail 확정   빠진 값을 더하면 더 늦어질 뿐이다
+    #      하한선으로는 도착한다 → unknown    나머지를 모르니 확정할 수 없다
+    #
+    #    이게 "확보한 만큼만 말한다" 를 산수로 옮긴 것이다.
     if ok_at(base):
         if leg.get("is_lower_bound"):
             missing = ", ".join(leg.get("excluded") or ["미확인 구성요소"])
@@ -337,6 +372,11 @@ def evaluate_hard_constraint(hc, stops, facts, policy) -> dict:
     불가능을 확정할 수 없고, 출발 전에 도착한다는 이유만으로 탑승 가능을
     보장할 수도 없다.
     """
+    # ⭐ 사용자가 말한 사실과 우리가 정한 기준을 같은 자리에 섞지 않는다.
+    #    event  = "20:30 에 KTX 가 떠난다"      사용자가 말한 것. 그대로 보존한다
+    #    policy = "15분 전에 도착하는 게 좋다"   우리가 정한 것. 사실이 아니다
+    #    이걸 합쳐서 "20:30 서울역 도착" 을 사용자 조건으로 저장하면, 나중에
+    #    무엇이 사용자 요구였는지 알 수 없게 된다.
     event = {"type": hc["type"], "place": hc["place"], "time": hc["time"],
              "source": hc.get("source", "user_stated"), "raw": hc.get("raw")}
     result = {"id": hc["id"], "event": event}
@@ -350,8 +390,12 @@ def evaluate_hard_constraint(hc, stops, facts, policy) -> dict:
         "buffer_minutes": buffer,
         "buffer_source": "system_default",
         "required_arrival": to_hhmm(required),
-        # 실패 시 영향이 큰 문제인지와, 현재 정보로 확정할 수 있는지는 별개다.
-        # 정보가 부족하다고 해서 severity 를 낮추지 않는다.
+        # ⭐ status 와 severity 는 서로 다른 질문이다. 섞으면 위험한 문제가 숨는다.
+        #      status   지금 정보로 확정할 수 있나   pass / fail / unknown / n.a.
+        #      severity 실패하면 타격이 큰가        blocking / warning
+        #    KTX 를 놓치는 건 정보가 부족해도 여전히 치명적이다. 그래서
+        #    unknown 이라고 severity 를 낮추지 않는다. 낮추면 "중요도 낮음" 으로
+        #    보여서 사용자가 확인을 건너뛴다.
         "severity": "blocking",
     }
 
@@ -431,6 +475,10 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     stops = []
     for i, s in enumerate(itinerary["stops"]):
         place = facts["places"].get(s["place"])
+        # ⭐ 기본값을 쓰는 것 자체는 문제가 아니다. 쓴 것을 숨기는 게 문제다.
+        #    source 로 user_stated / system_default 를 구분하고, 기본값을 쓸 때마다
+        #    assumptions 에 '무슨 값을, 어떤 규칙으로, 왜' 넣었는지와 사용자에게
+        #    물어볼 질문까지 남긴다. 그래야 판정 이유를 되짚을 수 있다.
         if s.get("dwell_minutes") is not None:
             dwell = {"value": s["dwell_minutes"], "source": "user_stated"}
         else:
@@ -471,13 +519,19 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     hard = [evaluate_hard_constraint(hc, stops, facts, policy)
             for hc in itinerary.get("hard_constraints", [])]
 
-    # 전체 판정: 확인된 위반이 있으면 위반, 위반은 없지만 미확인이 있으면 보류,
-    # 필요한 검사가 모두 통과한 경우에만 통과.
+    # ⭐ 전체 판정은 '가장 나쁜 상태' 순서로 정한다. 다수결이 아니다.
+    #    fail 이 하나라도 있으면 infeasible, 없어도 unknown 이 하나 있으면
+    #    undetermined. 모든 검사가 통과해야만 feasible 이다.
+    #    unknown 을 무시하고 "대부분 통과했으니 feasible" 을 내는 순간
+    #    이 검증기는 확인하지 않은 것을 확인했다고 말하는 서비스가 된다.
     statuses = [c["status"] for c in checks] + [h["policy"]["status"] for h in hard]
     counts = {s: statuses.count(s) for s in (PASS, FAIL, UNKNOWN, NA)}
     verdict = ("infeasible" if counts[FAIL] else
                "undetermined" if counts[UNKNOWN] else "feasible")
 
+    # ⭐ 사용자에게 "실행 가능한 일정입니다" 라고 말하지 않는다.
+    #    예약·날씨·혼잡도는 검사 범위 밖이므로 그건 보장할 수 없는 말이다.
+    #    확인한 범위를 문장에 그대로 담는다.
     message = {
         "feasible": "확인한 정보와 검사 범위 내에서 위반이 발견되지 않았습니다",
         "infeasible": "확인한 정보에서 실행할 수 없는 부분이 발견되었습니다",

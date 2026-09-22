@@ -52,6 +52,10 @@ def stale_reason(case: dict) -> str | None:
     판정 결과를 보고 판단하지 않는다는 점이 중요하다. 케이스의 stops 와 changed_keys 의
     교집합만 본다 — 코드가 무엇을 냈는지는 쓰지 않는다.
     """
+    # ⭐ 여기서 out["summary"]["verdict"] 를 쓰고 싶어지는데, 쓰면 순환 논리가 된다.
+    #    "코드 출력이 라벨과 다르면 라벨이 낡은 것" 으로 판단하면, 코드에 진짜
+    #    버그가 있을 때도 "라벨이 낡았네" 로 넘어가 버려 버그를 영원히 못 잡는다.
+    #    그래서 데이터끼리만(케이스의 장소 목록 ↔ 바뀐 키 목록) 비교한다.
     if case.get("label_review_needed"):
         return case["label_review_needed"]
     if case.get("labeled_against", LABEL_SNAPSHOT) == FACTS_SNAPSHOT:
@@ -191,8 +195,10 @@ if not json_only:
         hit = sum(1 for r in sub if r["match"])
         print(f"\n  {name:<9} {hit}/{len(sub)} 일치" if sub else f"\n  {name:<9} 채점 대상 없음")
 
-    # 가장 치명적인 오분류: 미확인이어야 하는데 통과로 낸 경우.
-    # 라벨 미검토 케이스를 여기 넣으면 거짓 경보가 난다 — 분모에서 뺀다.
+    # ⭐ 이 프로젝트의 게이트 지표. 0 이 아니면 나머지 숫자는 볼 필요가 없다.
+    #    정확도가 높아도 "확인 못 한 일정을 통과시켰다" 가 한 건 있으면
+    #    검증 서비스로서는 실패다. 그래서 정확도와 따로 세고 따로 보여준다.
+    #    라벨 미검토 케이스를 분모에 넣으면 거짓 경보가 나므로 제외한다.
     leaked = [r for r in scored
               if r["expect"] == "undetermined" and r["summary"]["verdict"] == "feasible"]
     print(f"\n  미확인을 통과로 낸 건수: {len(leaked)} / 채점 {len(scored)}건"
@@ -206,6 +212,9 @@ if not json_only:
         print("    → docs/label-review-260922.md 워크시트를 채운 뒤 labeled_against 를 갱신한다")
 
 run = {
+    "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·"
+            "검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 "
+            "run.py 가 덮어쓴다.",
     "run_id": f"run-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
     "version": VERSION,
     "ran_at": datetime.now(timezone.utc).isoformat(),
