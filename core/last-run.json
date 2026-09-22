@@ -1,7 +1,7 @@
 {
-  "run_id": "run-20260922-101351",
+  "run_id": "run-20260922-115855",
   "version": "core-0.2",
-  "ran_at": "2026-09-22T01:13:51.622052+00:00",
+  "ran_at": "2026-09-22T02:58:55.253737+00:00",
   "facts_snapshot": "facts-2026-09-21",
   "holidays_verified": true,
   "labeled_at": "2026-09-21",
@@ -1047,20 +1047,23 @@
       "id": "T10-운영시간미확보",
       "set": "dev",
       "expect": "undetermined",
-      "match": true,
-      "problems": [],
+      "match": false,
+      "problems": [
+        "verdict 기대 undetermined → 실제 feasible",
+        "ADMISSION_NOT_POSSIBLE / 창덕궁 기대 unknown → 실제 pass"
+      ],
       "elapsed_ms": 0.0,
       "date": "2026-10-08",
       "weekday": "THU",
       "is_holiday": false,
       "summary": {
-        "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 1개 항목을 확인하지 못했습니다",
+        "verdict": "feasible",
+        "message": "확인한 정보와 검사 범위 내에서 위반이 발견되지 않았습니다",
         "counts": {
-          "pass": 1,
+          "pass": 3,
           "fail": 0,
-          "unknown": 1,
-          "not_applicable": 2
+          "unknown": 0,
+          "not_applicable": 1
         }
       },
       "assumptions": [],
@@ -1086,18 +1089,31 @@
         {
           "type": "ADMISSION_NOT_POSSIBLE",
           "target": "창덕궁",
-          "status": "unknown",
+          "status": "pass",
           "severity": null,
-          "unknown_reason": "NO_OPERATING_HOURS_DATA",
-          "detail": "관람시간을 공식 페이지에서 확보하지 못했다. 정기휴일만 확인됨.",
+          "evidence": {
+            "open": "09:00",
+            "close": "18:00",
+            "last_admission": "17:00",
+            "planned_time": "14:00",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-22",
+            "valid_until": "2026-12-31"
+          },
           "id": "chk-002"
         },
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "창덕궁",
-          "status": "not_applicable",
+          "status": "pass",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "evidence": {
+            "dwell_minutes": 90,
+            "dwell_source": "user_stated",
+            "end_time": "15:30",
+            "closing_time": "18:00"
+          },
           "id": "chk-003"
         },
         {
@@ -1261,7 +1277,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "date": "2026-10-08",
       "weekday": "THU",
       "is_holiday": false,
@@ -1424,19 +1440,21 @@
       "id": "T13-장소미등록",
       "set": "dev",
       "expect": "undetermined",
-      "match": true,
-      "problems": [],
+      "match": false,
+      "problems": [
+        "CLOSED_DAY / 종묘 기대 unknown → 실제 pass"
+      ],
       "elapsed_ms": 0.0,
       "date": "2026-10-08",
       "weekday": "THU",
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 1개 항목을 확인하지 못했습니다",
         "counts": {
-          "pass": 0,
+          "pass": 1,
           "fail": 0,
-          "unknown": 2,
+          "unknown": 1,
           "not_applicable": 2
         }
       },
@@ -1445,10 +1463,19 @@
         {
           "type": "CLOSED_DAY",
           "target": "종묘",
-          "status": "unknown",
+          "status": "pass",
           "severity": null,
-          "unknown_reason": "PLACE_NOT_RESOLVED",
-          "detail": "장소를 특정하지 못했다",
+          "evidence": {
+            "weekly": [
+              "TUE"
+            ],
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-10-06",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-22",
+            "valid_until": "2026-12-31"
+          },
           "id": "chk-001"
         },
         {
@@ -1456,8 +1483,42 @@
           "target": "종묘",
           "status": "unknown",
           "severity": null,
-          "unknown_reason": "NO_OPERATING_HOURS_DATA",
-          "detail": "해당 날짜의 운영시간을 확보하지 못했다",
+          "unknown_reason": "UNSUPPORTED_ADMISSION_TYPE",
+          "detail": "회차 입장은 연속 운영시간 구간으로 표현할 수 없다. 16:20 회차와 16:40 회차 사이 도착은 입장 불가인데 현재 검사는 그것을 판별하지 못한다",
+          "evidence": {
+            "admission_type": "timed_entry",
+            "entry_times": {
+              "10-2": [
+                "09:20",
+                "10:20",
+                "11:20",
+                "12:20",
+                "13:20",
+                "14:20",
+                "15:20",
+                "16:20"
+              ],
+              "3-9": [
+                "09:20",
+                "10:20",
+                "11:20",
+                "12:20",
+                "13:20",
+                "14:20",
+                "15:20",
+                "16:20",
+                "16:40"
+              ]
+            },
+            "dwell_fixed_minutes": 50,
+            "rule_text": "월,수,목,금 * 정해진 시간에 입장 후 해설사와 함께 50분 정도 관람 / 일반관람 불가",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-22"
+          },
+          "how_to_resolve": {
+            "system": "회차 입장 검사 구현 — 도착 시각이 어느 회차에 들어가는지와 고정 체류 50분을 함께 본다"
+          },
           "id": "chk-002"
         },
         {

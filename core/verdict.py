@@ -37,6 +37,12 @@ def shift_date(iso: str, days: int) -> str:
     return (Date.fromisoformat(iso) + timedelta(days=days)).isoformat()
 
 
+def is_last_wednesday(iso: str) -> bool:
+    """문화가 있는 날 — 매달 마지막 수요일. 이 날은 종묘가 일반관람으로 열린다."""
+    d = Date.fromisoformat(iso)
+    return d.weekday() == 2 and (d + timedelta(days=7)).month != d.month
+
+
 def evidence_usable_on(ev: dict | None, visit_date: str) -> bool:
     """오늘 조회했다는 사실만으로 다음 달 방문일에 쓸 수 있는 정보가 되지는 않는다."""
     if not ev:
@@ -152,6 +158,40 @@ def check_admission(name, place, visit_date, start, closed_status, holidays) -> 
     if closed_status == FAIL:
         return check("ADMISSION_NOT_POSSIBLE", name, NA,
                      reason="휴무일로 확정되어 운영시간 검사가 성립하지 않는다")
+
+    adm = (place or {}).get("admission") or {}
+
+    # 상시 개방이면 운영시간 개념이 없어 검사가 성립하지 않는다.
+    # 다만 그건 상시 개방임을 **확인했을 때** 얘기다. 확인 전에는 미확인이다.
+    if adm.get("type") == "always_open":
+        if adm.get("verified"):
+            return check("ADMISSION_NOT_POSSIBLE", name, NA,
+                         reason="상시 개방이라 운영시간 개념이 없다",
+                         evidence={"source": adm.get("source"), "url": adm.get("url"),
+                                   "checked_at": adm.get("checked_at")})
+        return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
+                     unknown_reason="UNVERIFIED_ALWAYS_OPEN",
+                     detail=adm.get("unverified_note",
+                                    "상시 개방으로 알려져 있으나 공식 근거를 확보하지 않았다"),
+                     how_to_resolve={"system": "관리 주체의 공식 안내에서 상시 개방 여부 확인"})
+
+    # 회차 입장은 연속 운영시간 구간으로 표현할 수 없다.
+    # 정보를 확보했는데도 검사를 끝낼 수 없는 경우다 — 정보 부족과 구분해서 적는다.
+    if adm.get("type") == "timed_entry":
+        general_day = (visit_date in holidays["dates"]) or is_last_wednesday(visit_date)
+        if weekday_of(visit_date) in adm.get("timed_weekdays", []) and not general_day:
+            return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
+                         unknown_reason="UNSUPPORTED_ADMISSION_TYPE",
+                         detail=adm.get("unsupported_note",
+                                        "회차 입장 검사가 구현되지 않았다"),
+                         evidence={"admission_type": "timed_entry",
+                                   "entry_times": adm.get("entry_times_ko"),
+                                   "dwell_fixed_minutes": adm.get("dwell_fixed_minutes"),
+                                   "rule_text": adm.get("rule_text"),
+                                   "source": adm.get("source"), "url": adm.get("url"),
+                                   "checked_at": adm.get("checked_at")},
+                         how_to_resolve={"system": "회차 입장 검사 구현 — 도착 시각이 어느 회차에 "
+                                                   "들어가는지와 고정 체류 50분을 함께 본다"})
 
     h = hours_for(place, visit_date, holidays)
     if h is None:

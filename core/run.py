@@ -68,7 +68,8 @@ def detail(case, out, problems):
             print(f"      → {c['reason']}")
         ev = c.get("evidence") or {}
         if ev.get("url"):
-            print(f"      근거 {ev['source']} {ev['url']} (확인 {ev['checked_at']}, 유효 ~{ev['valid_until']})")
+            span = f", 유효 ~{ev['valid_until']}" if ev.get("valid_until") else ""
+            print(f"      근거 {ev.get('source')} {ev['url']} (확인 {ev.get('checked_at')}{span})")
         elif ev.get("snapshot_id"):
             print(f"      근거 {ev['source']} {ev['method']} snapshot={ev['snapshot_id']}")
         for who, what in (c.get("how_to_resolve") or {}).items():

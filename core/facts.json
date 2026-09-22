@@ -245,8 +245,57 @@
         "rule_scope": "정기휴일 표 전체 아래에 붙은 ※ 문구다. 월요일 그룹(창덕궁·덕수궁·창경궁·조선왕릉·숭례문)과 화요일 그룹(경복궁·종묘·칠궁) 양쪽에 적용된다.",
         "verified_by": "공식 페이지 화면 확인 (2026-09-21)"
       },
-      "hours": null,
-      "missing_note": "관람시간을 공식 페이지에서 확보하지 못했다. 정기휴일만 확인됨."
+      "hours": [
+        {
+          "source": "curated",
+          "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+          "checked_at": "2026-09-22",
+          "valid_until": "2026-12-31",
+          "verified_by": "공식 페이지 「일반관람시간」 표 확인 (2026-09-22)",
+          "months": [
+            2,
+            3,
+            4,
+            5,
+            9,
+            10
+          ],
+          "open": "09:00",
+          "close": "18:00",
+          "last_admission": "17:00"
+        },
+        {
+          "source": "curated",
+          "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+          "checked_at": "2026-09-22",
+          "valid_until": "2026-12-31",
+          "verified_by": "공식 페이지 「일반관람시간」 표 확인 (2026-09-22)",
+          "months": [
+            6,
+            7,
+            8
+          ],
+          "open": "09:00",
+          "close": "18:30",
+          "last_admission": "17:30"
+        },
+        {
+          "source": "curated",
+          "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+          "checked_at": "2026-09-22",
+          "valid_until": "2026-12-31",
+          "verified_by": "공식 페이지 「일반관람시간」 표 확인 (2026-09-22)",
+          "months": [
+            11,
+            12,
+            1
+          ],
+          "open": "09:00",
+          "close": "17:30",
+          "last_admission": "16:30"
+        }
+      ],
+      "hours_note": "후원은 입장시간·정원이 정해진 제한관람이라 이 시간표가 적용되지 않는다. 별도 검사 미구현"
     },
     "덕수궁": {
       "type": "palace",
@@ -270,8 +319,211 @@
         "rule_scope": "정기휴일 표 전체 아래에 붙은 ※ 문구다. 월요일 그룹(창덕궁·덕수궁·창경궁·조선왕릉·숭례문)과 화요일 그룹(경복궁·종묘·칠궁) 양쪽에 적용된다.",
         "verified_by": "공식 페이지 화면 확인 (2026-09-21)"
       },
+      "hours": [
+        {
+          "source": "curated",
+          "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+          "checked_at": "2026-09-22",
+          "valid_until": "2026-12-31",
+          "verified_by": "공식 페이지 「일반관람시간」 표 확인 (2026-09-22)",
+          "months": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "open": "09:00",
+          "close": "21:00",
+          "last_admission": "20:00",
+          "rule_text": "09:00~21:00 (입장마감 20:00) 야간상시"
+        }
+      ],
+      "hours_note": "경내 기준. 석조전·돈덕전·중명전은 전시관으로 시간표가 다르고 일부는 사전예약제다. '덕수궁 관람'과 '전시관 관람'은 다른 대상"
+    },
+    "종묘": {
+      "type": "palace",
+      "resolved": true,
+      "entrance": {
+        "lat": 37.5748,
+        "lng": 126.9938,
+        "note": "외대문 기준. 좌표는 미검증"
+      },
+      "closed_days": {
+        "weekly": [
+          "TUE"
+        ],
+        "exception_rule": "shift_to_next_nonholiday",
+        "rule_text": "정기휴일이 공휴일 및 대체공휴일과 겹칠 경우에는 개방하며, 그 다음의 첫 번째 비공휴일이 정기휴일임",
+        "rule_scope": "정기휴일 표 전체 아래 ※ 문구. 화요일 그룹(경복궁·종묘·칠궁)에 적용",
+        "source": "curated",
+        "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+        "checked_at": "2026-09-22",
+        "valid_until": "2026-12-31",
+        "verified_by": "공식 페이지 「일반관람시간」 표 확인 (2026-09-22)"
+      },
+      "hours": [
+        {
+          "source": "curated",
+          "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+          "checked_at": "2026-09-22",
+          "valid_until": "2026-12-31",
+          "verified_by": "공식 페이지 「일반관람시간」 표 확인 (2026-09-22)",
+          "weekdays": [
+            "SAT",
+            "SUN"
+          ],
+          "holiday": true,
+          "months": [
+            2,
+            3,
+            4,
+            5,
+            9,
+            10
+          ],
+          "open": "09:00",
+          "close": "18:00",
+          "last_admission": "17:00"
+        },
+        {
+          "source": "curated",
+          "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+          "checked_at": "2026-09-22",
+          "valid_until": "2026-12-31",
+          "verified_by": "공식 페이지 「일반관람시간」 표 확인 (2026-09-22)",
+          "weekdays": [
+            "SAT",
+            "SUN"
+          ],
+          "holiday": true,
+          "months": [
+            6,
+            7,
+            8
+          ],
+          "open": "09:00",
+          "close": "18:30",
+          "last_admission": "17:30"
+        },
+        {
+          "source": "curated",
+          "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+          "checked_at": "2026-09-22",
+          "valid_until": "2026-12-31",
+          "verified_by": "공식 페이지 「일반관람시간」 표 확인 (2026-09-22)",
+          "weekdays": [
+            "SAT",
+            "SUN"
+          ],
+          "holiday": true,
+          "months": [
+            11,
+            12,
+            1
+          ],
+          "open": "09:00",
+          "close": "17:30",
+          "last_admission": "16:30"
+        }
+      ],
+      "admission": {
+        "type": "timed_entry",
+        "timed_weekdays": [
+          "MON",
+          "WED",
+          "THU",
+          "FRI"
+        ],
+        "general_admission_when": [
+          "SAT",
+          "SUN",
+          "공휴일",
+          "문화가 있는 날(매달 마지막 수요일)"
+        ],
+        "entry_times_ko": {
+          "10-2": [
+            "09:20",
+            "10:20",
+            "11:20",
+            "12:20",
+            "13:20",
+            "14:20",
+            "15:20",
+            "16:20"
+          ],
+          "3-9": [
+            "09:20",
+            "10:20",
+            "11:20",
+            "12:20",
+            "13:20",
+            "14:20",
+            "15:20",
+            "16:20",
+            "16:40"
+          ]
+        },
+        "dwell_fixed_minutes": 50,
+        "rule_text": "월,수,목,금 * 정해진 시간에 입장 후 해설사와 함께 50분 정도 관람 / 일반관람 불가",
+        "unsupported_note": "회차 입장은 연속 운영시간 구간으로 표현할 수 없다. 16:20 회차와 16:40 회차 사이 도착은 입장 불가인데 현재 검사는 그것을 판별하지 못한다",
+        "source": "curated",
+        "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+        "checked_at": "2026-09-22",
+        "valid_until": "2026-12-31",
+        "verified_by": "공식 페이지 「일반관람시간」 표 확인 (2026-09-22)"
+      }
+    },
+    "청계천": {
+      "type": "street",
+      "resolved": true,
+      "entrance": {
+        "lat": 37.5696,
+        "lng": 126.9788,
+        "note": "모전교 기준. 좌표 미검증"
+      },
+      "closed_days": null,
       "hours": null,
-      "missing_note": "관람시간을 공식 페이지에서 확보하지 못했다. 정기휴일만 확인됨."
+      "admission": {
+        "type": "always_open",
+        "verified": false,
+        "unverified_note": "상시 개방으로 알려져 있으나 공식 근거를 확보하지 않았다. 확인 전에는 not_applicable 이 아니라 unknown 이다"
+      },
+      "missing_note": "상시 개방 여부를 공식 출처에서 확인하지 못했다"
+    },
+    "덕수궁 돌담길": {
+      "type": "street",
+      "resolved": true,
+      "entrance": {
+        "lat": 37.5665,
+        "lng": 126.9745,
+        "note": "대한문 앞 기준. 좌표 미검증"
+      },
+      "closed_days": null,
+      "hours": null,
+      "admission": {
+        "type": "always_open",
+        "verified": false,
+        "unverified_note": "상시 개방으로 알려져 있으나 공식 근거를 확보하지 않았다. 확인 전에는 not_applicable 이 아니라 unknown 이다"
+      },
+      "missing_note": "상시 개방 여부를 공식 출처에서 확인하지 못했다",
+      "scope_note": "덕수궁 경내와 다른 대상이다. 돌담길은 도로이고 휴궁일이 적용되지 않는다"
+    },
+    "북촌한옥마을": {
+      "type": "street",
+      "resolved": false,
+      "entrance": null,
+      "closed_days": null,
+      "hours": null,
+      "scope": "area",
+      "missing_note": "구역만 지목된 입력이다. 방문할 시설을 특정하지 않으면 운영정보를 확보할 대상이 없다"
     }
   },
   "legs": {
