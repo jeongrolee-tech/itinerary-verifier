@@ -5,6 +5,9 @@
 > Checks whether a travel itinerary is actually executable — validates opening hours,
 > closures and transit times against official sources, and **reports what it could not verify**.
 
+> **용어가 낯설면** [`docs/용어.md`](docs/용어.md) 를 먼저 보면 된다.
+> `누출` · `하한선` · `arm` · `라벨 노후화` 처럼 이 프로젝트가 정한 말을 예시와 함께 정리해뒀다.
+
 ## 무엇이 다른가
 
 오류를 못 찾은 것과 문제가 없는 것은 다르다. 이 검증기는 근거를 확보하지 못하면 `pass`를 내지 않는다.
@@ -617,6 +620,7 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 
 | 파일 | 역할 | 세부 |
 | --- | --- | --- |
+| [`용어.md`](docs/용어.md) | 용어 정리 | 이 프로젝트가 정한 말(`누출`·`하한선`·`arm`·`라벨 노후화` 등)을 실제 케이스 예시와 함께. **처음 읽는 사람은 여기부터** |
 | [`data-policy.md`](docs/data-policy.md) | 제공사별 저장·캐싱·공개 범위 | Google Maps Platform §3.2.3 / §A.3 / §14.3 / §19.3, TMAP 준수사항, 공공데이터포털 이용허락범위를 **조항째로 인용**했다. 핵심은 **제약이 "사용"이 아니라 "저장"에 걸린다**는 구분 |
 | [`label-review-260922.md`](docs/label-review-260922.md) | 라벨 재검토 워크시트 | 미검토 8건. 입력·기존 라벨·바뀐 데이터·주행시간 하한선 표가 있고 정답 칸은 비어 있다. **코드가 현재 무엇을 내는지는 일부러 적지 않았다** |
 | [`experiments/`](docs/experiments/) | 실험 기록 | 날짜 · 입력 조건 · 관찰 결과 · 해석 · 결정으로 나눠 적는다. 현재 채택한 설계는 README에, 폐기한 후보와 이유는 여기 |
