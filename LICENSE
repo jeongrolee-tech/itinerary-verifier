@@ -1,0 +1,38 @@
+Copyright (c) 2026 jeongrolee-tech. All rights reserved.
+저작권자가 모든 권리를 보유한다.
+
+이 저장소의 코드와 문서는 열람을 위해 공개한 것이다.
+저작권자의 사전 서면 동의 없이 복제·수정·배포·2차적 저작물 작성·상업적 이용을 할 수 없다.
+
+This source code is published for reference and review only.
+No permission is granted to copy, modify, distribute, sublicense, or create
+derivative works, in whole or in part, without prior written consent from the
+copyright holder.
+
+문의 — https://github.com/jeongrolee-tech
+
+
+────────────────────────────────────────────────────────────────────────
+포함된 제3자 데이터
+
+아래 파일은 제3자가 제공한 데이터이며, 위 저작권 표시가 아니라 각 제공처의
+이용 조건이 적용된다. 이 저장소의 내용을 인용하거나 참조할 때 아래 출처 표시는
+그대로 유지해야 한다.
+
+core/transit-seoul-metro.csv
+  서울교통공사 「역간거리 및 소요시간」 (서울 열린데이터광장 OA-12034)
+  공공누리 제1유형 (출처표시)
+  출처를 표시하면 상업적 이용과 변경이 가능하다
+  https://data.seoul.go.kr/dataList/OA-12034/F/1/datasetView.do
+
+core/holidays-2026.json
+  한국천문연구원 「특일 정보」 (공공데이터포털)
+  이용허락범위 제한 없음
+  https://www.data.go.kr/data/15012690/openapi.do
+
+core/facts.json 의 운영시간·휴무일
+  국가유산청 궁능유적본부, 서울시립미술관 공식 안내 페이지에서 사람이 확인해
+  옮겨 적은 값이다. 항목마다 source · url · checked_at 필드에 출처가 있다.
+
+Google Maps Platform 과 TMAP 의 응답은 약관상 저장이 허용되지 않으므로
+이 저장소에 포함하지 않았다. 근거는 docs/data-policy.md 를 참조.

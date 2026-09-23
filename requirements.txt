@@ -1,0 +1,4 @@
+# 추출(extract.py)과 비교 실험(compare.py)에만 필요하다.
+# 판정 코어와 core/run.py 는 표준 라이브러리만 쓰므로 설치 없이 돌아간다.
+anthropic>=1.0
+pydantic>=2.0

@@ -15,3 +15,6 @@ travel-times.json
 
 # dry-run 산출물
 core/last-compare-dryrun.json
+
+# 개인용 Claude Code 설정 (공유하지 않는다)
+CLAUDE.local.md
