@@ -18,6 +18,7 @@ if (!KEY) {
 }
 
 const ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
+const REQUEST_TIMEOUT_MS = 20000;
 
 // 출발 시각: 내일 오전 10시 (KST). 대중교통 모드에 필요하다.
 const departureTime = (() => {
@@ -51,22 +52,42 @@ async function probe({ mode, from, to }) {
   if (mode === "TRANSIT") body.departureTime = departureTime;
   if (mode === "DRIVE") body.routingPreference = "TRAFFIC_UNAWARE";
 
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": KEY,
-      "X-Goog-FieldMask": "routes.duration,routes.distanceMeters",
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": KEY,
+        "X-Goog-FieldMask": "routes.duration,routes.distanceMeters",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    const timedOut = error?.name === "AbortError";
+    return {
+      ok: false,
+      verdict: timedOut ? "TIMEOUT" : "NETWORK_ERROR",
+      detail: timedOut ? `${REQUEST_TIMEOUT_MS}ms 안에 응답하지 않음` : String(error?.message ?? error),
+      http: null,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 
   const raw = await res.text();
   let json;
-  try { json = JSON.parse(raw); } catch { json = { _unparsed: raw }; }
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { ok: false, verdict: "UNPARSEABLE_RESPONSE", detail: "응답이 JSON 형식이 아님", http: res.status, raw };
+  }
 
   if (!res.ok) {
-    return { ok: false, verdict: "ERROR", detail: json?.error?.message ?? raw.slice(0, 200), http: res.status };
+    return { ok: false, verdict: "HTTP_ERROR", detail: json?.error?.message ?? raw.slice(0, 200), http: res.status, raw: json };
   }
   const route = json?.routes?.[0];
   if (!route) {

@@ -75,6 +75,7 @@ const DEPARTURE = (() => {
 })();
 
 const ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
+const REQUEST_TIMEOUT_MS = 20000;
 const FIELDS = [
   "routes.duration",
   "routes.distanceMeters",
@@ -99,30 +100,66 @@ const sec = v => parseInt(String(v ?? "0").replace("s", ""), 10) || 0;
 const min = s => Math.round(s / 60);
 
 async function call(leg) {
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": KEY,
-      "X-Goog-FieldMask": FIELDS,
-    },
-    body: JSON.stringify({
-      origin:      { location: { latLng: P[leg.from] } },
-      destination: { location: { latLng: P[leg.to] } },
-      travelMode: "TRANSIT",
-      departureTime: DEPARTURE,
-      languageCode: "ko",
-      units: "METRIC",
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": KEY,
+        "X-Goog-FieldMask": FIELDS,
+      },
+      body: JSON.stringify({
+        origin:      { location: { latLng: P[leg.from] } },
+        destination: { location: { latLng: P[leg.to] } },
+        travelMode: "TRANSIT",
+        departureTime: DEPARTURE,
+        languageCode: "ko",
+        units: "METRIC",
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    const timedOut = error?.name === "AbortError";
+    return {
+      ok: false,
+      failure_type: timedOut ? "TIMEOUT" : "NETWORK_ERROR",
+      reason: timedOut ? `${REQUEST_TIMEOUT_MS}ms 안에 응답하지 않음` : String(error?.message ?? error),
+      http: null,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 
   const raw = await res.text();
   let json;
-  try { json = JSON.parse(raw); } catch { json = { _unparsed: raw }; }
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return {
+      ok: false,
+      failure_type: "UNPARSEABLE_RESPONSE",
+      reason: "응답이 JSON 형식이 아님",
+      http: res.status,
+      raw,
+    };
+  }
 
-  if (!res.ok) return { ok: false, reason: json?.error?.message ?? raw.slice(0, 200), http: res.status, raw: json };
+  if (!res.ok) {
+    return {
+      ok: false,
+      failure_type: "HTTP_ERROR",
+      reason: json?.error?.message ?? raw.slice(0, 200),
+      http: res.status,
+      raw: json,
+    };
+  }
   const route = json?.routes?.[0];
-  if (!route) return { ok: false, reason: "경로 없음", http: res.status, raw: json };
+  if (!route) {
+    return { ok: false, failure_type: "NO_RESULT", reason: "경로 없음", http: res.status, raw: json };
+  }
 
   const steps = route.legs?.[0]?.steps ?? [];
   const staticTotal = steps.reduce((a, s) => a + sec(s.staticDuration), 0);
@@ -154,8 +191,9 @@ for (const leg of LEGS) {
 
   const label = `${leg.from} → ${leg.to}`;
   if (!r.ok) {
-    console.log(`❌ ${label}\n   [${r.http}] ${r.reason}\n`);
-    rows.push({ ...leg, straight_m: straight, walk_estimate_min: walkEst, ok: false, reason: r.reason });
+    console.log(`❌ ${label}\n   [${r.failure_type}, ${r.http ?? "no HTTP"}] ${r.reason}\n`);
+    rows.push({ ...leg, straight_m: straight, walk_estimate_min: walkEst, ok: false,
+      failure_type: r.failure_type, reason: r.reason, http: r.http });
     continue;
   }
 

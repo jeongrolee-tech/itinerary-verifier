@@ -23,6 +23,7 @@ if (!KEY) {
 }
 
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchText";
+const REQUEST_TIMEOUT_MS = 20000;
 
 // Places API의 day: 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토
 const DAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -57,29 +58,58 @@ const FIELD_MASK = [
 ].join(",");
 
 async function search(textQuery) {
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": KEY,
-      "X-Goog-FieldMask": FIELD_MASK,
-    },
-    body: JSON.stringify({
-      textQuery,
-      languageCode: "ko",
-      regionCode: "KR",
-      maxResultCount: 1,
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": KEY,
+        "X-Goog-FieldMask": FIELD_MASK,
+      },
+      body: JSON.stringify({
+        textQuery,
+        languageCode: "ko",
+        regionCode: "KR",
+        maxResultCount: 1,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    const timedOut = error?.name === "AbortError";
+    return {
+      error: timedOut ? `${REQUEST_TIMEOUT_MS}ms 안에 응답하지 않음` : String(error?.message ?? error),
+      failure_type: timedOut ? "TIMEOUT" : "NETWORK_ERROR",
+      http: null,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 
   const raw = await res.text();
   let json;
-  try { json = JSON.parse(raw); } catch { json = { _unparsed: raw }; }
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return {
+      error: "응답이 JSON 형식이 아님",
+      failure_type: "UNPARSEABLE_RESPONSE",
+      http: res.status,
+      raw,
+    };
+  }
 
   if (!res.ok) {
-    return { error: json?.error?.message ?? raw.slice(0, 200), http: res.status };
+    return {
+      error: json?.error?.message ?? raw.slice(0, 200),
+      failure_type: "HTTP_ERROR",
+      http: res.status,
+      raw: json,
+    };
   }
-  return { place: json?.places?.[0] ?? null, http: res.status };
+  return { place: json?.places?.[0] ?? null, failure_type: json?.places?.length ? null : "NO_RESULT", http: res.status, raw: json };
 }
 
 /** periods 에서 실제로 여는 요일 집합을 뽑는다 */
@@ -97,16 +127,16 @@ function openDaysFrom(hours) {
 const results = [];
 
 for (const t of TARGETS) {
-  const { place, error, http } = await search(t.query);
+  const { place, error, failure_type, http } = await search(t.query);
 
   if (error) {
-    console.log(`⚠️  ${t.query.padEnd(20)} [HTTP ${http}] ${error}`);
-    results.push({ ...t, status: "ERROR", error });
+    console.log(`⚠️  ${t.query.padEnd(20)} [${failure_type}, ${http ?? "no HTTP"}] ${error}`);
+    results.push({ ...t, status: "ERROR", failure_type, error, http });
     continue;
   }
   if (!place) {
     console.log(`❌ ${t.query.padEnd(20)} 검색 결과 없음`);
-    results.push({ ...t, status: "NOT_FOUND" });
+    results.push({ ...t, status: "NOT_FOUND", failure_type: "NO_RESULT", http });
     continue;
   }
 
