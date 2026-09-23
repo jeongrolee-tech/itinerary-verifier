@@ -138,11 +138,16 @@ def to_itinerary(ex: Extraction) -> dict:
     """판정 코어가 읽는 모양으로 옮긴다. 값을 채우지 않는다."""
     return {
         "date": ex.date,
+        "date_source": ex.date_source,
+        "weekday_stated": ex.weekday_stated,
         "stops": [
             {k: v for k, v in {
                 "place": s.place,
                 "start": s.start,
+                "start_source": s.start_source,
                 "dwell_minutes": s.dwell_minutes,
+                "scope": s.scope,
+                "scope_note": s.scope_note,
             }.items() if v is not None}
             for s in ex.stops
         ],

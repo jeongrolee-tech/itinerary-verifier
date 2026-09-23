@@ -73,6 +73,73 @@ def check(type_: str, target: str, status: str, **extra: Any) -> dict:
     }
 
 
+def input_checks(itinerary: dict) -> list[dict]:
+    """판정을 시작하기 전에 반드시 있어야 하는 입력을 확인한다.
+
+    자연어 추출 단계는 날짜나 시작 시각을 ``None``으로 남길 수 있다.
+    그런 값을 바로 시간 계산 함수에 넘기면 프로그램이 예외로 종료된다.
+    입력이 부족한 것도 검증 결과의 일부이므로, 여기서는 오류를 내지 않고
+    ``unknown`` 검사로 반환한다.
+    """
+    missing: list[dict] = []
+
+    visit_date = itinerary.get("date")
+    if not visit_date:
+        missing.append(check(
+            "INPUT_REQUIRED", "일정 날짜", UNKNOWN,
+            unknown_reason="MISSING_DATE",
+            detail="방문 날짜가 없어 운영시간과 휴무일을 확인할 수 없다",
+            how_to_resolve={"user": "방문할 날짜를 알려주세요"},
+        ))
+    else:
+        try:
+            Date.fromisoformat(visit_date)
+        except (TypeError, ValueError):
+            missing.append(check(
+                "INPUT_REQUIRED", "일정 날짜", UNKNOWN,
+                unknown_reason="INVALID_DATE",
+                detail=f"방문 날짜({visit_date})를 YYYY-MM-DD 형식으로 해석할 수 없다",
+                how_to_resolve={"user": "방문 날짜를 YYYY-MM-DD 형식으로 알려주세요"},
+            ))
+
+    stops = itinerary.get("stops") or []
+    if not stops:
+        missing.append(check(
+            "INPUT_REQUIRED", "일정 스톱", UNKNOWN,
+            unknown_reason="MISSING_STOPS",
+            detail="방문할 장소가 없어 일정의 실행 가능성을 확인할 수 없다",
+            how_to_resolve={"user": "방문할 장소와 순서를 알려주세요"},
+        ))
+
+    for i, stop in enumerate(stops):
+        name = stop.get("place") or f"stops[{i}]"
+        if not stop.get("place"):
+            missing.append(check(
+                "INPUT_REQUIRED", name, UNKNOWN,
+                unknown_reason="MISSING_PLACE",
+                detail="방문 장소가 없다",
+                how_to_resolve={"user": "방문할 장소를 알려주세요"},
+            ))
+        if not stop.get("start"):
+            missing.append(check(
+                "INPUT_REQUIRED", name, UNKNOWN,
+                unknown_reason="MISSING_START_TIME",
+                detail="방문 시작 시각이 없어 입장과 이동시간을 계산할 수 없다",
+                how_to_resolve={"user": f"{name}에 몇 시에 도착할 예정인가요?"},
+            ))
+
+    for i, constraint in enumerate(itinerary.get("hard_constraints") or [], 1):
+        if not constraint.get("place") or not constraint.get("time"):
+            missing.append(check(
+                "INPUT_REQUIRED", f"필수 조건 HC{i}", UNKNOWN,
+                unknown_reason="INCOMPLETE_HARD_CONSTRAINT",
+                detail="필수 조건에 장소 또는 시각이 없다",
+                how_to_resolve={"user": "필수 이동수단의 장소와 출발 시각을 알려주세요"},
+            ))
+
+    return missing
+
+
 # ── 휴무일 ──────────────────────────────────────────────────────────
 def closed_date_for(visit_date: str, cd: dict, holidays: dict) -> str | None:
     """
@@ -126,6 +193,11 @@ def check_closed_day(name: str, place: dict | None, visit_date: str, facts: dict
                      unknown_reason="HOLIDAY_CALENDAR_UNVERIFIED",
                      detail="휴무일 예외 규칙이 공휴일 캘린더에 의존하는데, 그 값이 아직 검증되지 않았다",
                      how_to_resolve={"system": "공공데이터포털 특일 정보 API 호출"})
+    if holiday_dependent and not evidence_usable_on(facts["holidays"], visit_date):
+        return check("CLOSED_DAY", name, UNKNOWN,
+                     unknown_reason="EVIDENCE_EXPIRED",
+                     detail=f"공휴일 캘린더의 적용 기간(~{facts['holidays'].get('valid_until')})을 벗어난 방문일이다",
+                     how_to_resolve={"system": "방문 연도의 공휴일 캘린더를 다시 조회"})
 
     closed = closed_date_for(visit_date, cd, facts["holidays"])
     evidence = {
@@ -173,7 +245,23 @@ def check_admission(name, place, visit_date, start, closed_status, holidays) -> 
         return check("ADMISSION_NOT_POSSIBLE", name, NA,
                      reason="휴무일로 확정되어 운영시간 검사가 성립하지 않는다")
 
+    # 휴무일 검사에서 장소를 특정하지 못했다면 운영시간이 없는 것이 아니라
+    # 운영시간을 확인할 대상 자체가 없는 상태다. 두 경우를 구분해야 사용자가
+    # 장소를 알려줘야 하는지, 시스템이 운영시간 데이터를 더 가져와야 하는지
+    # 정확히 안내할 수 있다.
+    if place is None:
+        return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
+                     unknown_reason="PLACE_NOT_RESOLVED",
+                     detail="구역만 입력되어 방문할 시설이나 점포를 특정하지 못했다",
+                     how_to_resolve={"user": "방문할 시설이나 점포를 알려주세요"})
+
     adm = (place or {}).get("admission") or {}
+
+    if adm and not evidence_usable_on(adm, visit_date):
+        return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
+                     unknown_reason="EVIDENCE_EXPIRED",
+                     detail=f"입장 방식 근거의 적용 기간(~{adm.get('valid_until')})을 벗어난 방문일이다",
+                     how_to_resolve={"system": "해당 장소의 입장 안내를 다시 확인"})
 
     # ⭐ not_applicable 도 근거가 필요하다.
     #    청계천을 "상시 개방이라 검사 불필요" 로 두고 싶지만, 그걸 공식 출처에서
@@ -184,12 +272,24 @@ def check_admission(name, place, visit_date, start, closed_status, holidays) -> 
             return check("ADMISSION_NOT_POSSIBLE", name, NA,
                          reason="상시 개방이라 운영시간 개념이 없다",
                          evidence={"source": adm.get("source"), "url": adm.get("url"),
-                                   "checked_at": adm.get("checked_at")})
+                                   "checked_at": adm.get("checked_at"),
+                                   "valid_until": adm.get("valid_until")})
         return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
                      unknown_reason="UNVERIFIED_ALWAYS_OPEN",
                      detail=adm.get("unverified_note",
                                     "상시 개방으로 알려져 있으나 공식 근거를 확보하지 않았다"),
                      how_to_resolve={"system": "관리 주체의 공식 안내에서 상시 개방 여부 확인"})
+
+    if not holidays.get("verified"):
+        return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
+                     unknown_reason="HOLIDAY_CALENDAR_UNVERIFIED",
+                     detail="공휴일 여부에 따라 운영시간을 골라야 하지만 공휴일 캘린더가 검증되지 않았다",
+                     how_to_resolve={"system": "공공데이터포털 특일 정보 API 호출"})
+    if not evidence_usable_on(holidays, visit_date):
+        return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
+                     unknown_reason="EVIDENCE_EXPIRED",
+                     detail=f"공휴일 캘린더의 적용 기간(~{holidays.get('valid_until')})을 벗어난 방문일이다",
+                     how_to_resolve={"system": "방문 연도의 공휴일 캘린더를 다시 조회"})
 
     # ⭐ 같은 unknown 이라도 이유가 다르면 따로 적는다.
     #      NO_OPERATING_HOURS_DATA     정보를 못 구했다        → 데이터를 확보하면 해결
@@ -277,7 +377,7 @@ def leg_between(facts: dict, a: str, b: str) -> dict | None:
     return facts["legs"].get(f"{a}|{b}")
 
 
-def check_travel(frm, to, facts, policy, closed_statuses) -> dict:
+def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
     label = f"{frm['name']} → {to['name']}"
     if closed_statuses.get(frm["name"]) == FAIL or closed_statuses.get(to["name"]) == FAIL:
         return check("INSUFFICIENT_TRAVEL_TIME", label, NA,
@@ -289,6 +389,12 @@ def check_travel(frm, to, facts, policy, closed_statuses) -> dict:
                      unknown_reason="UNVERIFIED_TRAVEL_TIME",
                      detail="이 구간 이동시간을 확보하지 못했다",
                      how_to_resolve={"system": "도보 구간이면 TMAP, 대중교통이면 Routes API 호출"})
+
+    if not evidence_usable_on(leg, visit_date):
+        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                     unknown_reason="EVIDENCE_EXPIRED",
+                     detail=f"이동시간 근거의 적용 기간(~{leg.get('valid_until')})을 벗어난 방문일이다",
+                     how_to_resolve={"system": "해당 구간 이동시간을 다시 조회"})
 
     # ⭐ 근사값으로 pass 를 내지 않는다.
     #    직선거리로 "3분이면 가니까 여유 10분은 충분" 은 실제 보행 경로·출입구·
@@ -360,7 +466,7 @@ def check_travel(frm, to, facts, policy, closed_statuses) -> dict:
 
 
 # ── 필수 조건 (KTX 등) ──────────────────────────────────────────────
-def evaluate_hard_constraint(hc, stops, facts, policy) -> dict:
+def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
     """
     사용자가 말한 것과 서비스가 정한 권장 기준을 섞지 않는다.
 
@@ -405,6 +511,16 @@ def evaluate_hard_constraint(hc, stops, facts, policy) -> dict:
         result["policy"] = policy_eval
         return result
 
+    if not evidence_usable_on(leg, visit_date):
+        policy_eval.update(
+            status=UNKNOWN,
+            unknown_reason="EVIDENCE_EXPIRED",
+            detail=f"이동시간 근거의 적용 기간(~{leg.get('valid_until')})을 벗어난 방문일이다",
+            how_to_resolve={"system": "해당 구간 이동시간을 다시 조회"},
+        )
+        result["policy"] = policy_eval
+        return result
+
     base = last["dwell"]["value"]
 
     def arrival_at(dwell_minutes: int) -> int:
@@ -440,13 +556,30 @@ def evaluate_hard_constraint(hc, stops, facts, policy) -> dict:
             return result
         policy_eval["depends_on_assumptions"] = [last["dwell"].get("assumption_id")]
 
-    if est > required:
+    event_time = to_min(hc["time"])
+
+    # 사용자가 반드시 지켜야 하는 것은 열차 출발 시각이다. 서비스가 정한
+    # 15분 전 도착은 안전을 위한 권장 기준이지, 그 자체로 사용자 일정의
+    # 확정 위반은 아니다.
+    if est >= event_time:
         policy_eval["status"] = FAIL
-        policy_eval["detail"] = f"설정한 {buffer}분 여유가 {round(est - required)}분 부족하다"
+        policy_eval["detail"] = (
+            f"예상 도착({to_hhmm(est)})이 열차 출발({hc['time']}) 시각 이후다"
+        )
         if leg.get("is_lower_bound"):
-            policy_eval["detail"] += " — 주행시간 하한선만으로도 부족하므로 확정된다"
-        policy_eval["not_confirmed"] = "실제 탑승 불가능 여부. 열차 출발 전에는 도착한다" \
-            if est <= to_min(hc["time"]) else None
+            policy_eval["detail"] += " — 주행시간 하한선만으로도 늦으므로 확정된다"
+    elif est > required:
+        policy_eval.update(
+            status=UNKNOWN,
+            unknown_reason="BUFFER_NOT_MET",
+            detail=(
+                f"열차 출발 전 {round(event_time - est)}분 도착 예상이지만, "
+                f"설정한 권장 여유 {buffer}분보다 {round(est - required)}분 부족하다"
+            ),
+            confirmed=f"현재 이동시간 기준으로는 열차 출발 전 {round(event_time - est)}분 도착한다",
+            not_confirmed="역 출입구 이동·탑승 절차를 포함한 실제 탑승 가능 여부",
+            how_to_resolve={"system": "역 출입구 보행 경로·탑승 절차·대기시간 확보"},
+        )
     elif leg.get("is_lower_bound"):
         # 중요한 열차 일정인데 정보가 부족하다면 중요도가 낮은 문제가 아니라
         # 추가 확인이 필요한 중요한 문제다. severity 는 blocking 으로 둔다.
@@ -468,13 +601,88 @@ def evaluate_hard_constraint(hc, stops, facts, policy) -> dict:
 
 # ── 본체 ────────────────────────────────────────────────────────────
 def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
+    # ⭐ 입력이 비어 있을 때 시간 계산 예외를 내지 않는다.
+    #    날짜·시각을 모르는 것은 "검사할 필요가 없다"가 아니라
+    #    필요한 검사를 끝내지 못한 상태이므로 unknown 으로 남긴다.
+    missing_inputs = input_checks(itinerary)
+    if missing_inputs:
+        for n, c in enumerate(missing_inputs, 1):
+            c["id"] = f"chk-{n:03d}"
+        counts = {s: sum(c["status"] == s for c in missing_inputs)
+                  for s in (PASS, FAIL, UNKNOWN, NA)}
+        return {
+            "date": itinerary.get("date"),
+            "weekday": None,
+            "is_holiday": None,
+            "summary": {
+                "verdict": "undetermined",
+                "message": "필수 입력이 없어 판정을 보류했습니다",
+                "counts": counts,
+            },
+            "assumptions": [],
+            "checks": missing_inputs,
+            "hard_constraints": [],
+        }
+
     visit_date = itinerary["date"]
     assumptions: list[dict] = []
+
+    # 자연어에서 날짜나 시작 시각을 추정한 경우, 사용자 입력과 구분해 기록한다.
+    if itinerary.get("date_source") == "inferred":
+        assumptions.append({
+            "id": "A1",
+            "field": "date",
+            "value": visit_date,
+            "source": "llm_inferred",
+            "rule": "extract.inferred_date",
+            "reason": "입력에 연도가 없어 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
+            "ask_user": "방문 날짜가 맞는지 확인해 주세요",
+        })
+
+    stated_weekday = itinerary.get("weekday_stated")
+    if stated_weekday and stated_weekday != weekday_of(visit_date):
+        conflict = check(
+            "INPUT_CONFLICT", "날짜와 요일", FAIL,
+            reason="MISMATCHED_WEEKDAY",
+            detail=f"날짜 {visit_date}의 실제 요일은 {weekday_of(visit_date)}인데 "
+                   f"입력에는 {stated_weekday}로 적혀 있다",
+            how_to_resolve={"user": "날짜와 요일 중 맞는 값을 확인해 주세요"},
+        )
+        conflict["id"] = f"chk-{len(assumptions) + 1:03d}"
+        return {
+            "date": visit_date,
+            "date_source": itinerary.get("date_source", "explicit"),
+            "weekday": weekday_of(visit_date),
+            "weekday_stated": stated_weekday,
+            "is_holiday": visit_date in facts["holidays"]["dates"],
+            "summary": {
+                "verdict": "infeasible",
+                "message": "입력한 날짜와 요일이 서로 맞지 않습니다",
+                "counts": {PASS: 0, FAIL: 1, UNKNOWN: 0, NA: 0},
+            },
+            "assumptions": assumptions,
+            "checks": [conflict],
+            "hard_constraints": [],
+        }
 
     # 체류시간: 사용자가 말했으면 그대로, 아니면 기본값을 쓰되 반드시 기록한다.
     stops = []
     for i, s in enumerate(itinerary["stops"]):
-        place = facts["places"].get(s["place"])
+        # ⭐ area 일정은 대표 좌표나 비슷한 이름의 시설로 바꿔 판정하지 않는다.
+        #    "북촌에서 점심"을 임의의 식당 운영시간으로 검사하면 다른 장소를
+        #    검증한 셈이 된다. 사용자가 장소를 특정하기 전까지는 unknown 이다.
+        scope = s.get("scope", "place")
+        place = None if scope == "area" else facts["places"].get(s["place"])
+
+        start_source = s.get("start_source", "explicit")
+        if start_source == "inferred":
+            aid = f"A{len(assumptions) + 1}"
+            assumptions.append({
+                "id": aid, "field": f"stops[{i}].start", "value": s["start"],
+                "source": "llm_inferred", "rule": "extract.inferred_start",
+                "reason": "입력의 문맥에서 시작 시각을 추정했다",
+                "ask_user": f"{s['place']}에 {s['start']}에 도착하는 것이 맞나요?",
+            })
         # ⭐ 기본값을 쓰는 것 자체는 문제가 아니다. 쓴 것을 숨기는 게 문제다.
         #    source 로 user_stated / system_default 를 구분하고, 기본값을 쓸 때마다
         #    assumptions 에 '무슨 값을, 어떤 규칙으로, 왜' 넣었는지와 사용자에게
@@ -492,7 +700,9 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
                 "ask_user": f"{s['place']}에서 얼마나 머무르실 예정인가요?",
             })
             dwell = {"value": value, "source": "system_default", "assumption_id": aid}
-        stops.append({"name": s["place"], "place": place, "start": s["start"], "dwell": dwell})
+        stops.append({"name": s["place"], "place": place, "start": s["start"],
+                      "start_source": start_source, "scope": scope,
+                      "scope_note": s.get("scope_note"), "dwell": dwell})
 
     checks: list[dict] = []
     closed_statuses: dict[str, str] = {}
@@ -511,12 +721,13 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
             checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{st['name']} → (없음)", NA,
                                 reason="마지막 스톱이라 다음 구간이 없다"))
         else:
-            checks.append(check_travel(st, stops[i + 1], facts, policy, closed_statuses))
+            checks.append(check_travel(st, stops[i + 1], facts, policy, closed_statuses,
+                                       visit_date))
 
     for n, c in enumerate(checks, 1):
         c["id"] = f"chk-{n:03d}"
 
-    hard = [evaluate_hard_constraint(hc, stops, facts, policy)
+    hard = [evaluate_hard_constraint(hc, stops, facts, policy, visit_date)
             for hc in itinerary.get("hard_constraints", [])]
 
     # ⭐ 전체 판정은 '가장 나쁜 상태' 순서로 정한다. 다수결이 아니다.
@@ -540,7 +751,9 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
 
     return {
         "date": visit_date,
+        "date_source": itinerary.get("date_source", "explicit"),
         "weekday": weekday_of(visit_date),
+        "weekday_stated": stated_weekday,
         "is_holiday": visit_date in facts["holidays"]["dates"],
         "summary": {"verdict": verdict, "message": message, "counts": counts},
         "assumptions": assumptions,
