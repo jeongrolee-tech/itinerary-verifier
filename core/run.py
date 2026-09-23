@@ -167,11 +167,11 @@ def grade(case, out):
 
 
 def grade_applied(case, out):
-    """기대했던 사실·가정·누락 정보가 결과에 흔적으로 남았는지 확인한다.
+    """
+    기대했던 사실·가정·누락 정보가 결과에 흔적으로 남았는지 확인한다.
 
-    ``expect_applied``의 문장은 사람이 읽는 설명이므로 문장 전체를
-    문자열로 비교하지 않는다. 대신 그 설명이 요구하는 최소 구조가
-    실제 결과에 남아 있는지 확인한다.
+    expect_applied 의 문장은 사람이 읽는 설명이라 문자열로 대조할 수 없다.
+    그 설명이 요구하는 최소 구조가 결과에 남아 있는지를 본다.
     """
     expected = case.get("expect_applied") or {}
     problems = []

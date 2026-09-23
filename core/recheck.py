@@ -1,9 +1,11 @@
-"""수정된 일정 전체를 다시 검사하는 보조 기능.
+"""
+수정된 일정 전체를 다시 검사한다.
 
-판정 코어(verdict.py)는 한 일정의 결과만 계산한다. 이 모듈은 사용자가
-그 결과를 보고 입력을 고친 뒤, 수정 전과 수정 후를 함께 기록한다.
-수정된 한 스톱만 따로 검사하지 않고 ``judge``를 수정된 전체 일정에
-다시 호출하는 것이 핵심이다.
+판정 코어(verdict.py)는 한 일정의 결과만 계산한다. 여기서는 사용자가
+그 결과를 보고 입력을 고친 뒤, 수정 전과 후를 함께 기록한다.
+
+바뀐 스톱만 따로 보지 않고 judge 를 수정된 전체 일정에 다시 부른다.
+한 곳을 고치면 뒤 일정의 이동시간과 필수 조건이 함께 움직이기 때문이다.
 """
 
 from __future__ import annotations
@@ -72,10 +74,11 @@ def _resolution_hints(result: dict) -> list[dict]:
 
 
 def recheck_revision(original: dict, revised: dict, facts: dict, policy: dict) -> dict:
-    """수정 전·후 일정을 모두 검사하고 비교 결과를 반환한다.
+    """
+    수정 전·후 일정을 모두 검사하고 비교 결과를 반환한다.
 
-    ``revised`` 전체를 ``judge``에 넘기므로, 바뀐 장소 하나뿐 아니라 날짜,
-    체류시간, 이동시간, 필수 조건을 포함한 전체 일정이 다시 검사된다.
+    revised 전체를 judge 에 넘기므로 바뀐 장소뿐 아니라 날짜·체류시간·
+    이동시간·필수 조건이 전부 다시 검사된다.
     """
     before = judge(original, facts, policy)
     after = judge(revised, facts, policy)
