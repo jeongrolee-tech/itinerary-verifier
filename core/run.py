@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from verdict import judge  # noqa: E402
+from verdict import UNKNOWN, judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -33,6 +33,13 @@ args = sys.argv[1:]
 json_only = "--json" in args
 show_all = "--all" in args
 only = next((args[i + 1] for i, a in enumerate(args) if a == "--case" and i + 1 < len(args)), None)
+
+# --case 를 주면 해당 접두사로 시작하는 케이스만 실행한다.
+# 예전에는 상세 출력만 줄이고 전체 케이스를 계속 돌려서,
+# 특정 케이스를 확인하려는 사용자가 전체 결과와 섞인 출력을 봐야 했다.
+cases = [c for c in suite["cases"] if not only or c["id"].startswith(only)]
+if only and not cases:
+    raise SystemExit(f"케이스를 찾지 못했다: {only}")
 
 MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
 LINE = "═" * 78
@@ -159,16 +166,44 @@ def grade(case, out):
     return problems
 
 
+def grade_applied(case, out):
+    """기대했던 사실·가정·누락 정보가 결과에 흔적으로 남았는지 확인한다.
+
+    ``expect_applied``의 문장은 사람이 읽는 설명이므로 문장 전체를
+    문자열로 비교하지 않는다. 대신 그 설명이 요구하는 최소 구조가
+    실제 결과에 남아 있는지 확인한다.
+    """
+    expected = case.get("expect_applied") or {}
+    problems = []
+    checks = out.get("checks", [])
+    hard = out.get("hard_constraints", [])
+
+    if expected.get("facts") and not any(c.get("evidence") for c in checks):
+        problems.append("expect_applied.facts 는 있지만 검사 근거가 기록되지 않았다")
+
+    if expected.get("assumptions") and not out.get("assumptions"):
+        problems.append("expect_applied.assumptions 는 있지만 assumptions 가 비어 있다")
+
+    has_unknown = any(c.get("status") == UNKNOWN for c in checks) or any(
+        h.get("policy", {}).get("status") == UNKNOWN for h in hard
+    )
+    if expected.get("missing") and not has_unknown:
+        problems.append("expect_applied.missing 은 있지만 unknown 결과가 없다")
+
+    return problems
+
+
 results, rows = [], []
-for case in suite["cases"]:
+for case in cases:
     started = datetime.now(timezone.utc)
     out = judge(case, facts, policy)
     ms = round((datetime.now(timezone.utc) - started).total_seconds() * 1000, 2)
-    problems = grade(case, out)
+    problems = grade(case, out) + grade_applied(case, out)
     results.append({"id": case["id"], "set": case["set"], "expect": case["expect"],
                     "match": not problems, "problems": problems, "elapsed_ms": ms,
                     "label_current": label_is_current(case),
-                    "stale_reason": stale_reason(case), **out})
+                    "stale_reason": stale_reason(case),
+                    "expect_applied": case.get("expect_applied"), **out})
     rows.append((case, out, problems))
 
     if not json_only and (show_all or (only and case["id"].startswith(only)) or (not only and problems)):

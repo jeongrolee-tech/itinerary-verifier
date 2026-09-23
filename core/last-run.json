@@ -1,8 +1,8 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20260922-200830",
+  "run_id": "run-20260923-154402",
   "version": "core-0.2",
-  "ran_at": "2026-09-22T11:08:30.584833+00:00",
+  "ran_at": "2026-09-23T06:44:02.889032+00:00",
   "facts_snapshot": "facts-2026-09-22",
   "holidays_verified": true,
   "labeled_at": "2026-09-22",
@@ -16,8 +16,23 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "미술관 목요일 10:00~20:00 (입장마감 19:00)",
+          "경복궁 9~10월 09:00~18:00 (입장마감 17:00)",
+          "leg 미술관→경복궁 주행시간 하한선 6.5분"
+        ],
+        "assumptions": [],
+        "missing": [
+          "장소→역 도보",
+          "환승 이동시간",
+          "열차 대기시간"
+        ]
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
@@ -177,8 +192,16 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "경복궁 9~10월 입장마감 17:00"
+        ],
+        "assumptions": []
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "infeasible",
@@ -256,8 +279,22 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "경복궁 정기휴일·운영시간",
+          "leg 경복궁→광장시장 31분"
+        ],
+        "assumptions": [
+          "광장시장 체류 기본값 60분 (판정에는 쓰지 않음)"
+        ],
+        "missing": [
+          "광장시장 휴무일·영업시간"
+        ]
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
@@ -409,8 +446,23 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "경복궁 9~10월 입장마감 17:00",
+          "leg 경복궁→광장시장 하한선 4.5분"
+        ],
+        "assumptions": [
+          "광장시장 체류 기본값 60분"
+        ],
+        "missing": [
+          "광장시장 운영정보",
+          "장소→역 도보·환승·대기"
+        ]
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "infeasible",
@@ -593,8 +645,21 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "경복궁 정기휴일(화)",
+          "창덕궁 정기휴일(월)",
+          "휴궁일 예외 규칙",
+          "2026-10-05 대체공휴일(개천절)"
+        ],
+        "assumptions": [
+          "경복궁·창덕궁 체류 기본값 90분 (휴궁일이라 판정에 쓰이지 않음)"
+        ]
+      },
       "date": "2026-10-06",
+      "date_source": "explicit",
       "weekday": "TUE",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "infeasible",
@@ -725,8 +790,19 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "미술관 정기휴일(월)",
+          "미술관 예외 규칙(밀지 않음)",
+          "미술관 화요일 운영시간",
+          "2026-10-05 공휴일"
+        ],
+        "assumptions": []
+      },
       "date": "2026-10-06",
+      "date_source": "explicit",
       "weekday": "TUE",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "feasible",
@@ -808,8 +884,17 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "경복궁 입장마감 17:00",
+          "경복궁 폐장 18:00"
+        ],
+        "assumptions": []
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "infeasible",
@@ -892,8 +977,19 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "경복궁 입장마감 17:00"
+        ],
+        "assumptions": [],
+        "missing": [
+          "사용자 체류시간 — 기본값으로 메우지 않는다"
+        ]
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
@@ -987,8 +1083,16 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "경복궁 11~12월 운영시간 09:00~17:00, 입장마감 16:00"
+        ],
+        "assumptions": []
+      },
       "date": "2026-11-05",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "infeasible",
@@ -1066,8 +1170,18 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "창덕궁 정기휴일 월요일",
+          "창덕궁 2~5·9~10월 09:00~18:00 (입장마감 17:00)"
+        ],
+        "assumptions": [],
+        "missing": []
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "feasible",
@@ -1149,8 +1263,22 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "경복궁 정기휴일·운영시간"
+        ],
+        "assumptions": [
+          "광장시장·경복궁 체류 기본값 (사용자 미입력)"
+        ],
+        "missing": [
+          "leg 광장시장→경복궁",
+          "광장시장 운영정보"
+        ]
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
@@ -1295,8 +1423,23 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "경복궁 정기휴일·운영시간",
+          "leg 경복궁→광장시장 하한선 4.5분"
+        ],
+        "assumptions": [
+          "경복궁 체류 기본값 90분 — ±50% 범위에서 판정이 뒤집힘"
+        ],
+        "missing": [
+          "광장시장 운영정보",
+          "장소→역 도보·환승·대기"
+        ]
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
@@ -1462,8 +1605,20 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "종묘 정기휴일 화요일",
+          "종묘 회차 입장 시각표(국어 09:20~16:20)"
+        ],
+        "assumptions": [],
+        "missing": [
+          "회차 입장 검사 구현"
+        ]
+      },
       "date": "2026-10-08",
+      "date_source": "explicit",
       "weekday": "THU",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
@@ -1566,8 +1721,17 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [],
+        "assumptions": [],
+        "missing": [
+          "2027년에 적용 가능한 근거 (보유 근거는 ~2026-12-31)"
+        ]
+      },
       "date": "2027-03-05",
+      "date_source": "explicit",
       "weekday": "FRI",
+      "weekday_stated": null,
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
@@ -1596,7 +1760,10 @@
           "status": "unknown",
           "severity": null,
           "unknown_reason": "EVIDENCE_EXPIRED",
-          "detail": "운영시간 근거의 적용 기간(~2026-12-31)을 벗어났다",
+          "detail": "공휴일 캘린더의 적용 기간(~2026-12-31)을 벗어난 방문일이다",
+          "how_to_resolve": {
+            "system": "방문 연도의 공휴일 캘린더를 다시 조회"
+          },
           "id": "chk-002"
         },
         {
@@ -1627,8 +1794,18 @@
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "미술관 공휴일 시간표 하절기 10:00~19:00",
+          "입장마감 = 관람 종료 1시간 전",
+          "2026-10-09 한글날 공휴일"
+        ],
+        "assumptions": []
+      },
       "date": "2026-10-09",
+      "date_source": "explicit",
       "weekday": "FRI",
+      "weekday_stated": null,
       "is_holiday": true,
       "summary": {
         "verdict": "infeasible",
