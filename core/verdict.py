@@ -202,11 +202,30 @@ def check_closed_day(name: str, place: dict | None, visit_date: str, facts: dict
     closed = closed_date_for(visit_date, cd, facts["holidays"])
     evidence = {
         "weekly": cd["weekly"],
+        "fixed_dates": cd.get("fixed_dates"),
         "exception_rule": cd.get("exception_rule"),
         "effective_closed_date": closed,
         "source": cd.get("source"), "url": cd.get("url"),
         "checked_at": cd.get("checked_at"), "valid_until": cd.get("valid_until"),
     }
+
+    # ⭐ 고정일 휴관(미술관 1월 1일)은 요일 규칙과 따로 본다.
+    #    다만 그날이 정기휴일 요일이면서 공휴일이면 공식 문구 두 개가 반대 결론을 낸다.
+    #    2029-01-01(월) — "휴관 1월 1일" 이면 휴관, "월요일이 공휴일인 경우 정상 개관" 이면 개관.
+    #    페이지에 우선순위가 없다. 어느 쪽으로 읽든 해석이지 확인한 사실이 아니므로
+    #    그날은 확정하지 않는다.
+    if visit_date[5:] in (cd.get("fixed_dates") or []):
+        on_weekly = WEEKDAYS[Date.fromisoformat(visit_date).weekday()] in cd["weekly"]
+        if holiday_dependent and on_weekly and visit_date in facts["holidays"]["dates"]:
+            return check("CLOSED_DAY", name, UNKNOWN,
+                         unknown_reason="RULE_CONFLICT",
+                         detail=f"{visit_date}은 고정 휴관일이면서 공휴일인 정기휴일이다. "
+                                f"공식 문구 두 개가 휴관과 개관으로 결론이 갈린다",
+                         how_to_resolve={"system": "기관에 두 규칙의 우선순위 확인"},
+                         reference=evidence)
+        return check("CLOSED_DAY", name, FAIL, evidence=evidence,
+                     detail=f"{visit_date}은 고정 휴관일({visit_date[5:]})이다")
+
     if closed == visit_date:
         return check("CLOSED_DAY", name, FAIL, evidence=evidence,
                      detail=f"{visit_date}은 휴무일이다")

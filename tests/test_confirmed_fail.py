@@ -156,7 +156,7 @@ def museum_on(date):
     return {"date": date, "stops": [{"place": MUSEUM, "start": "11:00", "dwell_minutes": 60}]}
 
 
-@pytest.mark.xfail(strict=True, reason="1-4: closed_date_for 가 매주 요일만 본다")
+@pytest.mark.xfail(strict=True, reason="1-4: facts 에 미술관 1월 1일 휴관이 아직 없다")
 def test_fixed_date_closure(facts, policy):
     """2026-01-01(목) — 월요일이 아니지만 휴관일이다."""
     assert closed_day(judge(museum_on("2026-01-01"), facts, policy), MUSEUM)["status"] == FAIL
@@ -165,3 +165,20 @@ def test_fixed_date_closure(facts, policy):
 def test_day_after_fixed_closure_is_open(facts, policy):
     """대조군: 2026-01-02(금) — 휴관 규칙 어디에도 걸리지 않는다."""
     assert closed_day(judge(museum_on("2026-01-02"), facts, policy), MUSEUM)["status"] != FAIL
+
+
+def test_fixed_date_on_holiday_monday_is_rule_conflict(facts, policy):
+    """
+    2029-01-01(월, 신정) — "휴관 1월 1일" 은 휴관, "월요일이 공휴일인 경우 정상 개관" 은 개관이다.
+    공식 페이지에 우선순위가 없으므로 어느 쪽으로도 확정하지 않는다.
+
+    지금 근거는 2026-12-31 까지라 2029년은 원래 EVIDENCE_EXPIRED 다. 근거를 갱신한
+    상황을 가정해 적용 기간과 공휴일만 늘렸다. 기간만 늘려도 충돌이 확정되지 않는지 본다.
+    """
+    facts["places"][MUSEUM]["closed_days"]["fixed_dates"] = ["01-01"]  # 데이터 커밋 전이라 직접 넣는다
+    facts["places"][MUSEUM]["closed_days"]["valid_until"] = "2029-12-31"
+    facts["holidays"]["valid_until"] = "2029-12-31"
+    facts["holidays"]["dates"].append("2029-01-01")
+    c = closed_day(judge(museum_on("2029-01-01"), facts, policy), MUSEUM)
+    assert c["status"] == UNKNOWN
+    assert c["unknown_reason"] == "RULE_CONFLICT"
