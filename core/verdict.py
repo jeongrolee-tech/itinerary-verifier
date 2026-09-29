@@ -572,27 +572,40 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
         is_lower_bound=leg.get("is_lower_bound", False),
     )
 
+    event_time = to_min(hc["time"])
+
+    # 체류시간을 사용자가 말하지 않았으면 check_travel 과 같은 규칙이다.
+    # 0분으로도 늦을 때만 fail 이고, 그 밖에는 확정하지 않는다. 기본값은 안내에만 쓴다.
     if last["dwell"]["source"] != "user_stated":
-        r = policy["dwell_uncertainty_ratio"]
-        lo = arrival_at(round(base * (1 - r))) <= required
-        hi = arrival_at(round(base * (1 + r))) <= required
-        if lo != hi:
+        earliest = arrival_at(0)
+        if earliest >= event_time:
             policy_eval.update(
-                status=UNKNOWN,
-                unknown_reason="DEPENDS_ON_DEFAULT_DWELL",
-                detail=f"예상 도착이 기본값 체류시간({base}분)에 의존한다. "
-                       f"±{int(r * 100)}% 범위에서 판정이 뒤집혀 확정할 수 없다",
-                depends_on_assumptions=[last["dwell"].get("assumption_id")],
-                how_to_resolve={"user": f"{last['name']}에서 몇 시에 나오실 예정인가요?"},
-                confirmed=f"설정한 {buffer}분 여유 기준으로 {round(abs(required - est))}분 "
-                          f"{'부족' if est > required else '여유'}하다",
-                not_confirmed="실제 탑승 가능 여부",
+                status=FAIL,
+                estimated_arrival=to_hhmm(earliest),
+                margin_vs_event=round(event_time - earliest),
+                margin_vs_required=round(required - earliest),
+                detail=f"{last['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 "
+                       f"열차 출발({hc['time']})에 늦는다",
             )
+            if leg.get("is_lower_bound"):
+                policy_eval["detail"] += " — 주행시간 하한선만으로도 늦으므로 확정된다"
             result["policy"] = policy_eval
             return result
-        policy_eval["depends_on_assumptions"] = [last["dwell"].get("assumption_id")]
 
-    event_time = to_min(hc["time"])
+        detail = f"{last['name']} 체류시간을 몰라 확정할 수 없다"
+        if est >= event_time:
+            detail += f". 기본값 {base}분으로 보면 {to_hhmm(est)} 도착이라 열차를 놓칠 수 있다"
+        policy_eval.update(
+            status=UNKNOWN,
+            unknown_reason="NO_USER_DWELL",
+            detail=detail,
+            depends_on_assumptions=[last["dwell"].get("assumption_id")],
+            how_to_resolve={"user": f"{last['name']}에서 몇 시에 나오실 예정인가요?"},
+            confirmed=f"바로 나와도 {to_hhmm(earliest)} 이후에 도착한다",
+            not_confirmed=f"{last['name']} 체류시간과 실제 탑승 가능 여부",
+        )
+        result["policy"] = policy_eval
+        return result
 
     # 사용자가 반드시 지켜야 하는 것은 열차 출발 시각이다. 서비스가 정한
     # 15분 전 도착은 안전을 위한 권장 기준이지, 그 자체로 사용자 일정의

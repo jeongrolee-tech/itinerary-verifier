@@ -129,10 +129,19 @@ def market_then_ktx(time):
             "hard_constraints": [ktx_at(time)]}
 
 
-@pytest.mark.xfail(strict=True, reason="1-3: 열차 조건이 기본 체류시간으로 fail 을 낸다")
 def test_default_dwell_alone_is_not_train_fail(facts, policy):
     """19:20 KTX — 광장시장에서 바로 나오면 19:07 에 닿는다."""
-    assert train(judge(market_then_ktx("19:20"), facts, policy))["status"] == UNKNOWN
+    p = train(judge(market_then_ktx("19:20"), facts, policy))
+    assert p["status"] == UNKNOWN
+    assert p["unknown_reason"] == "NO_USER_DWELL"
+    assert p["severity"] == "blocking"  # 정보가 부족해도 열차 조건의 중요도는 낮추지 않는다
+
+
+@pytest.mark.parametrize("market_default", [60, 200, 400])
+def test_raising_default_dwell_never_creates_train_fail(facts, policy, market_default):
+    """열차 조건도 기본 체류시간만으로 확정 실패를 만들지 않는다."""
+    policy["default_dwell_minutes"]["market_meal"] = market_default
+    assert train(judge(market_then_ktx("20:30"), facts, policy))["status"] != FAIL
 
 
 def test_train_late_even_with_zero_dwell_is_fail(facts, policy):

@@ -126,8 +126,9 @@ def detail(case, out, problems):
         print(f"  사용자가 말한 것   {e['type']} {e['place']} {e['time']}  ({e['source']})")
         print(f"  서비스 권장 기준   도착 {p['required_arrival']} (여유 {p['buffer_minutes']}분, {p['buffer_source']})")
         if p.get("estimated_arrival"):
+            basis = "  ← 기본값 체류시간으로 계산한 참고값" if p.get("depends_on_assumptions") else ""
             print(f"  계산한 예상 도착   {p['estimated_arrival']}  "
-                  f"(열차까지 {p['margin_vs_event']:+d}분 / 권장까지 {p['margin_vs_required']:+d}분)")
+                  f"(열차까지 {p['margin_vs_event']:+d}분 / 권장까지 {p['margin_vs_required']:+d}분){basis}")
         print(f"  → {MARK[p['status']]} {p['status']}  severity={p['severity']}")
         for k, label in (("detail", ""), ("confirmed", "확인된 것   "), ("not_confirmed", "확인 못 한 것 ")):
             if p.get(k):

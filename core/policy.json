@@ -13,8 +13,7 @@
     "rail_boarding": 15
   },
 
-  "dwell_uncertainty_ratio": 0.5,
-  "dwell_uncertainty_note": "기본값으로 채운 체류시간은 ±50% 흔들어본다. 그 범위에서 판정이 뒤집히면 pass/fail로 확정하지 않고 unknown을 낸다.",
+  "default_dwell_note": "판정에는 쓰지 않는다. 체류시간을 모르면 0분을 하한으로 보고, 기본값은 사용자에게 물어볼 때 안내에만 쓴다.",
 
   "require_user_dwell_for_completion_check": true,
   "require_user_dwell_note": "체류시간을 사용자가 말하지 않았으면 '계획한 체류를 마칠 수 있는가'는 판단하지 않는다."

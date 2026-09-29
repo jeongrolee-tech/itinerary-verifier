@@ -472,7 +472,6 @@ itinerary-verifier/
 | `ESTIMATE_ONLY` | 직선거리 근사값뿐이다 | 실제 경로 확인 |
 | `LOWER_BOUND_ONLY` | 주행시간 하한선뿐이다 | 도보·환승·대기 확보 |
 | `NO_USER_DWELL` | 사용자가 체류시간을 안 말했다 | 사용자에게 물어본다 |
-| `DEPENDS_ON_DEFAULT_DWELL` | 우리가 정한 기본값이 판정을 갈랐다 | 사용자에게 물어본다 |
 | `BUFFER_NOT_MET` | 열차 출발·다음 장소 시작 전에는 닿지만 **권장 여유에 못 미친다** | 사용자에게 알리고 판단을 맡긴다 |
 | `UNSUPPORTED_ADMISSION_TYPE` | 정보는 있는데 **검사가 없다** | 코드를 고친다 |
 | `UNVERIFIED_ALWAYS_OPEN` | 상시 개방 근거를 안 잡았다 | 공식 출처 확인 |
@@ -573,13 +572,12 @@ itinerary-verifier/
 
 | 키 | 값 | 뜻 |
 | --- | --- | --- |
-| `default_dwell_minutes` | palace 90 · museum 60 · market_meal 60 · street 45 | 체류시간 미입력 시 쓰는 기본값 |
+| `default_dwell_minutes` | palace 90 · museum 60 · market_meal 60 · street 45 | 체류시간 미입력 시 **안내에만** 쓰는 기본값. 판정에는 쓰지 않는다 |
 | `buffer_minutes.transit_leg` | 10 | 구간 이동에 두는 여유 |
 | `buffer_minutes.rail_boarding` | 15 | 열차 탑승 전 권장 도착 여유 |
-| `dwell_uncertainty_ratio` | 0.5 | 기본값을 **±50% 흔들어** 판정이 뒤집히면 `unknown` |
 | `require_user_dwell_for_completion_check` | true | 체류시간을 안 말했으면 체류 검사를 하지 않는다 |
 
-마지막 두 개가 "우리가 정한 값으로 사용자 일정의 오류를 만들어내지 않는다"를 구현한 것이다. 비교 실험에서 LLM은 이 정책을 **문서로 받고도** 적용하지 않았다.
+첫 줄과 마지막 줄이 "우리가 정한 값으로 사용자 일정의 오류를 만들어내지 않는다"를 구현한 것이다. 비교 실험에서 LLM은 이 정책을 **문서로 받고도** 적용하지 않았다.
 
 ---
 
