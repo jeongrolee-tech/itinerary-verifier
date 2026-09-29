@@ -95,11 +95,11 @@ def palace_then_market(market_start):
     ]}
 
 
-@pytest.mark.xfail(strict=True, reason="1-2: 이동 판정이 기본 체류시간으로 fail 을 낸다")
 def test_default_dwell_alone_is_not_fail(facts, policy):
     """10:30 광장시장 — 경복궁에서 몇 분 머무를지 모른다. 체류 검사도 같은 이유로 unknown 이다."""
     c = travel(judge(palace_then_market("10:30"), facts, policy), PALACE, MARKET)
     assert c["status"] == UNKNOWN
+    assert c["unknown_reason"] == "NO_USER_DWELL"
 
 
 def test_late_even_with_zero_dwell_is_fail(facts, policy):
@@ -108,17 +108,13 @@ def test_late_even_with_zero_dwell_is_fail(facts, policy):
     assert c["status"] == FAIL
 
 
-@pytest.mark.parametrize("palace_default", [
-    90,
-    pytest.param(240, marks=pytest.mark.xfail(strict=True, reason="1-2")),
-    pytest.param(400, marks=pytest.mark.xfail(strict=True, reason="1-2")),
-])
+@pytest.mark.parametrize("palace_default", [90, 240, 400])
 def test_raising_default_dwell_never_creates_fail(facts, policy, palace_default):
     """
     시스템 기본 체류시간만으로 확정 실패를 만들지 않는다. 기본값도 사실이 아니라 설정이다.
 
-    지금 코드는 기본값 D 의 ±50% 가 둘 다 늦을 때 fail 을 낸다.
-    10:00 + D/2 + 4.5 + 10 > 12:00 이 되는 D > 211 부터 fail 이 된다.
+    1-2 전에는 기본값 D 의 ±50% 가 둘 다 늦을 때 fail 을 냈다.
+    10:00 + D/2 + 4.5 + 10 > 12:00 이 되는 D > 211 부터 fail 이 됐다.
     """
     policy["default_dwell_minutes"]["palace"] = palace_default
     c = travel(judge(palace_then_market("12:00"), facts, policy), PALACE, MARKET)

@@ -427,22 +427,32 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
         "excluded_from_travel_time": leg.get("excluded"),
     }
 
-    # ⭐ 가정을 흔들어 보고, 판정이 뒤집히면 확정하지 않는다 (민감도 검사).
-    #    경복궁 체류를 90분으로 가정했을 때 "늦는다" 가 나왔다고 치자.
-    #    45분이면 도착하고 135분이면 못 도착한다면, 그 오류는 사용자 일정의
-    #    오류가 아니라 **우리가 정한 기본값이 만든 오류**다.
-    #    ±50% 범위에서 결과가 갈리면 unknown 을 내고 사용자에게 물어본다 → T12
+    # ⭐ 사용자가 말하지 않은 체류시간으로는 판정하지 않는다 (T08 과 같은 원칙).
+    #    fail 은 "어떻게 머물든 늦는다" 의 증명이어야 한다. 체류시간은 음수가 될 수
+    #    없으므로 0분이 보장된 하한이다. 들어가자마자 나와도 늦을 때만 fail 이다.
+    #    얼마나 오래 머물지는 모르므로 pass 도 낼 수 없다.
+    #
+    #    전에는 기본값을 ±50% 흔들어 둘 다 늦으면 fail 을 냈다. 하지만 궁궐 90분의
+    #    45~135분은 우리 추측을 중심으로 한 범위일 뿐이다. 20분만 둘러보는 사람도
+    #    있다. 기본값은 사용자에게 물어볼 때 "늦을 수 있다" 는 안내로만 쓴다.
     if frm["dwell"]["source"] != "user_stated":
-        r = policy["dwell_uncertainty_ratio"]
-        if ok_at(round(base * (1 - r))) != ok_at(round(base * (1 + r))):
-            return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
-                         unknown_reason="DEPENDS_ON_DEFAULT_DWELL",
-                         detail=f"출발 시각이 기본값 체류시간({base}분)에 의존한다. "
-                                f"±{int(r * 100)}% 범위에서 판정이 뒤집혀 확정할 수 없다",
-                         depends_on_assumptions=[frm["dwell"].get("assumption_id")],
-                         how_to_resolve={"user": f"{frm['name']}에서 몇 시에 나오실 예정인가요?"},
-                         reference=evidence)
-        evidence["depends_on_assumptions"] = [frm["dwell"].get("assumption_id")]
+        earliest = arrival_at(0)
+        if earliest > target:
+            evidence.update(depart_at=frm["start"], arrival=to_hhmm(earliest))
+            detail = f"{frm['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {to['start']}에 늦는다"
+            if leg.get("is_lower_bound"):
+                detail += " — 주행시간 하한선만으로도 늦으므로 확정된다"
+            return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL, evidence=evidence, detail=detail)
+
+        detail = f"{frm['name']} 체류시간을 몰라 확정할 수 없다"
+        if arrival > target:
+            detail += f". 기본값 {base}분으로 보면 {to_hhmm(arrival)} 도착이라 늦을 수 있다"
+        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                     unknown_reason="NO_USER_DWELL",
+                     detail=detail,
+                     depends_on_assumptions=[frm["dwell"].get("assumption_id")],
+                     how_to_resolve={"user": f"{frm['name']}에서 몇 시에 나오실 예정인가요?"},
+                     reference=evidence)
 
     # ⭐ 하한선의 비대칭 — 한 방향으로만 확정할 수 있다.
     #    지금 이동시간은 지하철 주행시간뿐이고 도보·환승·대기가 빠져 있다.
