@@ -123,7 +123,7 @@ STATES = """검사 하나당 네 상태 중 하나를 고른다.
 
 검사 종류는 CLOSED_DAY(휴무일), ADMISSION_NOT_POSSIBLE(도착 시각에 입장 불가),
 DWELL_NOT_COMPLETABLE(입장은 되지만 체류를 마치기 전에 폐장),
-INSUFFICIENT_TRAVEL_TIME(이동시간 + 버퍼 > 여유시간) 네 가지다."""
+INSUFFICIENT_TRAVEL_TIME(이동시간 > 여유시간. 버퍼를 못 채운 것만으로는 위반이 아니다) 네 가지다."""
 
 GUIDANCE = """검사가 **불필요**하면 not_applicable, 검사가 **필요한데 못 끝냈으면** unknown 이다.
 영업시간을 모르는 것은 not_applicable 이 아니라 unknown 이다.

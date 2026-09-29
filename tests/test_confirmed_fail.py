@@ -55,7 +55,6 @@ def museum_then_palace(palace_start):
     ]}
 
 
-@pytest.mark.xfail(strict=True, reason="1-1: 이동 판정이 정책 버퍼를 더한 값으로 fail 을 낸다")
 def test_buffer_shortfall_alone_is_not_fail(facts, policy):
     """14:15 시작 — 권장 여유를 못 채운 것이지, 15분 안에 못 간다는 증명이 아니다."""
     c = travel(judge(museum_then_palace("14:15"), facts, policy), MUSEUM, PALACE)
@@ -69,11 +68,7 @@ def test_ride_alone_late_is_fail(facts, policy):
     assert c["status"] == FAIL
 
 
-@pytest.mark.parametrize("buffer", [
-    10,
-    pytest.param(30, marks=pytest.mark.xfail(strict=True, reason="1-1")),
-    pytest.param(120, marks=pytest.mark.xfail(strict=True, reason="1-1")),
-])
+@pytest.mark.parametrize("buffer", [10, 30, 120])
 def test_raising_travel_buffer_never_creates_fail(facts, policy, buffer):
     """정책 버퍼만 늘었다고 확정 불가능으로 바뀌지 않는다. 버퍼는 사실이 아니라 설정이다."""
     policy["buffer_minutes"]["transit_leg"] = buffer

@@ -409,13 +409,17 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
     target = to_min(to["start"])
     base = frm["dwell"]["value"]
 
-    def ok_at(dwell_minutes: int) -> bool:
-        return to_min(frm["start"]) + dwell_minutes + leg["minutes"] + buffer <= target
+    def arrival_at(dwell_minutes: int) -> float:
+        return to_min(frm["start"]) + dwell_minutes + leg["minutes"]
 
+    def ok_at(dwell_minutes: int) -> bool:
+        return arrival_at(dwell_minutes) + buffer <= target
+
+    arrival = arrival_at(base)
     evidence = {
         "depart_at": to_hhmm(to_min(frm["start"]) + base),
         "travel_minutes": leg["minutes"], "buffer_minutes": buffer,
-        "arrival": to_hhmm(to_min(frm["start"]) + base + leg["minutes"] + buffer),
+        "arrival": to_hhmm(arrival),
         "planned_arrival": to["start"],
         "mode": leg.get("mode"), "method": leg.get("method"), "source": leg.get("source"),
         "snapshot_id": leg.get("snapshot_id"), "checked_at": leg.get("checked_at"),
@@ -448,21 +452,43 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
     #      하한선으로는 도착한다 → unknown    나머지를 모르니 확정할 수 없다
     #
     #    이게 "확보한 만큼만 말한다" 를 산수로 옮긴 것이다.
-    if ok_at(base):
+    #
+    # ⭐ 버퍼는 fail 을 가르는 데 쓰지 않는다.
+    #    "10분 여유를 두자" 는 우리가 정한 설정이지 사실이 아니다. 버퍼까지 더해서
+    #    늦는다고 fail 을 내면 설정값을 올리기만 해도 가능한 일정이 불가능이 된다.
+    #    14:00 출발 · 14:15 시작 · 주행 6.5분이면 14:06 에 닿는다. 모자란 것은
+    #    권장 여유이지 이동 자체가 아니다. 열차 조건과 같은 규칙이다.
+    #
+    #      이동만으로 늦는다          → fail
+    #      닿지만 버퍼를 못 채운다    → unknown (BUFFER_NOT_MET)  사용자가 판단한다
+    #      버퍼까지 채운다            → pass, 하한선이면 unknown (LOWER_BOUND_ONLY)
+    if arrival > target:
+        detail = f"{to_hhmm(arrival)} 도착 예상인데 계획은 {to['start']}이다"
         if leg.get("is_lower_bound"):
-            missing = ", ".join(leg.get("excluded") or ["미확인 구성요소"])
-            return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
-                         unknown_reason="LOWER_BOUND_ONLY",
-                         detail=f"{leg.get('mode', '이동')} 주행시간({leg['minutes']}분)만으로는 "
-                                f"도착하지만 {missing}이 빠져 있어 확정할 수 없다",
-                         how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
-                         reference=evidence)
-        return check("INSUFFICIENT_TRAVEL_TIME", label, PASS, evidence=evidence)
+            detail += " — 주행시간 하한선만으로도 늦으므로 확정된다"
+        return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL, evidence=evidence, detail=detail)
 
-    detail = f"{evidence['arrival']} 도착 예상인데 계획은 {to['start']}이다"
+    if not ok_at(base):
+        spare = round(target - arrival)
+        detail = (f"{to['start']}보다 {spare}분 먼저 도착하지만, "
+                  f"설정한 권장 여유 {buffer}분보다 {round(arrival + buffer - target)}분 부족하다")
+        if leg.get("is_lower_bound"):
+            detail += ". 주행시간 하한선 기준이라 실제 도착은 이보다 늦다"
+        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                     unknown_reason="BUFFER_NOT_MET",
+                     detail=detail,
+                     how_to_resolve={"user": f"{to['name']} 시작 전 여유가 {spare}분뿐인데 괜찮으신가요?"},
+                     reference=evidence)
+
     if leg.get("is_lower_bound"):
-        detail += " — 주행시간 하한선만으로도 늦으므로 확정된다"
-    return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL, evidence=evidence, detail=detail)
+        missing = ", ".join(leg.get("excluded") or ["미확인 구성요소"])
+        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                     unknown_reason="LOWER_BOUND_ONLY",
+                     detail=f"{leg.get('mode', '이동')} 주행시간({leg['minutes']}분)만으로는 "
+                            f"도착하지만 {missing}이 빠져 있어 확정할 수 없다",
+                     how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
+                     reference=evidence)
+    return check("INSUFFICIENT_TRAVEL_TIME", label, PASS, evidence=evidence)
 
 
 # ── 필수 조건 (KTX 등) ──────────────────────────────────────────────
