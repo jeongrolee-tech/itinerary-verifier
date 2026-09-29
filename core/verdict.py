@@ -808,16 +808,19 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
             "ask_user": "방문 날짜가 맞는지 확인해 주세요",
         })
 
+    # 날짜와 요일이 맞지 않으면 사용자가 어느 날을 뜻했는지 모른다. "10월 8일 수요일" 은
+    # 7일 수요일일 수도, 8일 목요일일 수도 있고, 어느 날이든 일정 자체는 문제없을 수 있다.
+    # 불가능이 아니라 판정 보류다. 어느 쪽이 맞는지 묻는다.
     stated_weekday = itinerary.get("weekday_stated")
     if stated_weekday and stated_weekday != weekday_of(visit_date):
         conflict = check(
-            "INPUT_CONFLICT", "날짜와 요일", FAIL,
-            reason="MISMATCHED_WEEKDAY",
+            "INPUT_CONFLICT", "날짜와 요일", UNKNOWN,
+            unknown_reason="MISMATCHED_WEEKDAY",
             detail=f"날짜 {visit_date}의 실제 요일은 {weekday_of(visit_date)}인데 "
                    f"입력에는 {stated_weekday}로 적혀 있다",
             how_to_resolve={"user": "날짜와 요일 중 맞는 값을 확인해 주세요"},
         )
-        conflict["id"] = f"chk-{len(assumptions) + 1:03d}"
+        conflict["id"] = "chk-001"
         return {
             "date": visit_date,
             "date_source": itinerary.get("date_source", "explicit"),
@@ -825,9 +828,9 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
             "weekday_stated": stated_weekday,
             "is_holiday": visit_date in facts["holidays"]["dates"],
             "summary": {
-                "verdict": "infeasible",
-                "message": "입력한 날짜와 요일이 서로 맞지 않습니다",
-                "counts": {PASS: 0, FAIL: 1, UNKNOWN: 0, NA: 0},
+                "verdict": "undetermined",
+                "message": "입력한 날짜와 요일이 서로 맞지 않아 판정을 보류했습니다",
+                "counts": {PASS: 0, FAIL: 0, UNKNOWN: 1, NA: 0},
             },
             "assumptions": assumptions,
             "checks": [conflict],

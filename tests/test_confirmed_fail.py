@@ -301,3 +301,16 @@ def test_inferred_start_does_not_confirm_train_fail(facts, policy):
     assert p["status"] == UNKNOWN
     assert p["unknown_reason"] == "INFERRED_INPUT"
     assert p["severity"] == "blocking"
+
+
+def test_mismatched_weekday_is_not_infeasible(facts, policy):
+    """
+    "10월 8일 수요일" — 2026-10-08 은 목요일이다. 7일 수요일인지 8일 목요일인지 모를 뿐,
+    일정이 불가능하다는 증거는 아니다. 판정을 보류하고 어느 쪽이 맞는지 묻는다.
+    """
+    it = {"date": THURSDAY, "date_source": "inferred", "weekday_stated": "WED",
+          "stops": [{"place": PALACE, "start": "10:00", "dwell_minutes": 60}]}
+    out = judge(it, facts, policy)
+    assert out["summary"]["verdict"] == "undetermined"
+    assert out["checks"][0]["status"] == UNKNOWN
+    assert out["checks"][0]["unknown_reason"] == "MISMATCHED_WEEKDAY"

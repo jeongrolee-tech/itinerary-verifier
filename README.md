@@ -482,7 +482,7 @@ itinerary-verifier/
 | `UNSUPPORTED_ADMISSION_TYPE` | 정보는 있는데 **검사가 없다** | 코드를 고친다 |
 | `UNVERIFIED_ALWAYS_OPEN` | 상시 개방 근거를 안 잡았다 | 공식 출처 확인 |
 
-입력이 부족해서 나는 것은 따로 묶는다. 전부 사용자에게 되물어 해결한다.
+입력이 부족하거나 서로 맞지 않아서 나는 것은 따로 묶는다. 전부 사용자에게 되물어 해결한다.
 
 | 이유 | 뜻 |
 | --- | --- |
@@ -490,6 +490,7 @@ itinerary-verifier/
 | `MISSING_STOPS` · `MISSING_PLACE` | 방문할 장소가 없다 |
 | `MISSING_START_TIME` | 방문 시작 시각이 없다 |
 | `INCOMPLETE_HARD_CONSTRAINT` | 필수 조건에 장소 또는 시각이 빠졌다 |
+| `MISMATCHED_WEEKDAY` | 날짜와 요일이 서로 맞지 않는다. 어느 날을 뜻했는지 모르므로 `infeasible`이 아니라 판정 보류다 |
 
 > `BUFFER_NOT_MET`이 `fail`이 아니라 `unknown`인 이유 — 사용자가 반드시 지켜야 하는 것은
 > **열차 출발 시각**과 **다음 장소 시작 시각**이다. 열차 15분 전 도착, 구간 이동 10분 여유는
