@@ -536,7 +536,7 @@ itinerary-verifier/
 
 | 키 | 내용 |
 | --- | --- |
-| `snapshot_id` | `facts-2026-09-22`. **데이터 버전.** 라벨 노후화 검출이 이걸 읽는다 |
+| `snapshot_id` | `facts-2026-09-29`. **데이터 버전.** 라벨 노후화 검출이 이걸 읽는다 |
 | `snapshot_history` | 버전별로 무엇이 바뀌었는지. `changed_keys`가 노후화 판단의 근거 |
 | `holidays` | `verified` · `dates[]` · 출처 · 적용기간 |
 | `places` | 장소별 `closed_days` · `hours` · `admission` · `entrance` |

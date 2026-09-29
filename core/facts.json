@@ -1,5 +1,5 @@
 {
-  "snapshot_id": "facts-2026-09-22",
+  "snapshot_id": "facts-2026-09-29",
   "note": "판정 코어에 넘기는 사실 데이터. 여기 없는 것은 unknown이 된다.",
   "holidays": {
     "verified": true,
@@ -117,14 +117,18 @@
         "weekly": [
           "MON"
         ],
+        "fixed_dates": [
+          "01-01"
+        ],
         "exception_rule": "open_if_holiday_no_shift",
         "rule_text": "휴관 1월 1일, 매주 월요일 / 월요일이 공휴일인 경우 정상 개관",
         "rule_absence_note": "다음 날로 이동한다는 조항이 페이지에 없다. 부재를 확인한 것이므로 페이지 개편 시 재확인 필요",
+        "rule_conflict_note": "1월 1일이 월요일인 해(2029 등)에는 '휴관 1월 1일' 과 '월요일이 공휴일인 경우 정상 개관' 이 반대 결론을 낸다. 페이지에 우선순위가 없어 그날은 확정하지 않는다(RULE_CONFLICT). 2024-01-01(월) 운영 여부를 확인하면 정할 수 있다",
         "source": "curated",
         "url": "https://sema.seoul.go.kr/kr/visit/seosomun",
-        "checked_at": "2026-09-21",
+        "checked_at": "2026-09-29",
         "valid_until": "2026-12-31",
-        "verified_by": "공식 페이지 화면 확인 (2026-09-21)"
+        "verified_by": "공식 페이지 화면 확인 (2026-09-29)"
       },
       "hours": [
         {
@@ -641,6 +645,20 @@
           "북촌한옥마을"
         ],
         "legs": "ALL",
+        "note": "라벨 노후화 판정에 쓴다. 케이스가 건드리는 키와 교집합이 있으면 그 라벨은 미검토다"
+      }
+    },
+    {
+      "id": "facts-2026-09-29",
+      "note": "미술관 고정일 휴관(1월 1일) 추가",
+      "changed": [
+        "서울시립미술관 서소문본관 closed_days.fixed_dates 추가 (01-01). rule_text 에 있었지만 검사에 쓰이지 않던 규칙",
+        "궁궐 4곳은 같은 날 공식 페이지를 다시 확인했고 고정일 휴무 문구가 없어 바꾸지 않았다"
+      ],
+      "changed_keys": {
+        "places": [
+          "서울시립미술관 서소문본관"
+        ],
         "note": "라벨 노후화 판정에 쓴다. 케이스가 건드리는 키와 교집합이 있으면 그 라벨은 미검토다"
       }
     }
