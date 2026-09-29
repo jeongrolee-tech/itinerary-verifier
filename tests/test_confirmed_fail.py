@@ -347,3 +347,30 @@ def test_arriving_by_next_opening_is_enough(facts, policy):
         {"place": PALACE, "start": "08:30", "dwell_minutes": 50},
         {"place": MUSEUM, "start": "09:45", "dwell_minutes": 60}]}
     assert travel(judge(it, facts, policy), PALACE, MUSEUM)["status"] != FAIL
+
+
+# ── H. 필수 조건의 종류 ───────────────────────────────────────────────
+# 열차·항공편은 출발 시각이라 그 시각에 도착하면 놓친 것이다.
+# "까지 도착" 은 그 시각에 닿으면 제시간이다.
+
+def market_until(time, type_, place="김포공항"):
+    return {"date": THURSDAY, "stops": [{"place": MARKET, "start": "18:00", "dwell_minutes": 60}],
+            "hard_constraints": [{"id": "HC1", "type": type_, "place": place, "time": time,
+                                  "buffer_rule": "transit_leg", "source": "user_stated"}]}
+
+
+def test_flight_message_does_not_say_train(facts, policy):
+    """항공편 조건인데 "열차는 … 출발한다" 고 적으면 안 된다."""
+    p = train(judge(market_until("18:30", "FLIGHT_DEPARTURE"), facts, policy))
+    assert p["status"] == FAIL
+    assert "항공편 출발" in p["detail"] and "열차" not in p["detail"]
+
+
+def test_leaving_at_departure_time_misses_the_flight(facts, policy):
+    """19:00 에 나와서 19:00 항공편 — 이동 0분이어도 이미 놓쳤다."""
+    assert train(judge(market_until("19:00", "FLIGHT_DEPARTURE"), facts, policy))["status"] == FAIL
+
+
+def test_leaving_at_deadline_is_not_late_for_arrive_by(facts, policy):
+    """19:00 에 나와서 "19:00 까지 도착" — 이동 0분이면 제시간이라 그것만으로 fail 이 아니다."""
+    assert train(judge(market_until("19:00", "ARRIVE_BY"), facts, policy))["status"] != FAIL

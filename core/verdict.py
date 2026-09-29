@@ -406,6 +406,8 @@ def leg_between(facts: dict, a: str, b: str) -> dict | None:
 
 
 MODE_NAMES = {"metro": "지하철"}
+EVENT_NAMES = {"TRAIN_DEPARTURE": "열차 출발", "FLIGHT_DEPARTURE": "항공편 출발",
+               "ARRIVE_BY": "도착 기한", "OTHER": "필수 조건"}
 
 
 def check_travel(frm, to, facts, policy, closed_statuses, visit_date, travel_mode=None) -> dict:
@@ -618,13 +620,22 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=N
     event_time = to_min(hc["time"])
     stated_dwell = last["dwell"]["source"] == "user_stated"
 
+    # 필수 조건마다 시각의 뜻이 다르다. 열차·항공편은 출발 시각이라 그 시각에 도착하면
+    # 이미 놓친 것이다. "20:30 까지 도착" 은 20:30 에 닿으면 제시간이다.
+    departs = hc["type"] in ("TRAIN_DEPARTURE", "FLIGHT_DEPARTURE")
+    ev = f"{EVENT_NAMES.get(hc['type'], '필수 조건')}({hc['time']})"
+    ok_arrival = "실제 탑승 가능 여부" if departs else "실제로 제시간에 닿는지"
+
+    def misses(arrival_min: float) -> bool:
+        return arrival_min >= event_time if departs else arrival_min > event_time
+
     # check_travel 과 같다. 이동시간이 0분이어도 늦으면 수단과 상관없이 fail 이다.
     earliest_departure = to_min(last["entry"]) + (last["dwell"]["value"] if stated_dwell else 0)
-    if earliest_departure >= event_time:
+    if misses(earliest_departure):
         policy_eval.update(
             status=FAIL,
             detail=f"{last['name']}에서 빨라도 {to_hhmm(earliest_departure)}에 나오는데 "
-                   f"열차는 {hc['time']}에 출발한다 — 이동시간이 0분이어도 늦는다",
+                   f"{ev}에 늦는다 — 이동시간이 0분이어도 늦는다",
         )
         result["policy"] = policy_eval
         return result
@@ -697,18 +708,17 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=N
     # 0분으로도 늦을 때만 fail 이고, 그 밖에는 확정하지 않는다. 기본값은 안내에만 쓴다.
     if not stated_dwell:
         earliest = arrival_at(0)
-        if earliest >= event_time:
+        if misses(earliest):
             policy_eval.update(
                 estimated_arrival=to_hhmm(earliest),
                 margin_vs_event=round(event_time - earliest),
                 margin_vs_required=round(required - earliest),
             )
-            return late(f"{last['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 "
-                        f"열차 출발({hc['time']})에 늦는다")
+            return late(f"{last['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {ev}에 늦는다")
 
         detail = f"{last['name']} 체류시간을 몰라 확정할 수 없다"
-        if est >= event_time:
-            detail += f". 기본값 {base}분으로 보면 {to_hhmm(est)} 도착이라 열차를 놓칠 수 있다"
+        if misses(est):
+            detail += f". 기본값 {base}분으로 보면 {to_hhmm(est)} 도착이라 {ev}에 늦을 수 있다"
         policy_eval.update(
             status=UNKNOWN,
             unknown_reason="NO_USER_DWELL",
@@ -716,7 +726,7 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=N
             depends_on_assumptions=[last["dwell"].get("assumption_id")],
             how_to_resolve={"user": f"{last['name']}에서 몇 시에 나오실 예정인가요?"},
             confirmed=f"바로 나와도 {to_hhmm(earliest)} 이후에 도착한다",
-            not_confirmed=f"{last['name']} 체류시간과 실제 탑승 가능 여부",
+            not_confirmed=f"{last['name']} 체류시간과 {ok_arrival}",
         )
         result["policy"] = policy_eval
         return result
@@ -724,18 +734,18 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=N
     # 사용자가 반드시 지켜야 하는 것은 열차 출발 시각이다. 서비스가 정한
     # 15분 전 도착은 안전을 위한 권장 기준이지, 그 자체로 사용자 일정의
     # 확정 위반은 아니다.
-    if est >= event_time:
-        return late(f"예상 도착({to_hhmm(est)})이 열차 출발({hc['time']}) 시각 이후다")
+    if misses(est):
+        return late(f"예상 도착({to_hhmm(est)})이 {ev}보다 늦다")
     if est > required:
         policy_eval.update(
             status=UNKNOWN,
             unknown_reason="BUFFER_NOT_MET",
             detail=(
-                f"열차 출발 전 {round(event_time - est)}분 도착 예상이지만, "
+                f"{ev} 전 {round(event_time - est)}분 도착 예상이지만, "
                 f"설정한 권장 여유 {buffer}분보다 {round(est - required)}분 부족하다"
             ),
-            confirmed=f"현재 이동시간 기준으로는 열차 출발 전 {round(event_time - est)}분 도착한다",
-            not_confirmed="역 출입구 이동·탑승 절차를 포함한 실제 탑승 가능 여부",
+            confirmed=f"현재 이동시간 기준으로는 {ev} 전 {round(event_time - est)}분 도착한다",
+            not_confirmed=f"역 출입구 이동·탑승 절차를 포함한 {ok_arrival}",
             how_to_resolve={"system": "역 출입구 보행 경로·탑승 절차·대기시간 확보"},
         )
     elif leg.get("is_lower_bound"):
@@ -748,7 +758,7 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=N
             detail=f"주행시간 하한선({leg['minutes']}분)으로는 권장 도착 시각에 맞지만 "
                    f"{missing}이 빠져 있다",
             confirmed=f"주행시간만으로는 {round(required - est)}분 여유가 있다",
-            not_confirmed="실제 탑승 가능 여부",
+            not_confirmed=ok_arrival,
             how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
         )
     else:
