@@ -133,12 +133,14 @@ python core/run.py --case T15
 
 [검사]
   ○ pass            CLOSED_DAY                 서울시립미술관 서소문본관
-      근거 curated https://sema.seoul.go.kr/... (확인 2026-09-21, 유효 ~2026-12-31)
+      근거 curated https://sema.seoul.go.kr/... (확인 2026-09-29, 유효 ~2026-12-31)
   ✕ fail            ADMISSION_NOT_POSSIBLE     서울시립미술관 서소문본관
       → 입장마감(18:00) 이후 도착
       근거 curated https://sema.seoul.go.kr/... (확인 2026-09-21, 유효 ~2026-12-31)
   – not_applicable  DWELL_NOT_COMPLETABLE      서울시립미술관 서소문본관
       → 입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다
+  – not_applicable  INSUFFICIENT_TRAVEL_TIME   서울시립미술관 서소문본관 → (없음)
+      → 마지막 스톱이라 다음 구간이 없다
 
 [판정]  infeasible
   pass 1 / fail 1 / unknown 0 / n.a. 2
