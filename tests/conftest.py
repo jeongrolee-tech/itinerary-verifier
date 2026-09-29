@@ -19,5 +19,5 @@ def facts():
 
 @pytest.fixture
 def policy():
-    """테스트가 버퍼·기본값을 바꿔도 다른 테스트에 새지 않게 매번 복사한다."""
+    """테스트가 권장 여유·기본값을 바꿔도 다른 테스트에 새지 않게 매번 복사한다."""
     return copy.deepcopy(_POLICY)

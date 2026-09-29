@@ -453,15 +453,15 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
     #
     #    이게 "확보한 만큼만 말한다" 를 산수로 옮긴 것이다.
     #
-    # ⭐ 버퍼는 fail 을 가르는 데 쓰지 않는다.
-    #    "10분 여유를 두자" 는 우리가 정한 설정이지 사실이 아니다. 버퍼까지 더해서
+    # ⭐ 권장 여유는 fail 을 가르는 데 쓰지 않는다.
+    #    "10분 여유를 두자" 는 우리가 정한 설정이지 사실이 아니다. 권장 여유까지 더해서
     #    늦는다고 fail 을 내면 설정값을 올리기만 해도 가능한 일정이 불가능이 된다.
     #    14:00 출발 · 14:15 시작 · 주행 6.5분이면 14:06 에 닿는다. 모자란 것은
     #    권장 여유이지 이동 자체가 아니다. 열차 조건과 같은 규칙이다.
     #
-    #      이동만으로 늦는다          → fail
-    #      닿지만 버퍼를 못 채운다    → unknown (BUFFER_NOT_MET)  사용자가 판단한다
-    #      버퍼까지 채운다            → pass, 하한선이면 unknown (LOWER_BOUND_ONLY)
+    #      이동만으로 늦는다              → fail
+    #      닿지만 권장 여유를 못 채운다   → unknown (BUFFER_NOT_MET)  사용자가 판단한다
+    #      권장 여유까지 채운다           → pass, 하한선이면 unknown (LOWER_BOUND_ONLY)
     if arrival > target:
         detail = f"{to_hhmm(arrival)} 도착 예상인데 계획은 {to['start']}이다"
         if leg.get("is_lower_bound"):

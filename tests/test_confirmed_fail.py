@@ -44,9 +44,9 @@ def ktx_at(time):
             "buffer_rule": "rail_boarding", "source": "user_stated"}
 
 
-# ── A. 정책 버퍼 ──────────────────────────────────────────────────────
-# 미술관 → 경복궁 주행시간 하한선 6.5분, 정책 버퍼 10분.
-# 14:00 출발이면 주행만으로 14:06.5 도착이고, 버퍼까지 더해야 14:16.5 가 된다.
+# ── A. 권장 여유 ──────────────────────────────────────────────────────
+# 미술관 → 경복궁 주행시간 하한선 6.5분, 권장 여유 10분.
+# 14:00 출발이면 주행만으로 14:06.5 도착이고, 권장 여유까지 더해야 14:16.5 가 된다.
 
 def museum_then_palace(palace_start):
     return {"date": THURSDAY, "stops": [
@@ -63,14 +63,14 @@ def test_buffer_shortfall_alone_is_not_fail(facts, policy):
 
 
 def test_ride_alone_late_is_fail(facts, policy):
-    """대조군: 14:05 시작 — 버퍼 없이 주행시간 하한선만으로 이미 늦는다."""
+    """대조군: 14:05 시작 — 권장 여유 없이 주행시간 하한선만으로 이미 늦는다."""
     c = travel(judge(museum_then_palace("14:05"), facts, policy), MUSEUM, PALACE)
     assert c["status"] == FAIL
 
 
 @pytest.mark.parametrize("buffer", [10, 30, 120])
 def test_raising_travel_buffer_never_creates_fail(facts, policy, buffer):
-    """정책 버퍼만 늘었다고 확정 불가능으로 바뀌지 않는다. 버퍼는 사실이 아니라 설정이다."""
+    """권장 여유만 늘었다고 확정 불가능으로 바뀌지 않는다. 권장 여유는 사실이 아니라 설정이다."""
     policy["buffer_minutes"]["transit_leg"] = buffer
     c = travel(judge(museum_then_palace("14:30"), facts, policy), MUSEUM, PALACE)
     assert c["status"] != FAIL
@@ -78,7 +78,7 @@ def test_raising_travel_buffer_never_creates_fail(facts, policy, buffer):
 
 @pytest.mark.parametrize("buffer", [15, 60, 120])
 def test_raising_rail_buffer_never_creates_fail(facts, policy, buffer):
-    """열차 조건은 이미 버퍼 부족을 BUFFER_NOT_MET(unknown)으로 낸다. 회귀 방지용."""
+    """열차 조건은 이미 권장 여유 부족을 BUFFER_NOT_MET(unknown)으로 낸다. 회귀 방지용."""
     policy["buffer_minutes"]["rail_boarding"] = buffer
     it = {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00", "dwell_minutes": 30}],
           "hard_constraints": [ktx_at("19:45")]}
