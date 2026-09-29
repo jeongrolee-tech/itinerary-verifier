@@ -745,6 +745,30 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=N
 
 
 # ── 본체 ────────────────────────────────────────────────────────────
+def unconfirmed(result: dict, depends_on: list[dict]) -> dict:
+    """
+    추정한 입력에 기대는 pass/fail 을 unknown 으로 내린다. 계산한 결과는 참고로 남긴다.
+
+    result 는 검사(check) 또는 필수 조건의 policy 평가다. 필수 조건은 severity 를 그대로 둔다.
+    """
+    if result["status"] not in (PASS, FAIL) or not depends_on:
+        return result
+    outcome = "통과로" if result["status"] == PASS else "위반으로"
+    detail = f"추정한 입력으로 보면 {outcome} 나온다"
+    if result.get("detail"):
+        detail += f" — {result['detail']}"
+    update = {
+        "unknown_reason": "INFERRED_INPUT",
+        "detail": detail + ". 추정한 값이 맞는지 확인하기 전에는 확정하지 않는다",
+        "depends_on_assumptions": [a["id"] for a in depends_on],
+        "how_to_resolve": {"user": " / ".join(a["ask_user"] for a in depends_on)},
+    }
+    if "type" in result:
+        return check(result["type"], result["target"], UNKNOWN,
+                     reference=result.get("evidence"), **update)
+    return {**result, "status": UNKNOWN, **update}
+
+
 def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     # ⭐ 입력이 비어 있을 때 시간 계산 예외를 내지 않는다.
     #    날짜·시각을 모르는 것은 "검사할 필요가 없다"가 아니라
@@ -810,6 +834,16 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
             "hard_constraints": [],
         }
 
+    # ⭐ LLM 이 추정한 입력에 기대는 판정은 pass 든 fail 이든 확정하지 않는다.
+    #    "점심 먹고" → 12:00 은 LLM 의 짐작이다. 그 12:00 으로 "입장 불가" 를 내면
+    #    추정치로 불가능을 단정한 것이고, "입장 가능" 을 내도 가능을 단정한 것이다.
+    #    기본 체류시간과 같은 원칙이다. 결과는 참고로 남기고 추정한 값이 맞는지 묻는다.
+    #
+    #    연도는 다르다. "10월 8일 목요일" 처럼 요일을 말했고 그 요일이 맞으면(틀리면
+    #    위에서 INPUT_CONFLICT) 날짜는 사용자 말로 확인된 것이다. 요일 없이 연도를
+    #    채웠을 때만 추정으로 본다.
+    date_dep = [] if stated_weekday else [a for a in assumptions if a["field"] == "date"]
+
     # 체류시간: 사용자가 말했으면 그대로, 아니면 기본값을 쓰되 반드시 기록한다.
     stops = []
     for i, s in enumerate(itinerary["stops"]):
@@ -820,6 +854,7 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
         place = None if scope == "area" else facts["places"].get(s["place"])
 
         start_source = s.get("start_source", "explicit")
+        start_dep = []
         if start_source == "inferred":
             aid = f"A{len(assumptions) + 1}"
             assumptions.append({
@@ -828,6 +863,7 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
                 "reason": "입력의 문맥에서 시작 시각을 추정했다",
                 "ask_user": f"{s['place']}에 {s['start']}에 도착하는 것이 맞나요?",
             })
+            start_dep = [assumptions[-1]]
         # ⭐ 기본값을 쓰는 것 자체는 문제가 아니다. 쓴 것을 숨기는 게 문제다.
         #    source 로 user_stated / system_default 를 구분하고, 기본값을 쓸 때마다
         #    assumptions 에 '무슨 값을, 어떤 규칙으로, 왜' 넣었는지와 사용자에게
@@ -846,19 +882,23 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
             })
             dwell = {"value": value, "source": "system_default", "assumption_id": aid}
         stops.append({"name": s["place"], "place": place, "start": s["start"],
-                      "start_source": start_source, "scope": scope,
+                      "start_source": start_source, "start_dep": start_dep, "scope": scope,
                       "scope_note": s.get("scope_note"), "dwell": dwell})
 
     checks: list[dict] = []
     closed_statuses: dict[str, str] = {}
 
+    # 추정 입력 처리는 검사 하나가 끝날 때마다 바로 한다. 휴무 결과를 입장 검사가,
+    # 입장 결과를 체류 검사가 이어받기 때문에, 다 끝낸 뒤에 고치면 앞뒤가 어긋난다.
     for st in stops:
-        c = check_closed_day(st["name"], st["place"], visit_date, facts)
+        c = unconfirmed(check_closed_day(st["name"], st["place"], visit_date, facts), date_dep)
         closed_statuses[st["name"]] = c["status"]
-        a = check_admission(st["name"], st["place"], visit_date, st["start"], c["status"],
-                            facts["holidays"])
-        d = check_dwell(st["name"], st["place"], visit_date, st["start"], st["dwell"],
-                        a["status"], policy, facts["holidays"])
+        a = unconfirmed(check_admission(st["name"], st["place"], visit_date, st["start"],
+                                        c["status"], facts["holidays"]),
+                        date_dep + st["start_dep"])
+        d = unconfirmed(check_dwell(st["name"], st["place"], visit_date, st["start"], st["dwell"],
+                                    a["status"], policy, facts["holidays"]),
+                        date_dep + st["start_dep"])
         checks += [c, a, d]
 
     for i, st in enumerate(stops):
@@ -866,15 +906,20 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
             checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{st['name']} → (없음)", NA,
                                 reason="마지막 스톱이라 다음 구간이 없다"))
         else:
-            checks.append(check_travel(st, stops[i + 1], facts, policy, closed_statuses,
-                                       visit_date, itinerary.get("travel_mode")))
+            checks.append(unconfirmed(
+                check_travel(st, stops[i + 1], facts, policy, closed_statuses,
+                             visit_date, itinerary.get("travel_mode")),
+                st["start_dep"] + stops[i + 1]["start_dep"]))
 
     for n, c in enumerate(checks, 1):
         c["id"] = f"chk-{n:03d}"
 
-    hard = [evaluate_hard_constraint(hc, stops, facts, policy, visit_date,
+    hard = []
+    for hc in itinerary.get("hard_constraints", []):
+        h = evaluate_hard_constraint(hc, stops, facts, policy, visit_date,
                                      itinerary.get("travel_mode"))
-            for hc in itinerary.get("hard_constraints", [])]
+        h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"])
+        hard.append(h)
 
     # ⭐ 전체 판정은 '가장 나쁜 상태' 순서로 정한다. 다수결이 아니다.
     #    fail 이 하나라도 있으면 infeasible, 없어도 unknown 이 하나 있으면

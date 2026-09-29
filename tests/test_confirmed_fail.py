@@ -2,8 +2,8 @@
 확정 fail 의 반례 — 2차 피드백 1번.
 
 fail 은 사용자가 말한 제약과 확인된 근거만으로 이미 충돌할 때만 낸다.
-권장 여유(buffer), 시스템 기본 체류시간, 사용자가 말하지 않은 이동수단에 따라
-결론이 달라지면 fail 이 아니라 unknown 이다. 가능하다고 단정해서도 안 되지만, 불가능하다고 단정해서도 안 된다.
+권장 여유(buffer), 시스템 기본 체류시간, 사용자가 말하지 않은 이동수단, LLM 이
+추정한 입력에 따라 결론이 달라지면 fail 이 아니라 unknown 이다. 가능하다고 단정해서도 안 되지만, 불가능하다고 단정해서도 안 된다.
 
 반례마다 대조군을 둔다. 반례만 있으면 fail 을 아예 안 내는 구현도 통과한다.
 
@@ -37,6 +37,13 @@ def closed_day(result, name):
 def train(result):
     assert len(result["hard_constraints"]) == 1
     return result["hard_constraints"][0]["policy"]
+
+
+def admission(result, name):
+    hits = [c for c in result["checks"]
+            if c["type"] == "ADMISSION_NOT_POSSIBLE" and c["target"] == name]
+    assert len(hits) == 1
+    return hits[0]
 
 
 def ktx_at(time):
@@ -235,3 +242,62 @@ def test_fixed_date_on_holiday_monday_is_rule_conflict(facts, policy):
     c = closed_day(judge(museum_on("2029-01-01"), facts, policy), MUSEUM)
     assert c["status"] == UNKNOWN
     assert c["unknown_reason"] == "RULE_CONFLICT"
+
+
+# ── F. LLM 이 추정한 입력 ─────────────────────────────────────────────
+# 추출 단계는 "점심 먹고" 같은 표현에서 시각을 짐작하면 start_source=inferred,
+# 연도가 없으면 가장 가까운 미래로 채우고 date_source=inferred 로 표시한다.
+
+def palace_at(start, source="explicit"):
+    return {"date": THURSDAY, "weekday_stated": "THU", "stops": [
+        {"place": PALACE, "start": start, "start_source": source, "dwell_minutes": 60}]}
+
+
+def test_inferred_start_does_not_confirm_fail(facts, policy):
+    """추정한 17:30 으로는 "입장마감 이후" 를 확정하지 않는다. 그 시각이 맞는지 묻는다."""
+    c = admission(judge(palace_at("17:30", "inferred"), facts, policy), PALACE)
+    assert c["status"] == UNKNOWN
+    assert c["unknown_reason"] == "INFERRED_INPUT"
+    assert "17:30에 도착하는 것이 맞나요" in c["how_to_resolve"]["user"]
+
+
+def test_explicit_start_still_confirms_fail(facts, policy):
+    """대조군: 사용자가 17시 30분이라고 적었으면 입장마감(17:00) 위반이 확정된다."""
+    assert admission(judge(palace_at("17:30"), facts, policy), PALACE)["status"] == FAIL
+
+
+def test_inferred_start_does_not_confirm_pass(facts, policy):
+    """추정한 10:00 으로 "입장 가능" 을 단정하지도 않는다. 가능하다고 단정해서도 안 된다."""
+    out = judge(palace_at("10:00", "inferred"), facts, policy)
+    assert admission(out, PALACE)["status"] == UNKNOWN
+    assert out["summary"]["verdict"] == "undetermined"
+
+
+def test_inferred_year_without_weekday_does_not_confirm_fail(facts, policy):
+    """
+    "10월 6일 창덕궁" — 연도를 2026 으로 채우면 휴궁일(10/5 대체공휴일에서 밀림)이다.
+    하지만 요일을 말하지 않았으니 2026년이 맞는지 사용자 말로 확인되지 않았다.
+    """
+    it = {"date": "2026-10-06", "date_source": "inferred",
+          "stops": [{"place": "창덕궁", "start": "10:00", "dwell_minutes": 60}]}
+    c = closed_day(judge(it, facts, policy), "창덕궁")
+    assert c["status"] == UNKNOWN
+    assert c["unknown_reason"] == "INFERRED_INPUT"
+
+
+def test_inferred_year_confirmed_by_stated_weekday(facts, policy):
+    """대조군: "10월 6일 화요일" — 말한 요일이 맞으니 날짜는 확인된 것이다. 휴궁이 확정된다."""
+    it = {"date": "2026-10-06", "date_source": "inferred", "weekday_stated": "TUE",
+          "stops": [{"place": "창덕궁", "start": "10:00", "dwell_minutes": 60}]}
+    assert closed_day(judge(it, facts, policy), "창덕궁")["status"] == FAIL
+
+
+def test_inferred_start_does_not_confirm_train_fail(facts, policy):
+    """추정한 시각으로 열차를 놓친다고 단정하지 않는다. 중요도는 그대로 둔다."""
+    it = {"date": THURSDAY, "stops": [
+        {"place": MARKET, "start": "19:00", "start_source": "inferred", "dwell_minutes": 60}],
+          "hard_constraints": [ktx_at("19:30")]}
+    p = train(judge(it, facts, policy))
+    assert p["status"] == UNKNOWN
+    assert p["unknown_reason"] == "INFERRED_INPUT"
+    assert p["severity"] == "blocking"
