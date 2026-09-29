@@ -2,8 +2,8 @@
 확정 fail 의 반례 — 2차 피드백 1번.
 
 fail 은 사용자가 말한 제약과 확인된 근거만으로 이미 충돌할 때만 낸다.
-정책 여유(buffer)나 시스템 기본 체류시간에 따라 결론이 달라지면 fail 이 아니라
-unknown 이다. 가능하다고 단정해서도 안 되지만, 불가능하다고 단정해서도 안 된다.
+권장 여유(buffer), 시스템 기본 체류시간, 사용자가 말하지 않은 이동수단에 따라
+결론이 달라지면 fail 이 아니라 unknown 이다. 가능하다고 단정해서도 안 되지만, 불가능하다고 단정해서도 안 된다.
 
 반례마다 대조군을 둔다. 반례만 있으면 fail 을 아예 안 내는 구현도 통과한다.
 
@@ -48,11 +48,14 @@ def ktx_at(time):
 # 미술관 → 경복궁 주행시간 하한선 6.5분, 권장 여유 10분.
 # 14:00 출발이면 주행만으로 14:06.5 도착이고, 권장 여유까지 더해야 14:16.5 가 된다.
 
-def museum_then_palace(palace_start):
-    return {"date": THURSDAY, "stops": [
+def museum_then_palace(palace_start, mode=None):
+    it = {"date": THURSDAY, "stops": [
         {"place": MUSEUM, "start": "13:00", "dwell_minutes": 60},
         {"place": PALACE, "start": palace_start, "dwell_minutes": 60},
     ]}
+    if mode:
+        it["travel_mode"] = mode
+    return it
 
 
 def test_buffer_shortfall_alone_is_not_fail(facts, policy):
@@ -63,8 +66,8 @@ def test_buffer_shortfall_alone_is_not_fail(facts, policy):
 
 
 def test_ride_alone_late_is_fail(facts, policy):
-    """대조군: 14:05 시작 — 권장 여유 없이 주행시간 하한선만으로 이미 늦는다."""
-    c = travel(judge(museum_then_palace("14:05"), facts, policy), MUSEUM, PALACE)
+    """대조군: 14:05 시작, 지하철로 간다고 말했다 — 주행시간 하한선만으로 이미 늦는다."""
+    c = travel(judge(museum_then_palace("14:05", mode="metro"), facts, policy), MUSEUM, PALACE)
     assert c["status"] == FAIL
 
 
@@ -88,11 +91,14 @@ def test_raising_rail_buffer_never_creates_fail(facts, policy, buffer):
 # ── B. 시스템 기본 체류시간 (이동) ────────────────────────────────────
 # 경복궁 체류를 말하지 않으면 기본값 90분이 들어간다. 경복궁 → 광장시장 하한선 4.5분.
 
-def palace_then_market(market_start):
-    return {"date": THURSDAY, "stops": [
+def palace_then_market(market_start, mode=None):
+    it = {"date": THURSDAY, "stops": [
         {"place": PALACE, "start": "10:00"},
         {"place": MARKET, "start": market_start},
     ]}
+    if mode:
+        it["travel_mode"] = mode
+    return it
 
 
 def test_default_dwell_alone_is_not_fail(facts, policy):
@@ -103,8 +109,8 @@ def test_default_dwell_alone_is_not_fail(facts, policy):
 
 
 def test_late_even_with_zero_dwell_is_fail(facts, policy):
-    """대조군: 10:03 광장시장 — 경복궁에 들어가자마자 나와도 주행만으로 10:04.5 다."""
-    c = travel(judge(palace_then_market("10:03"), facts, policy), PALACE, MARKET)
+    """대조군: 10:03 광장시장, 지하철로 간다 — 경복궁에 들어가자마자 나와도 주행만으로 10:04.5 다."""
+    c = travel(judge(palace_then_market("10:03", mode="metro"), facts, policy), PALACE, MARKET)
     assert c["status"] == FAIL
 
 
@@ -124,9 +130,12 @@ def test_raising_default_dwell_never_creates_fail(facts, policy, palace_default)
 # ── D. 시스템 기본 체류시간 (열차 조건) ───────────────────────────────
 # 광장시장 체류를 말하지 않으면 기본값 60분. 광장시장 → 서울역 하한선 7.0분.
 
-def market_then_ktx(time):
-    return {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00"}],
-            "hard_constraints": [ktx_at(time)]}
+def market_then_ktx(time, mode=None):
+    it = {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00"}],
+          "hard_constraints": [ktx_at(time)]}
+    if mode:
+        it["travel_mode"] = mode
+    return it
 
 
 def test_default_dwell_alone_is_not_train_fail(facts, policy):
@@ -145,8 +154,54 @@ def test_raising_default_dwell_never_creates_train_fail(facts, policy, market_de
 
 
 def test_train_late_even_with_zero_dwell_is_fail(facts, policy):
-    """대조군: 19:05 KTX — 바로 나와도 주행만으로 19:07 이다."""
-    assert train(judge(market_then_ktx("19:05"), facts, policy))["status"] == FAIL
+    """대조군: 19:05 KTX, 지하철로 간다 — 바로 나와도 주행만으로 19:07 이다."""
+    assert train(judge(market_then_ktx("19:05", mode="metro"), facts, policy))["status"] == FAIL
+
+
+# ── E. 이동수단 ──────────────────────────────────────────────────────
+# 이동시간 근거는 지하철 주행시간뿐이다. "지하철로는 늦는다" 는 "못 간다" 가 아니다.
+
+def test_subway_late_without_stated_mode_is_not_fail(facts, policy):
+    """14:05 경복궁 — 지하철로는 늦지만, 택시로는 갈 수 있을 수도 있다. 수단을 묻는다."""
+    c = travel(judge(museum_then_palace("14:05"), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == UNKNOWN
+    assert c["unknown_reason"] == "NO_USER_MODE"
+
+
+def test_subway_late_without_stated_mode_is_not_train_fail(facts, policy):
+    """19:05 KTX — 열차 조건도 같다. 확정하지 않되 중요도는 낮추지 않는다."""
+    p = train(judge(market_then_ktx("19:05"), facts, policy))
+    assert p["status"] == UNKNOWN
+    assert p["unknown_reason"] == "NO_USER_MODE"
+    assert p["severity"] == "blocking"
+
+
+def test_other_stated_mode_has_no_travel_time(facts, policy):
+    """택시로 간다고 했다 — 가진 것은 지하철 주행시간뿐이라 그 수단의 이동시간은 모른다."""
+    c = travel(judge(museum_then_palace("14:05", mode="taxi"), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == UNKNOWN
+    assert c["unknown_reason"] == "UNVERIFIED_TRAVEL_TIME"
+
+
+def test_leg_without_mode_does_not_count_as_stated(facts, policy):
+    """구간 데이터에 mode 가 없어도, 사용자가 수단을 말하지 않았으면 fail 이 아니다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"].pop("mode")
+    c = travel(judge(museum_then_palace("14:05"), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == UNKNOWN
+
+
+@pytest.mark.parametrize("mode", [None, "metro", "taxi"])
+def test_late_even_with_zero_travel_is_fail_regardless_of_mode(facts, policy, mode):
+    """13:00 미술관에서 한 시간 보고 13:50 경복궁 — 순간이동을 해도 늦는다."""
+    c = travel(judge(museum_then_palace("13:50", mode=mode), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == FAIL
+
+
+def test_train_late_even_with_zero_travel_is_fail(facts, policy):
+    """광장시장 19:00 에 한 시간 먹고 19:30 KTX — 수단을 말하지 않았어도 이미 늦다."""
+    it = {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00", "dwell_minutes": 60}],
+          "hard_constraints": [ktx_at("19:30")]}
+    assert train(judge(it, facts, policy))["status"] == FAIL
 
 
 # ── C. 고정일 휴관 ────────────────────────────────────────────────────

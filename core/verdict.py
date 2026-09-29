@@ -396,11 +396,28 @@ def leg_between(facts: dict, a: str, b: str) -> dict | None:
     return facts["legs"].get(f"{a}|{b}")
 
 
-def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
+MODE_NAMES = {"metro": "지하철"}
+
+
+def check_travel(frm, to, facts, policy, closed_statuses, visit_date, travel_mode=None) -> dict:
     label = f"{frm['name']} → {to['name']}"
     if closed_statuses.get(frm["name"]) == FAIL or closed_statuses.get(to["name"]) == FAIL:
         return check("INSUFFICIENT_TRAVEL_TIME", label, NA,
                      reason="양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다")
+
+    target = to_min(to["start"])
+    stated_dwell = frm["dwell"]["source"] == "user_stated"
+
+    # ⭐ 이동시간이 0분이어도 늦으면 이동수단·이동시간 데이터와 상관없이 fail 이다.
+    #    미술관 13:00 에 한 시간 보고 경복궁 13:50 이면 순간이동을 해도 늦는다.
+    #    체류를 모르면 0분을 넣는다 — 다음 일정이 이번 일정보다 먼저 시작하는 경우다.
+    earliest_departure = to_min(frm["start"]) + (frm["dwell"]["value"] if stated_dwell else 0)
+    if earliest_departure > target:
+        return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL,
+                     evidence={"depart_at": to_hhmm(earliest_departure),
+                               "planned_arrival": to["start"], "travel_minutes": 0},
+                     detail=f"{frm['name']}에서 빨라도 {to_hhmm(earliest_departure)}에 나오는데 "
+                            f"{to['name']} 일정은 {to['start']}에 시작한다 — 이동시간이 0분이어도 늦는다")
 
     leg = leg_between(facts, frm["name"], to["name"])
     if leg is None:
@@ -424,8 +441,16 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
                      detail="직선거리 기반 근사값뿐이다. 실제 보행 경로·출입구·우회가 반영되지 않아 판정을 보류한다",
                      reference={"travel_minutes": leg["minutes"]})
 
+    leg_mode = leg.get("mode")
+    mode_name = MODE_NAMES.get(leg_mode, leg_mode or "이동")
+    if travel_mode and travel_mode != leg_mode:
+        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                     unknown_reason="UNVERIFIED_TRAVEL_TIME",
+                     detail=f"{MODE_NAMES.get(travel_mode, travel_mode)} 이동시간을 확보하지 못했다. "
+                            f"확보한 것은 {mode_name} 주행시간뿐이다",
+                     how_to_resolve={"system": f"{MODE_NAMES.get(travel_mode, travel_mode)} 이동시간 확보"})
+
     buffer = policy["buffer_minutes"]["transit_leg"]
-    target = to_min(to["start"])
     base = frm["dwell"]["value"]
 
     def arrival_at(dwell_minutes: int) -> float:
@@ -440,11 +465,33 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
         "travel_minutes": leg["minutes"], "buffer_minutes": buffer,
         "arrival": to_hhmm(arrival),
         "planned_arrival": to["start"],
-        "mode": leg.get("mode"), "method": leg.get("method"), "source": leg.get("source"),
+        "mode": leg_mode, "stated_mode": travel_mode,
+        "method": leg.get("method"), "source": leg.get("source"),
         "snapshot_id": leg.get("snapshot_id"), "checked_at": leg.get("checked_at"),
         "is_lower_bound": leg.get("is_lower_bound", False),
         "excluded_from_travel_time": leg.get("excluded"),
     }
+
+    # ⭐ 이동수단을 말하지 않았으면 fail 을 내지 않는다 (체류 하한과 같은 원칙).
+    #    지하철로 늦는다는 것은 "지하철로는 못 간다" 이지 "못 간다" 가 아니다. 택시로는
+    #    갈 수 있을 수도 있다. "대중교통 기본" 은 우리가 정한 기본값이므로, 사용자가
+    #    그 수단으로 간다고 말했을 때만 fail 로 확정한다. 항공 최소 환승시간(MCT)도
+    #    수단이 정해진 연결에만 "불가능" 을 적용하고, TripIt 은 수단을 모를 때 위험 경고만 한다.
+    #
+    #    pass 쪽은 수단을 몰라도 된다.
+    #      fail  사용자가 고른 수단으로 못 간다   → 그 수단을 알아야 한다
+    #      pass  갈 수 있는 수단이 하나는 있다    → 우리가 가진 수단으로 충분하다
+    def late(detail: str) -> dict:
+        if travel_mode is not None and travel_mode == leg_mode:
+            if leg.get("is_lower_bound"):
+                detail += " — 주행시간 하한선만으로도 늦으므로 확정된다"
+            return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL, evidence=evidence, detail=detail)
+        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                     unknown_reason="NO_USER_MODE",
+                     detail=f"{mode_name}로 가면 {detail}. "
+                            f"이동수단을 말하지 않아 다른 수단으로 갈 수 있는지는 확인하지 않았다",
+                     how_to_resolve={"user": f"{to['name']}까지 어떤 수단으로 이동하시나요?"},
+                     reference=evidence)
 
     # ⭐ 사용자가 말하지 않은 체류시간으로는 판정하지 않는다 (T08 과 같은 원칙).
     #    fail 은 "어떻게 머물든 늦는다" 의 증명이어야 한다. 체류시간은 음수가 될 수
@@ -454,14 +501,11 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
     #    전에는 기본값을 ±50% 흔들어 둘 다 늦으면 fail 을 냈다. 하지만 궁궐 90분의
     #    45~135분은 우리 추측을 중심으로 한 범위일 뿐이다. 20분만 둘러보는 사람도
     #    있다. 기본값은 사용자에게 물어볼 때 "늦을 수 있다" 는 안내로만 쓴다.
-    if frm["dwell"]["source"] != "user_stated":
+    if not stated_dwell:
         earliest = arrival_at(0)
         if earliest > target:
             evidence.update(depart_at=frm["start"], arrival=to_hhmm(earliest))
-            detail = f"{frm['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {to['start']}에 늦는다"
-            if leg.get("is_lower_bound"):
-                detail += " — 주행시간 하한선만으로도 늦으므로 확정된다"
-            return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL, evidence=evidence, detail=detail)
+            return late(f"{frm['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {to['start']}에 늦는다")
 
         detail = f"{frm['name']} 체류시간을 몰라 확정할 수 없다"
         if arrival > target:
@@ -480,7 +524,8 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
     #      하한선으로도 늦는다  → fail 확정   빠진 값을 더하면 더 늦어질 뿐이다
     #      하한선으로는 도착한다 → unknown    나머지를 모르니 확정할 수 없다
     #
-    #    이게 "확보한 만큼만 말한다" 를 산수로 옮긴 것이다.
+    #    이게 "확보한 만큼만 말한다" 를 산수로 옮긴 것이다. 단 이 하한선은 지하철로
+    #    갈 때의 하한선이라, fail 확정은 사용자가 지하철로 간다고 말했을 때만 한다 (late).
     #
     # ⭐ 권장 여유는 fail 을 가르는 데 쓰지 않는다.
     #    "10분 여유를 두자" 는 우리가 정한 설정이지 사실이 아니다. 권장 여유까지 더해서
@@ -492,10 +537,7 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
     #      닿지만 권장 여유를 못 채운다   → unknown (BUFFER_NOT_MET)  사용자가 판단한다
     #      권장 여유까지 채운다           → pass, 하한선이면 unknown (LOWER_BOUND_ONLY)
     if arrival > target:
-        detail = f"{to_hhmm(arrival)} 도착 예상인데 계획은 {to['start']}이다"
-        if leg.get("is_lower_bound"):
-            detail += " — 주행시간 하한선만으로도 늦으므로 확정된다"
-        return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL, evidence=evidence, detail=detail)
+        return late(f"{to_hhmm(arrival)} 도착 예상인데 계획은 {to['start']}이다")
 
     if not ok_at(base):
         spare = round(target - arrival)
@@ -513,7 +555,7 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
         missing = ", ".join(leg.get("excluded") or ["미확인 구성요소"])
         return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
                      unknown_reason="LOWER_BOUND_ONLY",
-                     detail=f"{leg.get('mode', '이동')} 주행시간({leg['minutes']}분)만으로는 "
+                     detail=f"{mode_name} 주행시간({leg['minutes']}분)만으로는 "
                             f"도착하지만 {missing}이 빠져 있어 확정할 수 없다",
                      how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
                      reference=evidence)
@@ -521,7 +563,7 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
 
 
 # ── 필수 조건 (KTX 등) ──────────────────────────────────────────────
-def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
+def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=None) -> dict:
     """
     사용자가 말한 것과 서비스가 정한 권장 기준을 섞지 않는다.
 
@@ -560,6 +602,20 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
         "severity": "blocking",
     }
 
+    event_time = to_min(hc["time"])
+    stated_dwell = last["dwell"]["source"] == "user_stated"
+
+    # check_travel 과 같다. 이동시간이 0분이어도 늦으면 수단과 상관없이 fail 이다.
+    earliest_departure = to_min(last["start"]) + (last["dwell"]["value"] if stated_dwell else 0)
+    if earliest_departure >= event_time:
+        policy_eval.update(
+            status=FAIL,
+            detail=f"{last['name']}에서 빨라도 {to_hhmm(earliest_departure)}에 나오는데 "
+                   f"열차는 {hc['time']}에 출발한다 — 이동시간이 0분이어도 늦는다",
+        )
+        result["policy"] = policy_eval
+        return result
+
     if leg is None:
         policy_eval.update(status=UNKNOWN, unknown_reason="UNVERIFIED_TRAVEL_TIME",
                            detail=f"{last['name']} → {hc['place']} 이동시간을 확보하지 못했다")
@@ -576,6 +632,19 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
         result["policy"] = policy_eval
         return result
 
+    leg_mode = leg.get("mode")
+    mode_name = MODE_NAMES.get(leg_mode, leg_mode or "이동")
+    if travel_mode and travel_mode != leg_mode:
+        policy_eval.update(
+            status=UNKNOWN,
+            unknown_reason="UNVERIFIED_TRAVEL_TIME",
+            detail=f"{MODE_NAMES.get(travel_mode, travel_mode)} 이동시간을 확보하지 못했다. "
+                   f"확보한 것은 {mode_name} 주행시간뿐이다",
+            how_to_resolve={"system": f"{MODE_NAMES.get(travel_mode, travel_mode)} 이동시간 확보"},
+        )
+        result["policy"] = policy_eval
+        return result
+
     base = last["dwell"]["value"]
 
     def arrival_at(dwell_minutes: int) -> int:
@@ -586,30 +655,43 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
         estimated_arrival=to_hhmm(est),
         travel_minutes=leg["minutes"],
         travel_source=leg.get("source"), travel_snapshot=leg.get("snapshot_id"),
-        margin_vs_event=round(to_min(hc["time"]) - est),
+        margin_vs_event=round(event_time - est),
         margin_vs_required=round(required - est),
         is_lower_bound=leg.get("is_lower_bound", False),
+        stated_mode=travel_mode,
     )
 
-    event_time = to_min(hc["time"])
+    # 이동수단을 말하지 않았으면 fail 을 내지 않는다 (check_travel 의 late 와 같은 규칙).
+    # severity 는 blocking 그대로다. 열차를 놓칠 수 있다는 경고가 사라지면 안 된다.
+    def late(detail: str) -> dict:
+        if travel_mode is not None and travel_mode == leg_mode:
+            if leg.get("is_lower_bound"):
+                detail += " — 주행시간 하한선만으로도 늦으므로 확정된다"
+            policy_eval.update(status=FAIL, detail=detail)
+        else:
+            policy_eval.update(
+                status=UNKNOWN,
+                unknown_reason="NO_USER_MODE",
+                detail=f"{mode_name}로 가면 {detail}. "
+                       f"이동수단을 말하지 않아 다른 수단으로 갈 수 있는지는 확인하지 않았다",
+                how_to_resolve={"user": f"{hc['place']}까지 어떤 수단으로 이동하시나요?"},
+                not_confirmed="다른 이동수단으로 갔을 때의 도착 시각",
+            )
+        result["policy"] = policy_eval
+        return result
 
     # 체류시간을 사용자가 말하지 않았으면 check_travel 과 같은 규칙이다.
     # 0분으로도 늦을 때만 fail 이고, 그 밖에는 확정하지 않는다. 기본값은 안내에만 쓴다.
-    if last["dwell"]["source"] != "user_stated":
+    if not stated_dwell:
         earliest = arrival_at(0)
         if earliest >= event_time:
             policy_eval.update(
-                status=FAIL,
                 estimated_arrival=to_hhmm(earliest),
                 margin_vs_event=round(event_time - earliest),
                 margin_vs_required=round(required - earliest),
-                detail=f"{last['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 "
-                       f"열차 출발({hc['time']})에 늦는다",
             )
-            if leg.get("is_lower_bound"):
-                policy_eval["detail"] += " — 주행시간 하한선만으로도 늦으므로 확정된다"
-            result["policy"] = policy_eval
-            return result
+            return late(f"{last['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 "
+                        f"열차 출발({hc['time']})에 늦는다")
 
         detail = f"{last['name']} 체류시간을 몰라 확정할 수 없다"
         if est >= event_time:
@@ -630,13 +712,8 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
     # 15분 전 도착은 안전을 위한 권장 기준이지, 그 자체로 사용자 일정의
     # 확정 위반은 아니다.
     if est >= event_time:
-        policy_eval["status"] = FAIL
-        policy_eval["detail"] = (
-            f"예상 도착({to_hhmm(est)})이 열차 출발({hc['time']}) 시각 이후다"
-        )
-        if leg.get("is_lower_bound"):
-            policy_eval["detail"] += " — 주행시간 하한선만으로도 늦으므로 확정된다"
-    elif est > required:
+        return late(f"예상 도착({to_hhmm(est)})이 열차 출발({hc['time']}) 시각 이후다")
+    if est > required:
         policy_eval.update(
             status=UNKNOWN,
             unknown_reason="BUFFER_NOT_MET",
@@ -790,12 +867,13 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
                                 reason="마지막 스톱이라 다음 구간이 없다"))
         else:
             checks.append(check_travel(st, stops[i + 1], facts, policy, closed_statuses,
-                                       visit_date))
+                                       visit_date, itinerary.get("travel_mode")))
 
     for n, c in enumerate(checks, 1):
         c["id"] = f"chk-{n:03d}"
 
-    hard = [evaluate_hard_constraint(hc, stops, facts, policy, visit_date)
+    hard = [evaluate_hard_constraint(hc, stops, facts, policy, visit_date,
+                                     itinerary.get("travel_mode"))
             for hc in itinerary.get("hard_constraints", [])]
 
     # ⭐ 전체 판정은 '가장 나쁜 상태' 순서로 정한다. 다수결이 아니다.
