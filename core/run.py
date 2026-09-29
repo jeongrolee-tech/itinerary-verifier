@@ -111,6 +111,8 @@ def detail(case, out, problems):
             print(f"      → [{c['unknown_reason']}] {c['detail']}")
         elif c["status"] == "not_applicable":
             print(f"      → {c['reason']}")
+        if c.get("notice"):
+            print(f"      안내 {c['notice']}")
         ev = c.get("evidence") or {}
         if ev.get("url"):
             span = f", 유효 ~{ev['valid_until']}" if ev.get("valid_until") else ""

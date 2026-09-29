@@ -121,7 +121,8 @@ STATES = """검사 하나당 네 상태 중 하나를 고른다.
   undetermined   판단을 보류한다
   feasible       실행할 수 있다
 
-검사 종류는 CLOSED_DAY(휴무일), ADMISSION_NOT_POSSIBLE(도착 시각에 입장 불가),
+검사 종류는 CLOSED_DAY(휴무일), ADMISSION_NOT_POSSIBLE(입장마감 이후 도착이라 입장 불가. 개장 전 도착은
+기다리면 들어가므로 위반이 아니고, 체류와 이동을 개장 시각부터 계산한다),
 DWELL_NOT_COMPLETABLE(입장은 되지만 체류를 마치기 전에 폐장),
 INSUFFICIENT_TRAVEL_TIME(이동시간 > 다음 장소 시작까지 남은 시간. 권장 여유(buffer_minutes)를 못 채운 것만으로는
 위반이 아니다. 사용자가 이동시간 근거와 같은 수단으로 간다고 말하지 않았으면, 이동 0분으로도 늦을 때만 위반이다) 네 가지다."""

@@ -13,7 +13,7 @@ xfail(strict=True) 는 "지금 코드가 틀렸고, 고칠 작업이 정해져 �
 
 import pytest
 
-from verdict import FAIL, UNKNOWN, judge
+from verdict import FAIL, PASS, UNKNOWN, judge
 
 MUSEUM = "서울시립미술관 서소문본관"
 PALACE = "경복궁"
@@ -314,3 +314,36 @@ def test_mismatched_weekday_is_not_infeasible(facts, policy):
     assert out["summary"]["verdict"] == "undetermined"
     assert out["checks"][0]["status"] == UNKNOWN
     assert out["checks"][0]["unknown_reason"] == "MISMATCHED_WEEKDAY"
+
+
+# ── G. 개장 전 도착 ──────────────────────────────────────────────────
+# 개장 전에 오면 기다렸다가 개장 시각에 들어간다. 불가능이 아니다.
+# 대신 체류와 다음 이동은 개장 시각부터 센다.
+
+def test_early_arrival_is_not_fail(facts, policy):
+    """창덕궁 08:30 — 09:00 개장까지 30분 기다리면 된다. 안내만 붙인다."""
+    it = {"date": THURSDAY, "stops": [{"place": "창덕궁", "start": "08:30", "dwell_minutes": 60}]}
+    out = judge(it, facts, policy)
+    c = admission(out, "창덕궁")
+    assert c["status"] == PASS
+    assert "기다려야" in c["notice"]
+    assert out["summary"]["verdict"] == "feasible"
+
+
+def test_early_arrival_shifts_departure(facts, policy):
+    """경복궁 08:30 에 와서 한 시간 — 09:00 에 들어가 10:00 에 나온다. 창덕궁 09:50 에는 못 간다."""
+    it = {"date": THURSDAY, "stops": [
+        {"place": PALACE, "start": "08:30", "dwell_minutes": 60},
+        {"place": "창덕궁", "start": "09:50", "dwell_minutes": 60}]}
+    assert travel(judge(it, facts, policy), PALACE, "창덕궁")["status"] == FAIL
+
+
+def test_arriving_by_next_opening_is_enough(facts, policy):
+    """
+    미술관을 09:45 로 계획했어도 10:00 에 연다. 경복궁에서 09:50 에 나와도(지하철 09:56 도착)
+    10:00 전이면 계획과 똑같이 들어간다. 계획 시각이 아니라 입장 가능 시각까지 가면 된다.
+    """
+    it = {"date": THURSDAY, "travel_mode": "metro", "stops": [
+        {"place": PALACE, "start": "08:30", "dwell_minutes": 50},
+        {"place": MUSEUM, "start": "09:45", "dwell_minutes": 60}]}
+    assert travel(judge(it, facts, policy), PALACE, MUSEUM)["status"] != FAIL

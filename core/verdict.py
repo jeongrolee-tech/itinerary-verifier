@@ -344,16 +344,25 @@ def check_admission(name, place, visit_date, start, closed_status, holidays) -> 
     limit = h.get("last_admission") or h["close"]
     evidence = {
         "open": h["open"], "close": h["close"], "last_admission": h.get("last_admission"),
-        "planned_time": start,
+        "planned_time": start, "entry_at": start,
         "source": h.get("source"), "url": h.get("url"),
         "checked_at": h.get("checked_at"), "valid_until": h.get("valid_until"),
     }
-    if to_min(start) < to_min(h["open"]):
-        return check("ADMISSION_NOT_POSSIBLE", name, FAIL, evidence=evidence,
-                     detail=f"개장({h['open']}) 전 도착")
     if to_min(start) > to_min(limit):
         return check("ADMISSION_NOT_POSSIBLE", name, FAIL, evidence=evidence,
                      detail=f"입장마감({limit}) 이후 도착")
+
+    # ⭐ 개장 전 도착은 불가능이 아니다. 기다리면 개장 시각에 들어간다.
+    #    8:30 에 경복궁(9:00 개장)에 오면 30분 기다려야 할 뿐이다. 지도 서비스도
+    #    "9시에 엽니다" 를 안내로 보여줄 뿐 막지 않는다. 대신 입장 시각을 개장으로
+    #    늦춰 체류와 다음 이동을 거기서부터 계산한다(entry_at). 그래서 늦어지면
+    #    그 결과는 이동 검사에서 드러난다.
+    if to_min(start) < to_min(h["open"]):
+        evidence["entry_at"] = h["open"]
+        return check("ADMISSION_NOT_POSSIBLE", name, PASS, evidence=evidence,
+                     notice=f"개장({h['open']}) 전 도착 — {h['open']}까지 "
+                            f"{to_min(h['open']) - to_min(start)}분 기다려야 한다. "
+                            f"체류와 이동은 {h['open']}부터 계산한다")
     return check("ADMISSION_NOT_POSSIBLE", name, PASS, evidence=evidence)
 
 
@@ -405,19 +414,23 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date, travel_mod
         return check("INSUFFICIENT_TRAVEL_TIME", label, NA,
                      reason="양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다")
 
-    target = to_min(to["start"])
+    # 다음 장소에 도착해야 하는 시각은 실제로 들어갈 수 있는 시각이다. 09:45 로 계획했어도
+    # 10:00 에 열면 그 전에는 어차피 기다린다(check_admission). 10:00 까지만 가면 된다.
+    target = to_min(to["entry"])
+    by = to["entry"] if to["entry"] == to["start"] else f"{to['entry']}(개장)"
     stated_dwell = frm["dwell"]["source"] == "user_stated"
 
     # ⭐ 이동시간이 0분이어도 늦으면 이동수단·이동시간 데이터와 상관없이 fail 이다.
     #    미술관 13:00 에 한 시간 보고 경복궁 13:50 이면 순간이동을 해도 늦는다.
     #    체류를 모르면 0분을 넣는다 — 다음 일정이 이번 일정보다 먼저 시작하는 경우다.
-    earliest_departure = to_min(frm["start"]) + (frm["dwell"]["value"] if stated_dwell else 0)
+    earliest_departure = to_min(frm["entry"]) + (frm["dwell"]["value"] if stated_dwell else 0)
     if earliest_departure > target:
         return check("INSUFFICIENT_TRAVEL_TIME", label, FAIL,
                      evidence={"depart_at": to_hhmm(earliest_departure),
-                               "planned_arrival": to["start"], "travel_minutes": 0},
+                               "planned_arrival": to["start"], "arrive_by": to["entry"],
+                               "travel_minutes": 0},
                      detail=f"{frm['name']}에서 빨라도 {to_hhmm(earliest_departure)}에 나오는데 "
-                            f"{to['name']} 일정은 {to['start']}에 시작한다 — 이동시간이 0분이어도 늦는다")
+                            f"{to['name']}에는 {by}까지 가야 한다 — 이동시간이 0분이어도 늦는다")
 
     leg = leg_between(facts, frm["name"], to["name"])
     if leg is None:
@@ -454,17 +467,17 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date, travel_mod
     base = frm["dwell"]["value"]
 
     def arrival_at(dwell_minutes: int) -> float:
-        return to_min(frm["start"]) + dwell_minutes + leg["minutes"]
+        return to_min(frm["entry"]) + dwell_minutes + leg["minutes"]
 
     def ok_at(dwell_minutes: int) -> bool:
         return arrival_at(dwell_minutes) + buffer <= target
 
     arrival = arrival_at(base)
     evidence = {
-        "depart_at": to_hhmm(to_min(frm["start"]) + base),
+        "depart_at": to_hhmm(to_min(frm["entry"]) + base),
         "travel_minutes": leg["minutes"], "buffer_minutes": buffer,
         "arrival": to_hhmm(arrival),
-        "planned_arrival": to["start"],
+        "planned_arrival": to["start"], "arrive_by": to["entry"],
         "mode": leg_mode, "stated_mode": travel_mode,
         "method": leg.get("method"), "source": leg.get("source"),
         "snapshot_id": leg.get("snapshot_id"), "checked_at": leg.get("checked_at"),
@@ -504,8 +517,8 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date, travel_mod
     if not stated_dwell:
         earliest = arrival_at(0)
         if earliest > target:
-            evidence.update(depart_at=frm["start"], arrival=to_hhmm(earliest))
-            return late(f"{frm['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {to['start']}에 늦는다")
+            evidence.update(depart_at=frm["entry"], arrival=to_hhmm(earliest))
+            return late(f"{frm['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {by}에 늦는다")
 
         detail = f"{frm['name']} 체류시간을 몰라 확정할 수 없다"
         if arrival > target:
@@ -537,11 +550,11 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date, travel_mod
     #      닿지만 권장 여유를 못 채운다   → unknown (BUFFER_NOT_MET)  사용자가 판단한다
     #      권장 여유까지 채운다           → pass, 하한선이면 unknown (LOWER_BOUND_ONLY)
     if arrival > target:
-        return late(f"{to_hhmm(arrival)} 도착 예상인데 계획은 {to['start']}이다")
+        return late(f"{to_hhmm(arrival)} 도착 예상인데 {by}까지 가야 한다")
 
     if not ok_at(base):
         spare = round(target - arrival)
-        detail = (f"{to['start']}보다 {spare}분 먼저 도착하지만, "
+        detail = (f"{by}보다 {spare}분 먼저 도착하지만, "
                   f"설정한 권장 여유 {buffer}분보다 {round(arrival + buffer - target)}분 부족하다")
         if leg.get("is_lower_bound"):
             detail += ". 주행시간 하한선 기준이라 실제 도착은 이보다 늦다"
@@ -606,7 +619,7 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=N
     stated_dwell = last["dwell"]["source"] == "user_stated"
 
     # check_travel 과 같다. 이동시간이 0분이어도 늦으면 수단과 상관없이 fail 이다.
-    earliest_departure = to_min(last["start"]) + (last["dwell"]["value"] if stated_dwell else 0)
+    earliest_departure = to_min(last["entry"]) + (last["dwell"]["value"] if stated_dwell else 0)
     if earliest_departure >= event_time:
         policy_eval.update(
             status=FAIL,
@@ -648,7 +661,7 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=N
     base = last["dwell"]["value"]
 
     def arrival_at(dwell_minutes: int) -> int:
-        return to_min(last["start"]) + dwell_minutes + leg["minutes"]
+        return to_min(last["entry"]) + dwell_minutes + leg["minutes"]
 
     est = arrival_at(base)
     policy_eval.update(
@@ -763,6 +776,8 @@ def unconfirmed(result: dict, depends_on: list[dict]) -> dict:
         "depends_on_assumptions": [a["id"] for a in depends_on],
         "how_to_resolve": {"user": " / ".join(a["ask_user"] for a in depends_on)},
     }
+    if result.get("notice"):
+        update["notice"] = result["notice"]
     if "type" in result:
         return check(result["type"], result["target"], UNKNOWN,
                      reference=result.get("evidence"), **update)
@@ -884,7 +899,7 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
                 "ask_user": f"{s['place']}에서 얼마나 머무르실 예정인가요?",
             })
             dwell = {"value": value, "source": "system_default", "assumption_id": aid}
-        stops.append({"name": s["place"], "place": place, "start": s["start"],
+        stops.append({"name": s["place"], "place": place, "start": s["start"], "entry": s["start"],
                       "start_source": start_source, "start_dep": start_dep, "scope": scope,
                       "scope_note": s.get("scope_note"), "dwell": dwell})
 
@@ -899,7 +914,9 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
         a = unconfirmed(check_admission(st["name"], st["place"], visit_date, st["start"],
                                         c["status"], facts["holidays"]),
                         date_dep + st["start_dep"])
-        d = unconfirmed(check_dwell(st["name"], st["place"], visit_date, st["start"], st["dwell"],
+        # 개장 전에 도착하면 개장 시각에 들어간다. 체류와 다음 이동은 거기서부터 센다.
+        st["entry"] = (a.get("evidence") or a.get("reference") or {}).get("entry_at", st["start"])
+        d = unconfirmed(check_dwell(st["name"], st["place"], visit_date, st["entry"], st["dwell"],
                                     a["status"], policy, facts["holidays"]),
                         date_dep + st["start_dep"])
         checks += [c, a, d]
