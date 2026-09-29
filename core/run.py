@@ -245,7 +245,7 @@ if not json_only:
         print(f"    라벨 기준 스냅샷 {LABEL_SNAPSHOT} ≠ 현재 {FACTS_SNAPSHOT}")
         for r in stale:
             print(f"    {r['id']:<24}{r.get('stale_reason') or '스냅샷 불일치'}")
-        print("    → docs/label-review-260922.md 워크시트를 채운 뒤 labeled_against 를 갱신한다")
+        print("    → 바뀐 데이터를 보고 정답을 다시 확인한 뒤, 케이스에 labeled_against 를 현재 스냅샷으로 적는다")
 
 run = {
     "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·"
