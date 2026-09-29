@@ -189,12 +189,13 @@ python core/run.py --case T10
 **필요한 것** — Python 3.10 이상. 조회 스크립트(`.mjs`)를 돌릴 때만 Node 18 이상.
 
 ```bash
-pip install -r requirements.txt     # anthropic, pydantic
+pip install -r requirements.txt     # anthropic, pydantic, pytest
 
 # 키 없이 (판정 코어는 외부 API를 부르지 않는다)
 python core/run.py                          # 골든 테스트 채점 + 실행 기록
 python core/run.py --case T05               # 한 케이스 상세
 python core/run.py --all                    # 전부 상세
+pytest                                      # 규칙 테스트 (확정 fail 반례)
 python core/compare.py --dry-run            # 비교 실험 배선 확인
 python core/compare.py --arms code          # 비교 실험, 코드 arm만
 python core/build_transit_legs.py           # 지하철 주행시간 하한선 계산

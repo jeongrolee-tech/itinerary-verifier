@@ -1,0 +1,167 @@
+"""
+확정 fail 의 반례 — 2차 피드백 1번.
+
+fail 은 사용자가 말한 제약과 확인된 근거만으로 이미 충돌할 때만 낸다.
+정책 여유(buffer)나 시스템 기본 체류시간에 따라 결론이 달라지면 fail 이 아니라
+unknown 이다. 가능하다고 단정해서도 안 되지만, 불가능하다고 단정해서도 안 된다.
+
+반례마다 대조군을 둔다. 반례만 있으면 fail 을 아예 안 내는 구현도 통과한다.
+
+xfail(strict=True) 는 "지금 코드가 틀렸고, 고칠 작업이 정해져 있다" 는 표시다.
+고치면 XPASS 가 되어 스위트가 실패하므로, 그 작업에서 표시를 지워야 한다.
+"""
+
+import pytest
+
+from verdict import FAIL, UNKNOWN, judge
+
+MUSEUM = "서울시립미술관 서소문본관"
+PALACE = "경복궁"
+MARKET = "광장시장"
+THURSDAY = "2026-10-08"  # 미술관·경복궁 모두 개관, 공휴일 아님
+
+
+def travel(result, frm, to):
+    hits = [c for c in result["checks"]
+            if c["type"] == "INSUFFICIENT_TRAVEL_TIME" and c["target"] == f"{frm} → {to}"]
+    assert len(hits) == 1, f"{frm} → {to} 이동 검사가 {len(hits)}개다"
+    return hits[0]
+
+
+def closed_day(result, name):
+    hits = [c for c in result["checks"] if c["type"] == "CLOSED_DAY" and c["target"] == name]
+    assert len(hits) == 1
+    return hits[0]
+
+
+def train(result):
+    assert len(result["hard_constraints"]) == 1
+    return result["hard_constraints"][0]["policy"]
+
+
+def ktx_at(time):
+    return {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": time,
+            "buffer_rule": "rail_boarding", "source": "user_stated"}
+
+
+# ── A. 정책 버퍼 ──────────────────────────────────────────────────────
+# 미술관 → 경복궁 주행시간 하한선 6.5분, 정책 버퍼 10분.
+# 14:00 출발이면 주행만으로 14:06.5 도착이고, 버퍼까지 더해야 14:16.5 가 된다.
+
+def museum_then_palace(palace_start):
+    return {"date": THURSDAY, "stops": [
+        {"place": MUSEUM, "start": "13:00", "dwell_minutes": 60},
+        {"place": PALACE, "start": palace_start, "dwell_minutes": 60},
+    ]}
+
+
+@pytest.mark.xfail(strict=True, reason="1-1: 이동 판정이 정책 버퍼를 더한 값으로 fail 을 낸다")
+def test_buffer_shortfall_alone_is_not_fail(facts, policy):
+    """14:15 시작 — 권장 여유를 못 채운 것이지, 15분 안에 못 간다는 증명이 아니다."""
+    c = travel(judge(museum_then_palace("14:15"), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == UNKNOWN
+    assert c["unknown_reason"] == "BUFFER_NOT_MET"
+
+
+def test_ride_alone_late_is_fail(facts, policy):
+    """대조군: 14:05 시작 — 버퍼 없이 주행시간 하한선만으로 이미 늦는다."""
+    c = travel(judge(museum_then_palace("14:05"), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == FAIL
+
+
+@pytest.mark.parametrize("buffer", [
+    10,
+    pytest.param(30, marks=pytest.mark.xfail(strict=True, reason="1-1")),
+    pytest.param(120, marks=pytest.mark.xfail(strict=True, reason="1-1")),
+])
+def test_raising_travel_buffer_never_creates_fail(facts, policy, buffer):
+    """정책 버퍼만 늘었다고 확정 불가능으로 바뀌지 않는다. 버퍼는 사실이 아니라 설정이다."""
+    policy["buffer_minutes"]["transit_leg"] = buffer
+    c = travel(judge(museum_then_palace("14:30"), facts, policy), MUSEUM, PALACE)
+    assert c["status"] != FAIL
+
+
+@pytest.mark.parametrize("buffer", [15, 60, 120])
+def test_raising_rail_buffer_never_creates_fail(facts, policy, buffer):
+    """열차 조건은 이미 버퍼 부족을 BUFFER_NOT_MET(unknown)으로 낸다. 회귀 방지용."""
+    policy["buffer_minutes"]["rail_boarding"] = buffer
+    it = {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00", "dwell_minutes": 30}],
+          "hard_constraints": [ktx_at("19:45")]}
+    assert train(judge(it, facts, policy))["status"] != FAIL
+
+
+# ── B. 시스템 기본 체류시간 (이동) ────────────────────────────────────
+# 경복궁 체류를 말하지 않으면 기본값 90분이 들어간다. 경복궁 → 광장시장 하한선 4.5분.
+
+def palace_then_market(market_start):
+    return {"date": THURSDAY, "stops": [
+        {"place": PALACE, "start": "10:00"},
+        {"place": MARKET, "start": market_start},
+    ]}
+
+
+@pytest.mark.xfail(strict=True, reason="1-2: 이동 판정이 기본 체류시간으로 fail 을 낸다")
+def test_default_dwell_alone_is_not_fail(facts, policy):
+    """10:30 광장시장 — 경복궁에서 몇 분 머무를지 모른다. 체류 검사도 같은 이유로 unknown 이다."""
+    c = travel(judge(palace_then_market("10:30"), facts, policy), PALACE, MARKET)
+    assert c["status"] == UNKNOWN
+
+
+def test_late_even_with_zero_dwell_is_fail(facts, policy):
+    """대조군: 10:03 광장시장 — 경복궁에 들어가자마자 나와도 주행만으로 10:04.5 다."""
+    c = travel(judge(palace_then_market("10:03"), facts, policy), PALACE, MARKET)
+    assert c["status"] == FAIL
+
+
+@pytest.mark.parametrize("palace_default", [
+    90,
+    pytest.param(240, marks=pytest.mark.xfail(strict=True, reason="1-2")),
+    pytest.param(400, marks=pytest.mark.xfail(strict=True, reason="1-2")),
+])
+def test_raising_default_dwell_never_creates_fail(facts, policy, palace_default):
+    """
+    시스템 기본 체류시간만으로 확정 실패를 만들지 않는다. 기본값도 사실이 아니라 설정이다.
+
+    지금 코드는 기본값 D 의 ±50% 가 둘 다 늦을 때 fail 을 낸다.
+    10:00 + D/2 + 4.5 + 10 > 12:00 이 되는 D > 211 부터 fail 이 된다.
+    """
+    policy["default_dwell_minutes"]["palace"] = palace_default
+    c = travel(judge(palace_then_market("12:00"), facts, policy), PALACE, MARKET)
+    assert c["status"] != FAIL
+
+
+# ── D. 시스템 기본 체류시간 (열차 조건) ───────────────────────────────
+# 광장시장 체류를 말하지 않으면 기본값 60분. 광장시장 → 서울역 하한선 7.0분.
+
+def market_then_ktx(time):
+    return {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00"}],
+            "hard_constraints": [ktx_at(time)]}
+
+
+@pytest.mark.xfail(strict=True, reason="1-3: 열차 조건이 기본 체류시간으로 fail 을 낸다")
+def test_default_dwell_alone_is_not_train_fail(facts, policy):
+    """19:20 KTX — 광장시장에서 바로 나오면 19:07 에 닿는다."""
+    assert train(judge(market_then_ktx("19:20"), facts, policy))["status"] == UNKNOWN
+
+
+def test_train_late_even_with_zero_dwell_is_fail(facts, policy):
+    """대조군: 19:05 KTX — 바로 나와도 주행만으로 19:07 이다."""
+    assert train(judge(market_then_ktx("19:05"), facts, policy))["status"] == FAIL
+
+
+# ── C. 고정일 휴관 ────────────────────────────────────────────────────
+# facts.json 미술관 rule_text: "휴관 1월 1일, 매주 월요일 / 월요일이 공휴일인 경우 정상 개관"
+
+def museum_on(date):
+    return {"date": date, "stops": [{"place": MUSEUM, "start": "11:00", "dwell_minutes": 60}]}
+
+
+@pytest.mark.xfail(strict=True, reason="1-4: closed_date_for 가 매주 요일만 본다")
+def test_fixed_date_closure(facts, policy):
+    """2026-01-01(목) — 월요일이 아니지만 휴관일이다."""
+    assert closed_day(judge(museum_on("2026-01-01"), facts, policy), MUSEUM)["status"] == FAIL
+
+
+def test_day_after_fixed_closure_is_open(facts, policy):
+    """대조군: 2026-01-02(금) — 휴관 규칙 어디에도 걸리지 않는다."""
+    assert closed_day(judge(museum_on("2026-01-02"), facts, policy), MUSEUM)["status"] != FAIL
