@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from report import render, report  # noqa: E402
 from verdict import UNKNOWN, judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -135,6 +136,8 @@ def detail(case, out, problems):
         for k, label in (("detail", ""), ("confirmed", "확인된 것   "), ("not_confirmed", "확인 못 한 것 ")):
             if p.get(k):
                 print(f"     {label}{p[k]}")
+
+    print("\n" + render(report(out)))
 
     n = out["summary"]["counts"]
     print(f"\n[판정]  {out['summary']['verdict']}")
