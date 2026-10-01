@@ -263,7 +263,7 @@ python core/run.py --case T05               # 한 케이스 상세
 python core/run.py --all                    # 전부 상세
 pytest                                      # 규칙 테스트 (확정 fail 반례 · 결과 묶기 · 수정 재검사)
 python core/compare.py --dry-run            # 비교 실험 배선 확인
-python core/compare.py --arms code          # 비교 실험, 코드 arm만
+python core/compare.py --arms code          # 비교 실험, 코드 arm만 (일부 실행 → last-compare-subset.json)
 python core/build_transit_legs.py           # 지하철 주행시간 하한선 계산
 
 # Anthropic API 키 필요
@@ -898,7 +898,9 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | `run_llm` | 호출 + 토큰·지연 수집 |
 | `metrics` | 아래 지표를 계산한다 |
 | `StubClient` | `--dry-run`용. API 없이 배선만 통과시킨다 |
-| `save` | 케이스마다 중간 저장, 실패 시 홈 디렉터리로 폴백 |
+| `save` | 진행 중에는 케이스마다 `last-compare.partial.json`에 저장하고(실패 시 홈 디렉터리), 끝까지 돌면 지운다 |
+
+**공식 기록 `last-compare.json`은 모든 arm · 모든 케이스를 한 조건에서 돌렸을 때만 쓴다.** `--arms`나 `--case`로 일부만 돌린 결과는 `last-compare-subset.json`에 따로 남는다. 예전에는 일부만 돌린 결과를 이전 기록에 얹었는데, 그러면 한 기록 안에 다른 라벨 · 다른 코드로 낸 판정이 섞인다. 멘토 피드백 3번이 짚은 "옛 기대값이 남은 행"이 그렇게 생겼다. 게다가 진행 중 저장이 이전 기록을 먼저 덮어써서, LLM arm 을 돌린 실행에서는 얹기 자체가 한 번도 제대로 된 적이 없었다.
 
 **보는 지표**
 
@@ -911,7 +913,7 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | 판정 보류 비율 | 얼마나 자주 답을 못 주나 |
 | 유효 판단 제공 비율 | **전부 보류하면 지표는 완벽해지고 서비스는 쓸모없어진다** |
 
-**⭐ 주석이 표시한 결정** — 지시와 정의 분리 · 입력 일치 · 정확도만 보면 안 되는 이유
+**⭐ 주석이 표시한 결정** — 지시와 정의 분리 · 입력 일치 · 정확도만 보면 안 되는 이유 · 공식 기록은 전체 실행만
 
 ---
 
@@ -1018,7 +1020,7 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | --- | --- | --- |
 | [`core/last-run.json`](core/last-run.json) (판정 기록) | `run.py`가 덮어쓴다 | 케이스별 추출값 · 적용한 기본값 · 검사별 상태와 근거 · 라벨 일치 여부 · 소요 시간 · 실행 조건 |
 | [`core/last-extract-run.json`](core/last-extract-run.json) (추출 기록) | `run_extract.py`가 덮어쓴다 | 추출값 · 기대값과의 차이 · 모델 · 토큰 · 비용 · 지연 · 실행 조건 |
-| [`core/last-compare.json`](core/last-compare.json) (비교 기록) | `compare.py`가 덮어쓴다 | arm별 판정과 검사 · 지표 · 비용 · 지연 · 실행 조건 |
+| [`core/last-compare.json`](core/last-compare.json) (비교 기록) | `compare.py`가 모든 arm · 케이스를 돌렸을 때만 덮어쓴다 | arm별 판정과 검사 · 지표 · 비용 · 지연 · 실행 조건 |
 
 **스크립트가 덮어쓰는 파일이다.** 의미 있는 실행 결과는 그때그때 커밋해두는 것이 안전하다 — 실제로 한 번 잃었고 git 커밋에서 복원했다.
 커밋해서 남길 기록은 실행 조건이 `reproducible: true`인 것이어야 한다. 코드를 먼저 커밋하고 돌린 기록이라는 뜻이다.

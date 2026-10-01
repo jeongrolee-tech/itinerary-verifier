@@ -16,5 +16,9 @@ travel-times.json
 # dry-run 산출물
 core/last-compare-dryrun.json
 
+# 일부 실행 · 진행 중 산출물 — 공식 비교 기록은 last-compare.json 하나다
+core/last-compare-subset.json
+core/last-compare.partial.json
+
 # 개인용 Claude Code 설정 (공유하지 않는다)
 CLAUDE.local.md

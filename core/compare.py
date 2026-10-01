@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-비교 실험 — 판정 방식 3종을 같은 케이스로 돌려 비교한다.
+비교 실험 — 판정 방식 4종을 같은 케이스로 돌려 비교한다.
 
-    python core/compare.py                  3종 전부
-    python core/compare.py --dry-run        API 없이 배선만 확인
-    python core/compare.py --arms code      코드만 (API 키 불필요)
-    python core/compare.py --case T05       한 건만
+    python core/compare.py                  4종 전부        → last-compare.json
+    python core/compare.py --dry-run        API 없이 배선만 확인 → last-compare-dryrun.json
+    python core/compare.py --arms code      코드만 (API 키 불필요) → last-compare-subset.json
+    python core/compare.py --case T05       한 건만         → last-compare-subset.json
     python core/compare.py --model claude-sonnet-5
 
 arm 을 나눈 이유는 **개선이 어디서 왔는지 구분**하기 위해서다.
@@ -50,7 +50,8 @@ flag = lambda name, d: next(
 only = flag("--case", None)
 MODEL = flag("--model", "claude-opus-5")
 EFFORT = flag("--effort", "low")
-ARMS = flag("--arms", "llm_naive,llm_only,llm_with_facts,code").split(",")
+ALL_ARMS = ["llm_naive", "llm_only", "llm_with_facts", "code"]
+ARMS = flag("--arms", ",".join(ALL_ARMS)).split(",")
 
 PRICE = {"claude-opus-5": (5.0, 25.0), "claude-sonnet-5": (2.0, 10.0),
          "claude-haiku-4-5": (1.0, 5.0)}
@@ -327,6 +328,15 @@ REFERENCE_DATE = "2026-09-22"
 CONDITIONS = run_meta(reference_date=REFERENCE_DATE, prompts={
     "llm_naive": fingerprint(SYSTEM_LLM_NAIVE), "llm_only": fingerprint(SYSTEM_LLM_ONLY),
     "llm_with_facts": fingerprint(SYSTEM_LLM_FACTS)})
+# ⭐ last-compare.json 에는 모든 arm · 모든 케이스를 한 조건에서 돌린 결과만 둔다.
+#    일부만 돌린 결과를 이전 기록에 얹었더니 한 기록 안에 다른 라벨 · 다른 코드로 낸
+#    판정이 섞였다 — 옛 기대값이 남은 행이 멘토 피드백 3번에서 지적됐다. 일부 실행은
+#    따로 적고, 진행 중 저장도 공식 기록을 덮어쓰지 않게 다른 파일에 한다.
+FULL_RUN = set(ARMS) == set(ALL_ARMS) and not only
+OUT_NAME = ("last-compare-dryrun.json" if DRY else
+            "last-compare.json" if FULL_RUN else "last-compare-subset.json")
+PARTIAL_NAME = "last-compare.partial.json"
+
 rows, usage_total = [], {}
 for case in cases:
     rec = {"id": case["id"], "set": case["set"], "expect": case["expect"],
@@ -369,7 +379,7 @@ for case in cases:
         save({"run_id": RUN_ID, "status": "in_progress", "model": MODEL,
               "facts_snapshot": facts["snapshot_id"], "conditions": CONDITIONS, "arms": ARMS,
               "done": len(rows), "total": len(cases), "rows": rows},
-             "last-compare.json")
+             PARTIAL_NAME)
 
 # ── 채점 ────────────────────────────────────────────────────────────
 scorable = [r for r in rows if r["label_current"]]
@@ -434,47 +444,9 @@ out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·
        "conditions": CONDITIONS,
        "arms": ARMS, "scored": len(scorable), "total": len(rows),
        "metrics": report, "cost": cost_report, "rows": rows}
-OUT_NAME = "last-compare-dryrun.json" if DRY else "last-compare.json"
-
-
-def merge_with_existing(fresh: dict, name: str) -> dict:
-    """
-    arm 일부만 돌렸을 때 나머지 arm 의 결과를 지우지 않는다.
-
-    `--arms llm_naive,code` 로 돌리면 llm_only·llm_with_facts 결과가 사라졌다.
-    그것도 돈과 시간을 들여 얻은 값이다. 같은 데이터 스냅샷·같은 모델이면
-    기존 기록에 새 arm 을 얹는다.
-    """
-    prev_path = HERE / name
-    if not prev_path.exists():
-        return fresh
-    try:
-        prev = json.loads(prev_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return fresh
-    if prev.get("facts_snapshot") != fresh["facts_snapshot"] or prev.get("model") != MODEL:
-        return fresh  # 전제가 다르면 섞으면 안 된다
-
-    kept = [a for a in (prev.get("arms") or []) if a not in ARMS]
-    if not kept:
-        return fresh
-    by_id = {r["id"]: r for r in (prev.get("rows") or [])}
-    for row in fresh["rows"]:
-        for arm in kept:
-            old_arm = (by_id.get(row["id"], {}).get("arms") or {}).get(arm)
-            if old_arm is not None:
-                row["arms"][arm] = old_arm
-    fresh["arms"] = kept + fresh["arms"]
-    for key in ("metrics", "cost"):
-        fresh[key] = {**{a: v for a, v in (prev.get(key) or {}).items() if a in kept},
-                      **fresh[key]}
-    print(f"\n  이전 기록의 arm {', '.join(kept)} 을 유지했다")
-    return fresh
-
-
-if not DRY:
-    out = merge_with_existing(out, OUT_NAME)
-if not save(out, OUT_NAME):
+if save(out, OUT_NAME):
+    (HERE / PARTIAL_NAME).unlink(missing_ok=True)  # 끝까지 돌았으니 진행 중 기록은 필요 없다
+else:
     # 여기까지 온 실행은 돈과 시간을 이미 썼다. 화면에라도 남긴다.
     print("\n  파일 저장에 실패했으므로 결과를 아래에 그대로 출력한다.\n")
     print(json.dumps(out, ensure_ascii=False, indent=2))
