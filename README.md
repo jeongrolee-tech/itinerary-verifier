@@ -426,7 +426,7 @@ Routes API로 구간 이동시간을 받아둔 뒤 약관을 확인했다. 소�
      ↓        checks[] + hard_constraints[] + assumptions[]
 [결과 묶기]   report.py — run.py 화면용. 상태별로 묶고 검사하지 않는 것을 붙인다. 판정은 바꾸지 않는다
      ↓
-[채점·기록]   run.py · run_extract.py · compare.py → last-*.json
+[채점·기록]   run.py · run_extract.py · compare.py → last-*.json (실행 조건 포함 — runmeta.py)
 ```
 
 판정 코어를 외부 API에서 분리했다. **API 없이 고정 입력으로 테스트할 수 있어야** 하기 때문이다.
@@ -465,6 +465,7 @@ itinerary-verifier/
 │   ├── recheck.py               수정 후 전체 일정 재검사
 │   ├── run_extract.py           추출 채점 + 전체 파이프라인
 │   ├── compare.py               비교 실험
+│   ├── runmeta.py               실행 조건 기록 (코드 커밋 · 입력 지문 · 기준 날짜)
 │   └── last-*.json              실행 기록 (자동 생성)
 ├── docs/
 │   ├── data-policy.md           제공사별 저장·공개 범위
@@ -914,6 +915,30 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 
 ---
 
+### `core/runmeta.py` — 실행 조건 기록
+
+| | |
+| --- | --- |
+| **역할** | 실행 기록에 "어떤 조건에서 돌렸나"를 함께 남긴다 |
+| **읽는 쪽** | `run.py` · `run_extract.py` · `compare.py` — 기록의 `conditions`와 화면의 `조건:` 줄 |
+
+멘토 피드백 3번 — 같은 15/15라도 코드 · 라벨 · 사실 데이터 · 정책 · 프롬프트 · 기준 날짜가 다르면 다른 숫자다. 실행 기록마다 아래를 함께 적는다. 모델과 effort는 원래 기록에 있다.
+
+| 항목 | 내용 |
+| --- | --- |
+| `code_commit` | 실행할 때의 git 커밋 |
+| `uncommitted` | `core/`에서 커밋하지 않은 변경. 실행 기록(`last-*.json`)은 출력이라 세지 않는다 |
+| `reproducible` | 커밋만으로 같은 실행을 다시 만들 수 있나. 숫자를 인용할 때는 `true`인 기록만 쓴다 |
+| `fingerprints` | `tests.json` · `facts.json` · `policy.json`의 내용 지문(sha256 앞 12자리). 줄바꿈을 맞춰서 Windows와 다른 OS에서 같은 값이 나온다 |
+| `reference_date` | 연도가 빠진 날짜를 푸는 기준 날짜. 추출은 실행한 날 하나로, 비교 실험은 2026-09-22로 고정한다 |
+| `prompts` | 추출 · 비교 실험 시스템 프롬프트의 지문 |
+
+커밋하지 않은 변경이 있어도 실행은 막지 않는다. 개발 중에도 돌려 봐야 하기 때문이다. 대신 화면에 경고를 내고 기록에 `reproducible: false`로 적는다.
+
+**⭐ 주석이 표시한 결정** — 재현할 수 없는 실행도 막지 않고 그렇다고 적는다
+
+---
+
 ### `check-places-api.mjs` — Places API 능력 확인
 
 | | |
@@ -991,11 +1016,12 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 
 | 파일 | 역할 | 들어가는 것 |
 | --- | --- | --- |
-| [`core/last-run.json`](core/last-run.json) (판정 기록) | `run.py`가 덮어쓴다 | 케이스별 추출값 · 적용한 기본값 · 검사별 상태와 근거 · 라벨 일치 여부 · 소요 시간 |
-| [`core/last-extract-run.json`](core/last-extract-run.json) (추출 기록) | `run_extract.py`가 덮어쓴다 | 추출값 · 기대값과의 차이 · 모델 · 토큰 · 비용 · 지연 |
-| [`core/last-compare.json`](core/last-compare.json) (비교 기록) | `compare.py`가 덮어쓴다 | arm별 판정과 검사 · 지표 · 비용 · 지연 |
+| [`core/last-run.json`](core/last-run.json) (판정 기록) | `run.py`가 덮어쓴다 | 케이스별 추출값 · 적용한 기본값 · 검사별 상태와 근거 · 라벨 일치 여부 · 소요 시간 · 실행 조건 |
+| [`core/last-extract-run.json`](core/last-extract-run.json) (추출 기록) | `run_extract.py`가 덮어쓴다 | 추출값 · 기대값과의 차이 · 모델 · 토큰 · 비용 · 지연 · 실행 조건 |
+| [`core/last-compare.json`](core/last-compare.json) (비교 기록) | `compare.py`가 덮어쓴다 | arm별 판정과 검사 · 지표 · 비용 · 지연 · 실행 조건 |
 
 **스크립트가 덮어쓰는 파일이다.** 의미 있는 실행 결과는 그때그때 커밋해두는 것이 안전하다 — 실제로 한 번 잃었고 git 커밋에서 복원했다.
+커밋해서 남길 기록은 실행 조건이 `reproducible: true`인 것이어야 한다. 코드를 먼저 커밋하고 돌린 기록이라는 뜻이다.
 
 ---
 

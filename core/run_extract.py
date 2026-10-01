@@ -14,13 +14,14 @@
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic  # noqa: E402
-from extract import extract, to_itinerary  # noqa: E402
+from extract import SYSTEM, extract, to_itinerary  # noqa: E402
+from runmeta import describe, fingerprint, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -43,6 +44,11 @@ PRICE = {  # per MTok (input, output)
     "claude-haiku-4-5": (1.0, 5.0),
 }
 cases = [c for c in suite["cases"] if not only or c["id"].startswith(only)]
+
+# 연도가 빠진 날짜를 푸는 기준이다. 실행 하나 안에서는 한 날짜만 쓴다 — 케이스마다
+# 오늘을 다시 구하면 자정을 넘긴 실행은 케이스마다 기준이 달라진다.
+REFERENCE_DATE = date.today().isoformat()
+CONDITIONS = run_meta(reference_date=REFERENCE_DATE, prompts={"extract": fingerprint(SYSTEM)})
 
 LINE = "═" * 78
 MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
@@ -107,7 +113,7 @@ for case in cases:
     print(f"입력: {case['raw']}\n")
 
     try:
-        ex, usage = extract(case["raw"], client, model=MODEL, effort=EFFORT)
+        ex, usage = extract(case["raw"], client, model=MODEL, today=REFERENCE_DATE, effort=EFFORT)
     except anthropic.APIError as e:
         print(f"❌ 추출 실패: {type(e).__name__} {e}")
         results.append({"id": case["id"], "extraction_ok": False, "error": str(e)})
@@ -202,6 +208,7 @@ run = {
     "model": MODEL,
     "effort": EFFORT,
     "facts_snapshot": facts["snapshot_id"],
+    "conditions": CONDITIONS,
     "tokens": totals,
     "pricing_per_mtok": {"input": IN, "output": OUT, "cache_write": IN * 1.25, "cache_read": IN * 0.1},
     "estimated_cost_usd": round(cost, 4),
@@ -211,3 +218,4 @@ run = {
 (HERE / "last-extract-run.json").write_text(
     json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
 print(f"  기록: core/last-extract-run.json  ({run['run_id']})")
+print(describe(CONDITIONS))

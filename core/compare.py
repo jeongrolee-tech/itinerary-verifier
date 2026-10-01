@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).parent))
+from runmeta import describe, fingerprint, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -321,6 +322,11 @@ def save(payload: dict, name: str) -> bool:
 
 
 FACTS_LLM = facts_for_llm()
+# LLM arm 이 연도 없는 날짜를 푸는 기준. 고정해 둬야 언제 돌려도 같은 입력이 된다.
+REFERENCE_DATE = "2026-09-22"
+CONDITIONS = run_meta(reference_date=REFERENCE_DATE, prompts={
+    "llm_naive": fingerprint(SYSTEM_LLM_NAIVE), "llm_only": fingerprint(SYSTEM_LLM_ONLY),
+    "llm_with_facts": fingerprint(SYSTEM_LLM_FACTS)})
 rows, usage_total = [], {}
 for case in cases:
     rec = {"id": case["id"], "set": case["set"], "expect": case["expect"],
@@ -333,7 +339,7 @@ for case in cases:
                                            "status": c["status"]} for c in out["checks"]]}
 
     # arm0 과 arm1 은 입력이 완전히 같다. 시스템 프롬프트만 다르다.
-    raw_payload = f"오늘은 2026-09-22 이다.\n\n[일정]\n{case['raw']}"
+    raw_payload = f"오늘은 {REFERENCE_DATE} 이다.\n\n[일정]\n{case['raw']}"
 
     if "llm_naive" in ARMS:
         j, u = run_llm(case, client, Judgment, SYSTEM_LLM_NAIVE, raw_payload)
@@ -361,7 +367,7 @@ for case in cases:
     # LLM arm 은 건당 10초 넘고 돈이 드니 한 번의 쓰기 실패로 전체를 잃으면 안 된다.
     if need_llm and not DRY:
         save({"run_id": RUN_ID, "status": "in_progress", "model": MODEL,
-              "facts_snapshot": facts["snapshot_id"], "arms": ARMS,
+              "facts_snapshot": facts["snapshot_id"], "conditions": CONDITIONS, "arms": ARMS,
               "done": len(rows), "total": len(cases), "rows": rows},
              "last-compare.json")
 
@@ -425,6 +431,7 @@ out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·
                 "compare.py 가 덮어쓴다.",
        "run_id": RUN_ID, "ran_at": datetime.now(timezone.utc).isoformat(),
        "facts_snapshot": facts["snapshot_id"], "model": MODEL, "effort": EFFORT,
+       "conditions": CONDITIONS,
        "arms": ARMS, "scored": len(scorable), "total": len(rows),
        "metrics": report, "cost": cost_report, "rows": rows}
 OUT_NAME = "last-compare-dryrun.json" if DRY else "last-compare.json"
@@ -472,3 +479,4 @@ if not save(out, OUT_NAME):
     print("\n  파일 저장에 실패했으므로 결과를 아래에 그대로 출력한다.\n")
     print(json.dumps(out, ensure_ascii=False, indent=2))
 print(f"\n  기록: core/{OUT_NAME}  ({out['run_id']})")
+print(describe(CONDITIONS))

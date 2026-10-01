@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from report import render, report  # noqa: E402
+from runmeta import describe, run_meta  # noqa: E402
 from verdict import UNKNOWN, judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -262,6 +263,7 @@ run = {
     "facts_snapshot": facts["snapshot_id"],
     "holidays_verified": facts["holidays"]["verified"],
     "labeled_at": suite["labeled_at"],
+    "conditions": run_meta(),
     "results": results,
 }
 (HERE / "last-run.json").write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -271,6 +273,7 @@ if json_only:
     print(json.dumps(run, ensure_ascii=False, indent=2))
 else:
     print(f"\n  기록: core/last-run.json  ({run['run_id']}, {VERSION})")
+    print(describe(run["conditions"]))
     if not facts["holidays"]["verified"]:
         print("  ⚠ 공휴일 캘린더 미검증 — 휴무일 예외 규칙이 걸린 검사는 unknown 으로 나온다.")
 
