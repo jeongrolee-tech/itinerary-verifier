@@ -6,7 +6,7 @@
     python core/compare.py --dry-run        API 없이 배선만 확인 → last-compare-dryrun.json
     python core/compare.py --arms code      코드만 (API 키 불필요) → last-compare-subset.json
     python core/compare.py --case T05       한 건만         → last-compare-subset.json
-    python core/compare.py --model claude-sonnet-5
+    python core/compare.py --model claude-sonnet-5-5
 
 arm 을 나눈 이유는 **개선이 어디서 왔는지 구분**하기 위해서다.
 
@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).parent))
+from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from runmeta import describe, fingerprint, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
 
@@ -48,13 +49,11 @@ args = sys.argv[1:]
 flag = lambda name, d: next(
     (args[i + 1] for i, a in enumerate(args) if a == name and i + 1 < len(args)), d)
 only = flag("--case", None)
-MODEL = flag("--model", "claude-opus-5")
-EFFORT = flag("--effort", "low")
+MODEL = flag("--model", DEFAULT_MODEL)
+EFFORT = effort_for(MODEL, flag("--effort", "low"))
 ALL_ARMS = ["llm_naive", "llm_only", "llm_with_facts", "code"]
 ARMS = flag("--arms", ",".join(ALL_ARMS)).split(",")
 
-PRICE = {"claude-opus-5": (5.0, 25.0), "claude-sonnet-5": (2.0, 10.0),
-         "claude-haiku-4-5": (1.0, 5.0)}
 LINE = "═" * 78
 CHECK_TYPES = ["CLOSED_DAY", "ADMISSION_NOT_POSSIBLE",
                "DWELL_NOT_COMPLETABLE", "INSUFFICIENT_TRAVEL_TIME"]
@@ -186,20 +185,14 @@ def facts_for_llm() -> dict:
 
 
 def run_llm(case, client, Judgment, system: str, payload: str):
-    started = datetime.now(timezone.utc)
-    r = client.messages.parse(
-        model=MODEL, max_tokens=16000, output_config={"effort": EFFORT},
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": payload}],
-        output_format=Judgment,
-    )
-    u = r.usage
-    return r.parsed_output.model_dump(), {
-        "latency_ms": round((datetime.now(timezone.utc) - started).total_seconds() * 1000),
-        "input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
-        "cache_read": getattr(u, "cache_read_input_tokens", 0),
-        "cache_write": getattr(u, "cache_creation_input_tokens", 0),
-    }
+    try:
+        j, usage = ask(client, model=MODEL, effort=EFFORT, system=system, content=payload, schema=Judgment)
+    except Refusal as e:
+        # 거부는 판정이 아니다. 지표가 따로 세도록 verdict 를 "refused" 로 남긴다
+        return {"verdict": "refused", "checks": [], "message": "",
+                "stop_details": {"category": e.usage["refusal_category"],
+                                 "explanation": e.usage["refusal_explanation"]}}, e.usage
+    return j.model_dump(), usage
 
 
 # ── 지표 ────────────────────────────────────────────────────────────
@@ -241,8 +234,10 @@ def metrics(scored: list[dict]) -> dict:
             1 for r in scored if want(r) == "undetermined" and got(r) == "feasible"),
         # 판정 보류 비율
         "undetermined_rate": round(sum(1 for r in scored if got(r) == "undetermined") / n, 3),
-        # 유효한 판단(보류가 아닌 판단)을 제공한 비율
-        "decisive_rate": round(sum(1 for r in scored if got(r) != "undetermined") / n, 3),
+        # 유효한 판단(feasible · infeasible)을 제공한 비율. 거부(refused)는 판단이 아니다
+        "decisive_rate": round(sum(1 for r in scored if got(r) in ("feasible", "infeasible")) / n, 3),
+        # 모델이 응답을 거부한 건수
+        "refused": sum(1 for r in scored if got(r) == "refused"),
         "counts": {"actual_infeasible": len(actual_bad), "actual_feasible": len(actual_ok),
                    "actual_undetermined": n - len(actual_bad) - len(actual_ok)},
     }
@@ -262,17 +257,21 @@ class StubClient:
         input_tokens = output_tokens = 0
         cache_read_input_tokens = cache_creation_input_tokens = 0
 
+    class _Text:
+        type = "text"
+        text = json.dumps({"checks": [], "verdict": "undetermined", "message": "dry-run"})
+
     class _Messages:
         calls = 0
 
-        def parse(self, **kw):
+        def create(self, **kw):
             assert kw["messages"][0]["content"].strip(), "payload 가 비어 있다"
             assert kw["system"][0]["text"].strip(), "system 프롬프트가 비어 있다"
+            assert kw["output_config"]["format"]["schema"], "출력 스키마가 비어 있다"
             StubClient._Messages.calls += 1
-            fmt = kw["output_format"]
-            return type("R", (), {"usage": StubClient._Usage(),
-                                  "parsed_output": fmt(checks=[], verdict="undetermined",
-                                                       message="dry-run")})()
+            # 응답 본문은 llm.ask 가 Judgment 로 검증한다 — 스키마와 어긋나면 dry-run 에서 걸린다
+            return type("R", (), {"usage": StubClient._Usage(), "stop_reason": "end_turn",
+                                  "stop_details": None, "content": [StubClient._Text()]})()
 
     def __init__(self):
         self.messages = self._Messages()
@@ -282,6 +281,8 @@ DRY = "--dry-run" in args
 need_llm = any(a.startswith("llm") for a in ARMS)
 client = Judgment = None
 if need_llm:
+    # anthropic 이 있어야 읽힌다. 코드 arm 만 돌릴 때는 읽지 않는다
+    from llm import Refusal, ask  # noqa: E402
     Judgment = build_models()
     if DRY:
         client = StubClient()
@@ -405,6 +406,7 @@ if scorable:
         ("leaked_undetermined_as_feasible", "미확인을 통과로 (건)"),
         ("undetermined_rate", "판정 보류 비율"),
         ("decisive_rate", "유효 판단 제공 비율"),
+        ("refused", "모델 거부 (건)"),
     ]
     w = max(len(l) for _, l in LABELS) + 2
     print(f"\n  {'지표'.ljust(w)}" + "".join(f"{a:<18}" for a in ARMS))
@@ -427,21 +429,21 @@ if stale:
 
 cost_report = {}
 for arm, us in usage_total.items():
-    pin, pout = PRICE.get(MODEL, (0, 0))
-    cost = sum((u["input_tokens"] * pin + u["output_tokens"] * pout
-                + u["cache_write"] * pin * 1.25 + u["cache_read"] * pin * 0.1) / 1e6 for u in us)
+    costs = [cost_usd(MODEL, u) for u in us]
+    cost = None if None in costs else sum(costs)  # 단가를 모르는 모델이면 비용을 적지 않는다
     lat = sorted(u["latency_ms"] for u in us)
-    cost_report[arm] = {"n": len(us), "total_usd": round(cost, 4),
-                        "per_case_usd": round(cost / len(us), 4),
+    cost_report[arm] = {"n": len(us),
+                        "total_usd": None if cost is None else round(cost, 4),
+                        "per_case_usd": None if cost is None else round(cost / len(us), 4),
                         "latency_median_ms": lat[len(lat) // 2]}
-    print(f"\n  {arm}: {len(us)}건  ${cost:.4f}  건당 ${cost / len(us):.4f}  "
-          f"지연 중앙값 {lat[len(lat) // 2]}ms")
+    money = "단가 모름" if cost is None else f"${cost:.4f}  건당 ${cost / len(us):.4f}"
+    print(f"\n  {arm}: {len(us)}건  {money}  지연 중앙값 {lat[len(lat) // 2]}ms")
 
 out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·지연을 남긴다. "
                 "compare.py 가 덮어쓴다.",
        "run_id": RUN_ID, "ran_at": datetime.now(timezone.utc).isoformat(),
        "facts_snapshot": facts["snapshot_id"], "model": MODEL, "effort": EFFORT,
-       "conditions": CONDITIONS,
+       "pricing_per_mtok": PRICES.get(MODEL), "conditions": CONDITIONS,
        "arms": ARMS, "scored": len(scorable), "total": len(rows),
        "metrics": report, "cost": cost_report, "rows": rows}
 if save(out, OUT_NAME):

@@ -261,7 +261,7 @@ pip install -r requirements.txt     # anthropic, pydantic, pytest
 python core/run.py                          # 골든 테스트 채점 + 실행 기록
 python core/run.py --case T05               # 한 케이스 상세
 python core/run.py --all                    # 전부 상세
-pytest                                      # 규칙 테스트 (확정 fail 반례 · 결과 묶기 · 수정 재검사)
+pytest                                      # 규칙 테스트 (확정 fail 반례 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출)
 python core/compare.py --dry-run            # 비교 실험 배선 확인
 python core/compare.py --arms code          # 비교 실험, 코드 arm만 (일부 실행 → last-compare-subset.json)
 python core/build_transit_legs.py           # 지하철 주행시간 하한선 계산
@@ -269,7 +269,7 @@ python core/build_transit_legs.py           # 지하철 주행시간 하한선 �
 # Anthropic API 키 필요
 python core/run_extract.py                  # 자연어 → 추출 → 판정
 python core/compare.py                      # 비교 실험 4종
-python core/compare.py --model claude-sonnet-5
+python core/compare.py --model claude-sonnet-5-5
 
 # 공공데이터포털 API 키 필요
 python core/fetch_holidays.py 2026          # 공휴일 스냅샷 재생성
@@ -466,6 +466,8 @@ itinerary-verifier/
 │   ├── run_extract.py           추출 채점 + 전체 파이프라인
 │   ├── compare.py               비교 실험
 │   ├── runmeta.py               실행 조건 기록 (코드 커밋 · 입력 지문 · 기준 날짜)
+│   ├── model_info.py            기본 모델 · 단가 · 모델별 옵션
+│   ├── llm.py                   Claude 호출 (구조화 출력 · 거부 처리)
 │   └── last-*.json              실행 기록 (자동 생성)
 ├── docs/
 │   ├── data-policy.md           제공사별 저장·공개 범위
@@ -607,7 +609,7 @@ itinerary-verifier/
 | **역할** | 자연어 일정을 판정 코어가 읽는 구조로 **옮겨 적는다** |
 | **입력** | `extract(text, client, model, today, effort)` |
 | **출력** | `(Extraction, usage)` → `to_itinerary()`로 판정 코어 입력 형태로 |
-| **모델** | `claude-opus-5`, structured outputs (pydantic), `effort: low` |
+| **모델** | 기본 `claude-opus-5-5`(`core/model_info.py`), structured outputs (pydantic 스키마, 호출은 `core/llm.py`), `effort: low` |
 
 **LLM이 담당하는 유일한 단계다.** 판정은 시키지 않는다. 자연어를 구조로 바꾸는 데는 강하지만 규칙을 일관되게 적용하는 데는 약하기 때문이다 (비교 실험 T08 참조).
 
@@ -862,7 +864,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | `grade_extraction` | `tests.json`의 `date`·`stops`·`hard_constraints`를 기대 추출값으로 놓고 대조 |
 | `ask_key` | 환경변수 → `--key=` → 물어보기 순서 |
 
-비용 계산에 **캐시 토큰을 포함한다.** 캐시 쓰기는 입력의 1.25배, 읽기는 0.1배다. 이걸 빼면 실제보다 싸게 나온다.
+비용 계산에 **캐시 토큰을 포함한다.** 이걸 빼면 실제보다 싸게 나온다. 캐시 단가는 모델마다 `core/model_info.py`에 값으로 적어 두었다 — 대부분 읽기가 입력의 0.1배지만 Opus 5.5는 0.05배다. 모델이 응답을 거부하면(refusal) 그 케이스는 오류로 남기고 계속 돈다. 거부된 호출은 청구되는 경우에만 비용에 넣는다(`core/model_info.py`).
 
 1차 실행에서 추출 12/15였는데 실패 3건의 원인이 전부 **라벨과 프롬프트 쪽**이었다. 입력에 없는 체류시간이 라벨에 적혀 있었고, 필수 조건으로 뽑은 서울역이 `stops`에도 들어갔다. 모델이 틀린 건 0건이었다.
 
@@ -895,9 +897,9 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | --- | --- |
 | `build_models` | LLM 출력 스키마. **코드 출력과 같은 모양**이어야 비교가 된다 |
 | `facts_for_llm` | arm2와 arm3에 **완전히 같은** 사실 데이터를 준다 |
-| `run_llm` | 호출 + 토큰·지연 수집 |
-| `metrics` | 아래 지표를 계산한다 |
-| `StubClient` | `--dry-run`용. API 없이 배선만 통과시킨다 |
+| `run_llm` | `core/llm.py`의 `ask`로 부르고 토큰·지연을 모은다. 거부(refusal)는 `refused`로 남긴다 |
+| `metrics` | 아래 지표를 계산한다. 거부는 유효 판단으로 세지 않고 `refused`로 따로 센다 |
+| `StubClient` | `--dry-run`용. API 없이 배선만 통과시킨다. 응답은 실제 호출과 같은 스키마 검증을 지난다 |
 | `save` | 진행 중에는 케이스마다 `last-compare.partial.json`에 저장하고(실패 시 홈 디렉터리), 끝까지 돌면 지운다 |
 
 **공식 기록 `last-compare.json`은 모든 arm · 모든 케이스를 한 조건에서 돌렸을 때만 쓴다.** `--arms`나 `--case`로 일부만 돌린 결과는 `last-compare-subset.json`에 따로 남는다. 예전에는 일부만 돌린 결과를 이전 기록에 얹었는데, 그러면 한 기록 안에 다른 라벨 · 다른 코드로 낸 판정이 섞인다. 멘토 피드백 3번이 짚은 "옛 기대값이 남은 행"이 그렇게 생겼다. 게다가 진행 중 저장이 이전 기록을 먼저 덮어써서, LLM arm 을 돌린 실행에서는 얹기 자체가 한 번도 제대로 된 적이 없었다.
@@ -912,6 +914,7 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | **잘못된 일정 정상 통과** | 가장 치명적 |
 | 판정 보류 비율 | 얼마나 자주 답을 못 주나 |
 | 유효 판단 제공 비율 | **전부 보류하면 지표는 완벽해지고 서비스는 쓸모없어진다** |
+| 모델 거부 | 보류와 섞으면 모델이 판단을 보류한 건지 응답을 거부한 건지 구분되지 않는다 |
 
 **⭐ 주석이 표시한 결정** — 지시와 정의 분리 · 입력 일치 · 정확도만 보면 안 되는 이유 · 공식 기록은 전체 실행만
 
@@ -938,6 +941,38 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 커밋하지 않은 변경이 있어도 실행은 막지 않는다. 개발 중에도 돌려 봐야 하기 때문이다. 대신 화면에 경고를 내고 기록에 `reproducible: false`로 적는다.
 
 **⭐ 주석이 표시한 결정** — 재현할 수 없는 실행도 막지 않고 그렇다고 적는다
+
+---
+
+### `core/model_info.py` — 기본 모델 · 단가 · 모델별 옵션
+
+| | |
+| --- | --- |
+| **역할** | 추출과 비교 실험이 쓰는 기본 모델, 모델별 단가, 모델마다 받는 옵션, 호출 한 번의 비용 계산을 한 곳에 둔다 |
+| **읽는 쪽** | `extract.py` · `run_extract.py` · `compare.py` |
+
+기본 모델은 `claude-opus-5-5`다. 단가는 [공식 가격 페이지](https://platform.claude.com/docs/en/about-claude/pricing)에서 2026-10-01에 확인한 값을 그대로 적었다. 캐시 읽기 배수가 모델마다 달라서(Opus 5.5는 입력의 0.05배, 나머지는 0.1배) 입력 단가에 배수를 곱하지 않고 값으로 적는다. 단가를 모르는 모델은 비용을 `null`로 남긴다 — 다른 모델의 단가를 빌려 쓰면 틀린 비용이 기록되기 때문이다. Haiku 4.5는 effort를 받지 않아 보내지 않는다(보내면 400).
+
+거부(refusal)된 호출은 [공식 문서](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#how-refusals-are-billed)의 청구 규칙대로 센다(2026-10-01 확인). 출력이 나온 뒤의 거부는 입력과 나온 출력이 청구된다. 출력 전의 거부는 `bio` · `frontier_llm` · `reasoning_extraction` 분류일 때만 청구되고, 그 밖에는 usage에 토큰이 찍혀 있어도 0원이다. 토큰을 그대로 곱하면 비용이 부풀려진다.
+
+**⭐ 주석이 표시한 결정** — 캐시 단가를 배수가 아니라 값으로 적음
+
+---
+
+### `core/llm.py` — Claude 호출
+
+| | |
+| --- | --- |
+| **역할** | 구조화 출력(JSON 스키마)으로 Claude를 한 번 부르고, 끝까지 온 응답만 스키마로 검증한다 |
+| **입력** | `ask(client, model, effort, system, content, schema)` |
+| **출력** | `(검증된 결과, usage)`. 거부면 `Refusal`(사용량을 함께 넘긴다), 응답이 잘렸으면(`max_tokens`) 오류 |
+| **읽는 쪽** | `extract.py` · `compare.py` |
+
+SDK의 `messages.parse()`를 쓰지 않는다. `parse()`는 `stop_reason`을 보기 전에 본문을 스키마로 검증해서, 출력 도중 거부돼 JSON이 잘린 응답이면 거부를 확인하기도 전에 `ValidationError`로 실행이 멈춘다(anthropic 1.7.0 · 1.11.0에서 확인). 공식 문서도 거부된 응답의 부분 출력은 버리라고 한다. 그래서 `messages.create`로 받아 `stop_reason`을 먼저 보고, 끝까지 온 응답만 검증한다. 요청 스키마는 `parse()`와 같은 `transform_schema`로 만든다.
+
+거부(refusal)가 나와도 다른 모델로 넘기는 설정(fallbacks)은 켜지 않는다. 평가하는 실행에서 다른 모델이 대신 답하면 그 결과는 이 모델의 결과가 아니다. 거부는 거부로 남긴다.
+
+**⭐ 주석이 표시한 결정** — `parse()` 대신 받은 뒤 검증 · 거부를 다른 모델로 넘기지 않음
 
 ---
 

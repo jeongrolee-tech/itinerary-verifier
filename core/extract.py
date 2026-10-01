@@ -16,7 +16,8 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel, Field
 
-MODEL = "claude-opus-5"
+from llm import ask
+from model_info import DEFAULT_MODEL
 
 Source = Literal["explicit", "inferred", "missing"]
 
@@ -100,38 +101,19 @@ SYSTEM = """너는 여행 일정 텍스트를 구조화하는 추출기다. 판�
 
 
 def extract(text: str, client: anthropic.Anthropic | None = None,
-            model: str = MODEL, today: str | None = None,
-            effort: str = "low") -> tuple[Extraction, dict]:
-    """자연어 → Extraction. (결과, 사용량) 을 돌려준다.
+            model: str = DEFAULT_MODEL, today: str | None = None,
+            effort: str | None = "low") -> tuple[Extraction, dict]:
+    """자연어 → Extraction. (결과, 사용량) 을 돌려준다. 모델이 거부하면 llm.Refusal 이 난다.
 
     today 는 연도가 빠진 날짜를 푸는 기준이다. 시스템 프롬프트가 아니라
     사용자 메시지에 넣는다 — 시스템 프롬프트를 고정해야 캐시가 붙는다.
     """
-    from datetime import date as _Date, datetime as _DT, timezone as _TZ
-    client = client or anthropic.Anthropic()
+    from datetime import date as _Date
     today = today or _Date.today().isoformat()
-    started = _DT.now(_TZ.utc)
-    response = client.messages.parse(
-        model=model,
-        max_tokens=16000,
-        # 추출은 적힌 값을 옮기는 기계적인 작업이다. 깊게 생각할 필요가 없고,
-        # 사고 토큰도 출력으로 과금되므로 effort 를 낮춘다.
-        output_config={"effort": effort},
-        system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": f"오늘은 {today} 이다.\n\n{text}"}],
-        output_format=Extraction,
-    )
-    usage = {
-        "model": model,
-        "effort": effort,
-        "latency_ms": round((_DT.now(_TZ.utc) - started).total_seconds() * 1000),
-        "input_tokens": response.usage.input_tokens,
-        "output_tokens": response.usage.output_tokens,
-        "cache_read": getattr(response.usage, "cache_read_input_tokens", 0),
-        "cache_write": getattr(response.usage, "cache_creation_input_tokens", 0),
-        "stop_reason": response.stop_reason,
-    }
-    return response.parsed_output, usage
+    # 추출은 적힌 값을 옮기는 기계적인 작업이다. 깊게 생각할 필요가 없고,
+    # 사고 토큰도 출력으로 과금되므로 effort 를 낮춘다.
+    return ask(client or anthropic.Anthropic(), model=model, effort=effort, system=SYSTEM,
+               content=f"오늘은 {today} 이다.\n\n{text}", schema=Extraction)
 
 
 def to_itinerary(ex: Extraction) -> dict:

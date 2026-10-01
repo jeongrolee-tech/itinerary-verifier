@@ -21,6 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic  # noqa: E402
 from extract import SYSTEM, extract, to_itinerary  # noqa: E402
+from llm import Refusal  # noqa: E402
+from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from runmeta import describe, fingerprint, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
 
@@ -36,13 +38,8 @@ extract_only = "--extract-only" in args
 flag = lambda name, default: next(
     (args[i + 1] for i, a in enumerate(args) if a == name and i + 1 < len(args)), default)
 only = flag("--case", None)
-MODEL = flag("--model", "claude-opus-5")
-EFFORT = flag("--effort", "low")
-PRICE = {  # per MTok (input, output)
-    "claude-opus-5": (5.0, 25.0),
-    "claude-sonnet-5": (2.0, 10.0),
-    "claude-haiku-4-5": (1.0, 5.0),
-}
+MODEL = flag("--model", DEFAULT_MODEL)
+EFFORT = effort_for(MODEL, flag("--effort", "low"))
 cases = [c for c in suite["cases"] if not only or c["id"].startswith(only)]
 
 # 연도가 빠진 날짜를 푸는 기준이다. 실행 하나 안에서는 한 날짜만 쓴다 — 케이스마다
@@ -106,7 +103,7 @@ if not key:
     raise SystemExit("키가 비어 있다.")
 
 client = anthropic.Anthropic(api_key=key)
-results, totals = [], {"in": 0, "out": 0, "cache_read": 0, "cache_write": 0}
+results, usages = [], []  # usages — 호출마다 하나. 거부된 호출도 들어간다
 
 for case in cases:
     print(f"\n{LINE}\n  {case['id']}  [{case['set']}]\n{LINE}")
@@ -114,15 +111,18 @@ for case in cases:
 
     try:
         ex, usage = extract(case["raw"], client, model=MODEL, today=REFERENCE_DATE, effort=EFFORT)
+    except Refusal as e:
+        usages.append(e.usage)  # 거부된 호출도 청구될 수 있다(model_info.billed)
+        print(f"❌ 추출 거부: {e}")
+        results.append({"id": case["id"], "extraction_ok": False, "error": f"refusal: {e}",
+                        "usage": e.usage})
+        continue
     except anthropic.APIError as e:
         print(f"❌ 추출 실패: {type(e).__name__} {e}")
         results.append({"id": case["id"], "extraction_ok": False, "error": str(e)})
         continue
 
-    totals["in"] += usage["input_tokens"]
-    totals["out"] += usage["output_tokens"]
-    totals["cache_read"] += usage["cache_read"]
-    totals["cache_write"] += usage["cache_write"]
+    usages.append(usage)
     got = to_itinerary(ex)
 
     print("[추출 결과]")
@@ -185,16 +185,15 @@ if not extract_only:
     print(f"  판정 {n_v}/{len(results)}")
     print(f"  전체 {n_e2e}/{len(results)}  (추출과 판정이 모두 맞은 건수)")
 
-# input_tokens 에는 캐시 읽기·쓰기 토큰이 안 들어 있으므로 따로 더해야 한다.
-#   캐시 쓰기 = 입력의 1.25배 (5분 TTL) / 캐시 읽기 = 입력의 0.1배
-IN, OUT = PRICE.get(MODEL, (5.0, 25.0))
-cost = (totals["in"] * IN
-        + totals["cache_write"] * IN * 1.25
-        + totals["cache_read"] * IN * 0.1
-        + totals["out"] * OUT) / 1e6
+totals = {"in": sum(u["input_tokens"] for u in usages), "out": sum(u["output_tokens"] for u in usages),
+          "cache_read": sum(u["cache_read"] for u in usages),
+          "cache_write": sum(u["cache_write"] for u in usages)}
+costs = [cost_usd(MODEL, u) for u in usages]
+cost = None if None in costs else sum(costs)  # 단가를 모르는 모델이면 비용을 적지 않는다
 print(f"\n  토큰 in {totals['in']:,} / out {totals['out']:,}"
       f" / 캐시 읽기 {totals['cache_read']:,} 쓰기 {totals['cache_write']:,}")
-print(f"  비용 약 ${cost:.4f}   (건당 ${cost / max(len(results), 1):.4f})")
+print(f"  비용 약 ${cost:.4f}   (건당 ${cost / max(len(results), 1):.4f})" if cost is not None
+      else f"  비용 — {MODEL} 의 단가를 모른다(model_info.PRICES)")
 lat = [r["usage"]["latency_ms"] for r in results if r.get("usage")]
 if lat:
     print(f"  지연 중앙값 {sorted(lat)[len(lat) // 2]}ms / 최대 {max(lat)}ms")
@@ -210,9 +209,9 @@ run = {
     "facts_snapshot": facts["snapshot_id"],
     "conditions": CONDITIONS,
     "tokens": totals,
-    "pricing_per_mtok": {"input": IN, "output": OUT, "cache_write": IN * 1.25, "cache_read": IN * 0.1},
-    "estimated_cost_usd": round(cost, 4),
-    "estimated_cost_per_case_usd": round(cost / max(len(results), 1), 4),
+    "pricing_per_mtok": PRICES.get(MODEL),
+    "estimated_cost_usd": None if cost is None else round(cost, 4),
+    "estimated_cost_per_case_usd": None if cost is None else round(cost / max(len(results), 1), 4),
     "results": results,
 }
 (HERE / "last-extract-run.json").write_text(
