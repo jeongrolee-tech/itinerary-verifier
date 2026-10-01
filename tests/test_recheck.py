@@ -10,19 +10,14 @@
 확인할 것이 줄어 일정이 나아진 것처럼 보인다.
 
 반례마다 대조군을 둔다. 대조군이 없으면 모든 변경에 확인을 붙이는 구현도 통과한다.
-xfail(strict=True) 는 아직 고치지 않은 반례다. 고치면 XPASS 가 되어 스위트가
-실패하므로 그 작업에서 표시를 지운다.
 """
 
 import copy
-
-import pytest
 
 from recheck import recheck_revision
 
 PALACE, MARKET, CHANGDEOK = "경복궁", "광장시장", "창덕궁"
 THURSDAY, FRIDAY = "2026-10-08", "2026-10-09"
-TODO = pytest.mark.xfail(strict=True, reason="2-4: 사용자 확인이 필요한 변경을 아직 표시하지 않는다")
 
 
 def palace_market_ktx():
@@ -55,7 +50,6 @@ def test_recheck_judges_the_whole_revised_itinerary(facts, policy):
     assert len(result["after"]["hard_constraints"]) == 1
 
 
-@TODO
 def test_moving_date_with_train_needs_confirmation(facts, policy):
     """날짜를 옮기면 KTX 도 새 날짜에 탈 수 있는 것처럼 판정된다. 원래 날짜로 예약했을 수 있다."""
     original = palace_market_ktx()
@@ -72,7 +66,6 @@ def test_moving_date_without_constraints_needs_no_confirmation(facts, policy):
     assert confirmations(original, revised, facts, policy) == []
 
 
-@TODO
 def test_changing_train_time_needs_confirmation(facts, policy):
     """꼭 타야 한다고 한 열차의 시각이 바뀌었다. 판정이 나아져도 사용자가 말한 조건이 아니다."""
     original = palace_market_ktx()
@@ -81,7 +74,6 @@ def test_changing_train_time_needs_confirmation(facts, policy):
     assert ("HARD_CONSTRAINT_CHANGED", "HC1") in confirmations(original, revised, facts, policy)
 
 
-@TODO
 def test_dropping_train_needs_confirmation(facts, policy):
     """필수 조건을 지우면 열차 검사가 사라져 일정이 쉬워진 것처럼 보인다."""
     original = palace_market_ktx()
@@ -90,7 +82,6 @@ def test_dropping_train_needs_confirmation(facts, policy):
     assert ("HARD_CONSTRAINT_CHANGED", "HC1") in confirmations(original, revised, facts, policy)
 
 
-@TODO
 def test_dropping_stop_needs_confirmation(facts, policy):
     """광장시장을 빼면 확인 못 한 것이 줄어 판정이 나아진다. 장소를 지워서 푼 것이다."""
     original = palace_market_ktx()
@@ -99,7 +90,6 @@ def test_dropping_stop_needs_confirmation(facts, policy):
     assert ("STOP_DROPPED", MARKET) in confirmations(original, revised, facts, policy)
 
 
-@TODO
 def test_replacing_stop_needs_confirmation(facts, policy):
     """경복궁을 창덕궁으로 바꾸면 가려던 곳이 바뀐다."""
     original = palace_market_ktx()

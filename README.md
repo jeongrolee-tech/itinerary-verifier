@@ -261,7 +261,7 @@ pip install -r requirements.txt     # anthropic, pydantic, pytest
 python core/run.py                          # 골든 테스트 채점 + 실행 기록
 python core/run.py --case T05               # 한 케이스 상세
 python core/run.py --all                    # 전부 상세
-pytest                                      # 규칙 테스트 (확정 fail 반례 · 결과 묶기)
+pytest                                      # 규칙 테스트 (확정 fail 반례 · 결과 묶기 · 수정 재검사)
 python core/compare.py --dry-run            # 비교 실험 배선 확인
 python core/compare.py --arms code          # 비교 실험, 코드 arm만
 python core/build_transit_legs.py           # 지하철 주행시간 하한선 계산
@@ -567,6 +567,18 @@ itinerary-verifier/
 
 `recheck_revision(original, revised, facts, policy)`는 수정 전과 수정 후에
 각각 `judge()`를 호출한다. 바뀐 스톱만 다시 보는 것이 아니라 날짜·장소·체류시간·이동시간·필수 조건을 포함한 수정 일정 전체를 재검사하고, 변경 경로와 미해결 항목을 함께 기록한다.
+
+고친 일정이 사용자가 꼭 지킨다고 한 것을 바꿨으면 `needs_confirmation`에 따로 적는다. 판정이 나아진 것만으로 수정을 받아들이지 않기 위해서다 — 장소를 지우면 확인할 것이 줄어 판정이 나아지고, 날짜를 옮기면 예약한 열차도 새 날짜에 탈 수 있는 것처럼 판정된다.
+
+| 종류 | 언제 |
+| --- | --- |
+| `DATE_MOVED` | 필수 조건(열차 등)이 있는데 날짜가 바뀌었다 |
+| `HARD_CONSTRAINT_CHANGED` | 필수 조건의 종류·장소·시각이 바뀌었거나 빠졌다 |
+| `STOP_DROPPED` | 원래 장소가 고친 일정에 없다 — 빠졌거나 다른 장소로 바뀌었다 |
+
+시각 · 체류시간 · 방문 순서는 고쳐도 되는 것이라 적지 않는다. 장소는 순서가 아니라 이름으로 짝을 맞춘다. 순서로 비교하면 방문 순서만 바꿔도 장소가 바뀐 것처럼 보인다.
+
+**⭐ 주석이 표시한 결정** — 판정이 나아진 것만으로 수정을 받아들이지 않음 · 장소는 이름으로 짝을 맞춤
 
 ---
 
