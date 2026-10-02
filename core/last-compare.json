@@ -1,10 +1,32 @@
 {
   "_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·지연을 남긴다. compare.py 가 덮어쓴다.",
-  "run_id": "cmp-20260922-172448",
-  "ran_at": "2026-09-22T08:24:48.137315+00:00",
-  "facts_snapshot": "facts-2026-09-22",
-  "model": "claude-opus-5",
+  "run_id": "cmp-20261002-102102",
+  "ran_at": "2026-10-02T01:28:14.108224+00:00",
+  "facts_snapshot": "facts-2026-09-29",
+  "model": "claude-opus-5-5",
   "effort": "low",
+  "pricing_per_mtok": {
+    "input": 4.0,
+    "output": 20.0,
+    "cache_write": 5.0,
+    "cache_read": 0.2
+  },
+  "conditions": {
+    "code_commit": "f6c50c101030a76464a7dc4d2059b8e14f9eb723",
+    "uncommitted": [],
+    "reproducible": true,
+    "fingerprints": {
+      "tests.json": "9f4541c7b253",
+      "facts.json": "e2485c1a1b5e",
+      "policy.json": "d62d67a26f9e"
+    },
+    "reference_date": "2026-09-22",
+    "prompts": {
+      "llm_naive": "ae27ab89c0ec",
+      "llm_only": "b6ac7b8eb048",
+      "llm_with_facts": "a5ecc1bca03e"
+    }
+  },
   "arms": [
     "llm_naive",
     "llm_only",
@@ -16,14 +38,15 @@
   "metrics": {
     "llm_naive": {
       "n": 15,
-      "verdict_accuracy": 0.533,
+      "verdict_accuracy": 0.4,
       "precision_on_infeasible": 1.0,
-      "recall_on_infeasible": 0.833,
+      "recall_on_infeasible": 0.333,
       "false_alarm_on_feasible": 0,
       "false_pass_on_infeasible": 0,
-      "leaked_undetermined_as_feasible": 6,
-      "undetermined_rate": 0.133,
-      "decisive_rate": 0.867,
+      "leaked_undetermined_as_feasible": 3,
+      "undetermined_rate": 0.667,
+      "decisive_rate": 0.333,
+      "refused": 0,
       "counts": {
         "actual_infeasible": 6,
         "actual_feasible": 2,
@@ -40,6 +63,7 @@
       "leaked_undetermined_as_feasible": 0,
       "undetermined_rate": 1.0,
       "decisive_rate": 0.0,
+      "refused": 0,
       "counts": {
         "actual_infeasible": 6,
         "actual_feasible": 2,
@@ -56,6 +80,7 @@
       "leaked_undetermined_as_feasible": 1,
       "undetermined_rate": 0.4,
       "decisive_rate": 0.6,
+      "refused": 0,
       "counts": {
         "actual_infeasible": 6,
         "actual_feasible": 2,
@@ -72,6 +97,7 @@
       "leaked_undetermined_as_feasible": 0,
       "undetermined_rate": 0.467,
       "decisive_rate": 0.533,
+      "refused": 0,
       "counts": {
         "actual_infeasible": 6,
         "actual_feasible": 2,
@@ -80,29 +106,31 @@
     }
   },
   "cost": {
-    "llm_only": {
-      "total_usd": 0.2487,
-      "per_case_usd": 0.0166,
-      "latency_median_ms": 8231
-    },
-    "llm_with_facts": {
-      "total_usd": 1.0321,
-      "per_case_usd": 0.0688,
-      "latency_median_ms": 12110
-    },
     "llm_naive": {
       "n": 15,
-      "total_usd": 0.2793,
-      "per_case_usd": 0.0186,
-      "latency_median_ms": 9215
+      "total_usd": 0.2908,
+      "per_case_usd": 0.0194,
+      "latency_median_ms": 10363
+    },
+    "llm_only": {
+      "n": 15,
+      "total_usd": 0.1979,
+      "per_case_usd": 0.0132,
+      "latency_median_ms": 6542
+    },
+    "llm_with_facts": {
+      "n": 15,
+      "total_usd": 0.8718,
+      "per_case_usd": 0.0581,
+      "latency_median_ms": 11843
     }
   },
   "rows": [
     {
       "id": "T01-정상",
       "set": "dev",
-      "expect": "feasible",
-      "label_current": false,
+      "expect": "undetermined",
+      "label_current": true,
       "arms": {
         "code": {
           "verdict": "undetermined",
@@ -150,13 +178,148 @@
           ]
         },
         "llm_naive": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "휴무일 정보가 제공되지 않았다. 2026-10-08은 목요일이지만, 해당 날짜의 휴관 여부를 확인할 근거 데이터가 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "입장마감 시각 정보가 없어 13:00 도착 시 입장할 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "폐관 시각 정보가 없어 13:00~14:00 체류를 마칠 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "휴무일 정보가 제공되지 않아 10월 8일(목) 개방 여부를 확인할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 정보가 없어 15:00 도착 시 입장할 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 정보가 없어 15:00~17:00 체류를 마칠 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "서울시립미술관 서소문본관 → 경복궁",
+              "status": "pass",
+              "reason": "미술관 관람이 14:00에 끝나고 경복궁 일정은 15:00에 시작해 60분이 남는다. 이동 수단과 이동시간 근거가 없으므로 이동 0분으로도 늦을 때만 위반인데, 이 경우에는 늦지 않는다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "두 장소 사이 이동시간(60분 여유)은 문제없지만, 10월 8일 두 곳의 운영시간과 휴무 정보가 없어 실행 가능 여부를 확정할 수 없습니다."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "휴무일 데이터가 주어지지 않아 10월 8일(목) 휴관 여부를 확인할 수 없다"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "입장마감 시각 데이터가 없어 13:00 도착 시 입장 가능 여부를 판단할 수 없다"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 13:00~14:00 체류 완료 여부를 판단할 수 없다"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "서울시립미술관 서소문본관 → 경복궁",
+              "status": "pass",
+              "reason": "관람 종료 14:00, 다음 시작 15:00으로 60분 여유가 있다. 사용자가 이동수단을 밝히지 않았으므로 이동 0분 기준으로만 위반을 판단하며, 0분으로는 늦지 않는다"
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "휴무일 데이터가 주어지지 않아 10월 8일(목) 휴궁 여부를 확인할 수 없다"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 데이터가 없어 15:00 도착 시 입장 가능 여부를 판단할 수 없다"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 15:00~17:00 체류 완료 여부를 판단할 수 없다"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "이동 시간은 충분하지만, 두 장소의 휴무일과 운영시간 정보를 확보하지 못해 실행 가능 여부를 확정할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울시립미술관 서소문본관",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이고 특일 목록에 없다. 휴관일은 월요일과 1월 1일뿐이다(유효기간 2026-12-31 이내)."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이다. 정기휴일은 화요일이고, 공휴일과 겹쳐 휴일이 다음 날로 밀리는 경우에도 해당하지 않는다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "pass",
+              "reason": "목요일 운영시간은 10:00~20:00이고 입장마감은 19:00이다. 13:00 도착이므로 입장할 수 있다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "10월 운영시간은 09:00~18:00이고 입장마감은 17:00이다. 15:00 도착이므로 입장할 수 있다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "pass",
+              "reason": "사용자가 정한 체류 60분으로 계산하면 14:00에 끝나고, 폐관 20:00보다 이르다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "사용자가 정한 체류 120분으로 계산하면 17:00에 끝나고, 폐장 18:00보다 이르다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "서울시립미술관 서소문본관 → 경복궁",
+              "status": "pass",
+              "reason": "미술관 관람이 14:00에 끝나고 경복궁 일정은 15:00에 시작해 60분이 남는다. 지하철 주행시간 6.5분은 하한값이고 사용자가 이동수단을 밝히지 않았다. 이 경우 이동 0분으로도 늦을 때만 위반인데, 그렇지 않으므로 위반이 아니다."
+            }
+          ],
+          "verdict": "feasible",
+          "message": "10월 8일(목) 일정은 두 곳 모두 운영일이고, 입장·체류·이동 모두 문제가 없어 실행 가능합니다. 다만 미술관에서 경복궁까지의 지하철 소요시간은 도보·환승·대기가 빠진 하한값(6.5분)이라 실제로는 더 걸리지만, 남은 시간이 60분이라 여유가 있습니다."
         }
       }
     },
@@ -192,13 +355,94 @@
           ]
         },
         "llm_naive": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "2026-10-08은 목요일입니다. 경복궁은 통상 화요일이 정기휴무로 알려져 있지만, 이 일정에 대한 휴무일 데이터가 제공되지 않아 확정할 수 없습니다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "입장 마감 시각 데이터가 제공되지 않았습니다. 일반적으로 알려진 10월 운영시간(09:00~18:00, 입장마감 17:00)을 따르면 17:30 도착은 입장할 수 없지만, 확인된 값이 없어 판정을 보류합니다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없습니다. 통상 폐장 시각인 18:00을 기준으로 하면 17:30부터 1시간 관람은 18:30에 끝나 마칠 수 없지만, 확정할 수 없습니다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "방문지가 한 곳뿐이라 검사할 이동 구간이 없습니다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "운영시간 데이터가 없어 판정을 보류하지만, 경복궁은 보통 10월에 17:00 입장마감·18:00 폐장이라 17:30 입장과 1시간 관람은 어려울 가능성이 높으니 16시 이전 입장을 권합니다."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "2026-10-08(목) 경복궁 휴무일 정보를 확보하지 못함"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "10월 경복궁 입장마감 시각 데이터가 없어 17:30 도착 시 입장 가능 여부 판단 불가"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 17:30~18:30 체류 완료 가능 여부 판단 불가"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 장소 간 이동 구간이 없음"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "10월 8일 경복궁의 휴무 여부와 입장마감·폐장 시각을 확보하지 못해 17시 30분 입장 후 1시간 관람이 가능한지 판단을 보류합니다."
         },
         "llm_with_facts": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일. 경복궁 정기휴일은 화요일이고, 휴일 이동 규칙상 10-06(화)은 공휴일이 아니므로 그날이 휴궁일이다. 10-08은 휴궁일이 아니다(근거 valid_until 2026-12-31 이내)."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "fail",
+              "reason": "10월 운영시간은 09:00~18:00이고 입장마감은 17:00이다. 17:30 도착은 입장마감 이후라 입장할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "입장 자체가 불가하므로 체류 완료 검사가 성립하지 않는다. 참고로 17:30+60분=18:30은 폐장 18:00도 넘는다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 이동 구간이 없다."
+            }
+          ],
+          "verdict": "infeasible",
+          "message": "10월 경복궁은 입장마감이 17:00이라 17:30에 도착하면 입장할 수 없습니다. 17:00 이전에 도착하도록 시작 시각을 앞당겨 주세요. 폐장이 18:00이므로 60분을 머물려면 17:00까지는 들어가야 합니다."
         }
       }
     },
@@ -206,7 +450,7 @@
       "id": "T03-운영정보없음",
       "set": "dev",
       "expect": "undetermined",
-      "label_current": false,
+      "label_current": true,
       "arms": {
         "code": {
           "verdict": "undetermined",
@@ -254,13 +498,136 @@
           ]
         },
         "llm_naive": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이다. 경복궁의 정기 휴무일은 화요일로 알려져 있어 목요일은 휴무일이 아니다. 별도 운영 데이터는 제공되지 않았다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "10월 관람시간은 09:00~18:00, 입장마감은 17:00으로 알려져 있다. 15:00 도착은 입장마감 전이다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "15:00부터 2시간 체류하면 17:00에 끝난다. 알려진 폐장 시각 18:00 이전이다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "pass",
+              "reason": "광장시장 먹거리 점포는 대체로 평일 저녁에 영업하는 것으로 알려져 있다. 목요일이므로 휴무 문제는 없다고 판단했다. 개별 점포 휴무는 확인되지 않았다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 광장시장",
+              "status": "pass",
+              "reason": "이동시간 근거와 사용자의 이동 수단이 제시되지 않았으므로, 이동 0분으로도 늦을 때만 위반이다. 17:00 종료 후 18:00까지 60분이 남아 위반이 아니다. 참고로 일반적인 이동시간은 약 20~30분이다."
+            }
+          ],
+          "verdict": "feasible",
+          "message": "10월 8일(목) 15시 경복궁 2시간 관람 후 18시 광장시장 저녁 일정은 실행 가능합니다. 경복궁 관람이 17시에 끝나 이동에 1시간 여유가 있습니다."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "2026-10-08(목) 경복궁 휴무일 데이터를 확보하지 못함"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "경복궁 입장마감 시각 데이터가 없어 15:00 도착 시 입장 가능 여부를 판단할 수 없음"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 15:00~17:00 체류 완료 여부를 판단할 수 없음"
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장 목요일 휴무 여부 데이터를 확보하지 못함"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장 영업·입장마감 시각 데이터가 없어 18:00 도착 시 이용 가능 여부를 판단할 수 없음"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장 체류시간이 명시되지 않았고 폐장 시각 데이터도 없어 판단할 수 없음"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 광장시장",
+              "status": "pass",
+              "reason": "이동수단이 명시되지 않아 이동 0분 기준으로 판단: 17:00 종료 후 18:00 시작까지 60분 여유가 있어 늦지 않음"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "확인된 위반은 없지만 경복궁과 광장시장의 휴무일·운영시간 정보가 없어 10월 8일 일정의 실행 가능 여부를 확정할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이다. 경복궁 정기휴일은 화요일이고, 휴일 이동 규칙을 적용하면 10-06(화)은 공휴일이 아니므로 그대로 휴일이 되고 다음 날로 밀리지 않는다. 따라서 10-08은 개방일이다. 근거 데이터는 valid_until 2026-12-31 이내다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "10월 운영시간은 09:00~18:00이고 입장마감은 17:00이다. 15:00 도착은 입장마감 전이다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "사용자가 체류시간 120분을 지정했다. 15:00에 입장하면 17:00에 마치며, 폐장 18:00 이전이다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 광장시장",
+              "status": "pass",
+              "reason": "경복궁을 17:00에 나서면 광장시장 시작 18:00까지 60분이 남는다. 이동 근거는 지하철 주행 4.5분(하한선)이다. 사용자가 이동 수단을 말하지 않았으므로 이동 0분으로도 늦는 경우만 위반으로 본다. 0분이면 늦지 않으므로 확인된 위반은 없다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "facts에 closed_days 값이 null이다. 점포마다 달라 시장 단위 정보가 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "facts에 hours 값이 null이라 18:00 도착 시 이용할 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "not_applicable",
+              "reason": "사용자가 체류시간을 지정하지 않았고, 정책상 체류를 마칠 수 있는지는 판단하지 않는다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "경복궁 일정(15:00~17:00)과 광장시장까지의 이동에는 문제가 없지만, 광장시장의 휴무일과 운영시간 정보가 없어 18:00 방문이 가능한지는 확정할 수 없습니다."
         }
       }
     },
@@ -268,7 +635,7 @@
       "id": "T04-필수조건KTX",
       "set": "dev",
       "expect": "infeasible",
-      "label_current": false,
+      "label_current": true,
       "arms": {
         "code": {
           "verdict": "infeasible",
@@ -316,13 +683,172 @@
           ]
         },
         "llm_naive": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "2026-10-08은 목요일입니다. 경복궁은 통상 화요일 휴궁이라 해당되지 않을 가능성이 높지만, 휴무일 데이터가 제공되지 않아 확정할 수 없습니다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "운영시간 데이터가 제공되지 않았습니다. 일반적으로 10월에는 18:00 폐장, 17:00 입장마감으로 알려져 있어 17:30 도착이면 입장할 수 없을 가능성이 높습니다. 다만 제공된 근거가 없어 확정하지 않았습니다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없습니다. 통상 18:00 폐장이라면 17:30부터 1시간 관람은 마칠 수 없습니다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "휴무일 데이터가 제공되지 않았습니다. 통상 일요일 휴무 점포가 많지만 목요일 운영 여부는 확인하지 못했습니다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "영업시간 데이터가 없어 19:00 도착 시 이용 가능 여부를 판단할 수 없습니다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "저녁 식사 소요시간과 폐점 시각 데이터가 없습니다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 광장시장",
+              "status": "pass",
+              "reason": "이동시간 근거와 이동수단이 제시되지 않았습니다. 이동 0분이면 18:30 종료 후 19:00 도착에 늦지 않으므로 위반이 아닙니다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "광장시장 → 서울역",
+              "status": "pass",
+              "reason": "이동시간 근거가 없고, 이동 0분이면 20:30 열차에 늦지 않습니다. 식사 소요시간이 명시되지 않아 실제 여유는 확인하지 못했습니다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "운영시간 데이터가 없어 판정을 보류하지만, 경복궁은 10월에 보통 17시 입장마감·18시 폐장이므로 17:30 입장과 1시간 관람이 어려울 가능성이 높습니다. 경복궁 방문 시간을 앞당기거나 운영시간을 확인하시고, 꼭 타야 하는 20:30 KTX를 위해 광장시장에서 서울역까지 이동시간도 넉넉히 잡으세요."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "경복궁의 휴무일 데이터를 확보하지 못해 10월 8일(목) 휴무 여부를 확인할 수 없음"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 데이터가 없어 17:30 도착 시 입장 가능 여부를 판단할 수 없음"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 17:30~18:30 체류 완료 여부를 판단할 수 없음"
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장(식당)의 휴무일 데이터를 확보하지 못함"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "영업시간·주문마감 데이터가 없어 19:00 도착 시 이용 가능 여부를 판단할 수 없음"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없고, 저녁 식사 체류시간도 명시되지 않아 판단할 수 없음"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 광장시장",
+              "status": "unknown",
+              "reason": "이동시간 데이터와 이동수단 정보가 없음. 경복궁 종료 18:30 기준 남은 시간 30분이며, 이동 0분 가정 시 늦지 않으므로 위반 확정 불가"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "광장시장 → 서울역",
+              "status": "unknown",
+              "reason": "저녁 식사 종료 시각과 이동시간 데이터가 없어 20:30 KTX 탑승 가능 여부를 판단할 수 없음"
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울역",
+              "status": "not_applicable",
+              "reason": "기차역 탑승 일정으로 휴무일 검사가 성립하지 않음"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "경복궁·광장시장의 10월 8일 운영시간과 휴무 여부, 구간별 이동시간 정보가 없어 확인된 위반은 없지만 실행 가능 여부를 판단할 수 없습니다. 특히 20:30 KTX는 반드시 타야 하므로, 저녁 식사를 마치는 시각과 광장시장→서울역 이동시간을 꼭 확인해 주세요."
         },
         "llm_with_facts": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이다. 정기휴일은 화요일이다. 직전 화요일 10-06은 공휴일이 아니어서 휴일이 다른 날로 밀려오지 않는다. 휴무일 근거의 valid_until 2026-12-31 이내다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "fail",
+              "reason": "10월 운영시간은 09:00~18:00이고 입장마감은 17:00이다(valid_until 2026-12-31). 도착 17:30은 입장마감 이후라 입장할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "입장이 불가능해서 체류 완료 여부는 따질 대상이 아니다. 참고로 입장했다고 가정해도 17:30+60분=18:30으로 폐장 18:00을 넘는다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "facts에 closed_days 값이 없다. 점포마다 달라 시장 단위 정보를 확보하지 못했다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "facts에 hours 값이 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "운영시간이 없고 체류시간도 사용자가 말하지 않았다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 광장시장",
+              "status": "unknown",
+              "reason": "경복궁 종료는 18:30(17:30+60분)이고 광장시장 시작 19:00까지 30분 남는다. 이동시간 4.5분은 지하철 주행만 잰 하한이고, 사용자가 이동수단을 말하지 않았다. 이동 0분이면 늦지 않으므로 위반은 아니지만, 하한값으로는 pass를 낼 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "광장시장 → 서울역",
+              "status": "unknown",
+              "reason": "광장시장 체류시간을 모르므로 0분을 하한으로 본다. 그러면 19:00에 출발해 20:30 열차까지 90분이 남는다. 이동시간 7.0분은 하한값이라 pass를 확정할 수 없고, 이동 0분이면 늦지 않으므로 위반도 아니다."
+            }
+          ],
+          "verdict": "infeasible",
+          "message": "10월 경복궁 입장마감이 17:00이라 17:30에 도착하면 입장할 수 없습니다. 경복궁 방문 시각을 17:00 이전으로 앞당겨야 합니다."
         }
       }
     },
@@ -330,7 +856,7 @@
       "id": "T05-대체공휴일연쇄",
       "set": "holdout",
       "expect": "infeasible",
-      "label_current": false,
+      "label_current": true,
       "arms": {
         "code": {
           "verdict": "infeasible",
@@ -378,13 +904,148 @@
           ]
         },
         "llm_naive": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "휴무일 데이터가 제공되지 않았다. 일반적으로 경복궁은 매주 화요일 휴궁으로 알려져 있으나, 이번 일정에 쓸 확인된 자료가 없어 확정하지 않는다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "휴무일 데이터가 제공되지 않았다. 일반적으로 창덕궁은 월요일 휴궁으로 알려져 있으나 확인된 자료는 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 정보가 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 정보가 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "체류시간과 폐장 시각 정보가 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "체류시간과 폐장 시각 정보가 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 창덕궁",
+              "status": "unknown",
+              "reason": "이동시간 근거와 경복궁 체류시간이 없다. 10시 시작 후 14시까지 4시간이 있으나 체류 종료 시각을 알 수 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "운영시간·휴무일 정보가 없어 판단을 보류합니다. 다만 경복궁은 보통 매주 화요일 휴궁이므로 10월 6일(화) 방문 전 꼭 확인하세요."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "휴무일 데이터가 제공되지 않아 2026-10-06(화) 휴무 여부를 확인할 수 없음"
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "휴무일 데이터가 제공되지 않아 2026-10-06(화) 휴무 여부를 확인할 수 없음"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 데이터가 없어 10:00 도착 시 입장 가능 여부를 판단할 수 없음"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 데이터가 없어 14:00 도착 시 입장 가능 여부를 판단할 수 없음"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "체류시간과 폐장 시각이 모두 주어지지 않음"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "체류시간과 폐장 시각이 모두 주어지지 않음"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 창덕궁",
+              "status": "unknown",
+              "reason": "이동시간 데이터와 경복궁 체류 종료 시각이 없어 14:00까지 도착 가능 여부를 판단할 수 없음(이동수단 미지정)"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "운영시간·휴무일·이동시간 정보를 확보하지 못해 10월 6일(화) 고궁 투어 일정의 실행 가능 여부를 판단할 수 없습니다. 특히 화요일 휴무 여부를 꼭 확인해 주세요."
         },
         "llm_with_facts": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "fail",
+              "reason": "2026-10-06은 화요일로 경복궁 정기휴일(TUE)이다. 특일 목록(valid_until 2026-12-31)에 10-06은 없어 공휴일 예외 개방이 적용되지 않는다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "창덕궁",
+              "status": "fail",
+              "reason": "창덕궁 정기휴일은 월요일인데 2026-10-05(월)가 특일 목록에 있어 개방하고, 규칙 shift_to_next_nonholiday에 따라 다음 첫 비공휴일인 2026-10-06(화)이 휴궁일이 된다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "휴궁일이라 입장마감 검사가 성립하지 않는다. (참고: 10월 입장마감 17:00, 10:00 도착)"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "창덕궁",
+              "status": "not_applicable",
+              "reason": "휴궁일이라 입장마감 검사가 성립하지 않는다. (참고: 10월 입장마감 17:00, 14:00 도착)"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "휴궁일이라 체류 완료 검사가 성립하지 않는다. 체류시간도 사용자가 말하지 않았다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "창덕궁",
+              "status": "not_applicable",
+              "reason": "휴궁일이라 체류 완료 검사가 성립하지 않는다. 체류시간도 사용자가 말하지 않았다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 창덕궁",
+              "status": "pass",
+              "reason": "이 구간 이동시간 근거는 facts에 없고 사용자가 이동 수단을 말하지 않았으므로 이동 0분 기준으로만 판단한다. 체류 하한 0분이면 10:00 출발로 14:00 시작에 늦지 않는다."
+            }
+          ],
+          "verdict": "infeasible",
+          "message": "2026-10-06(화)은 경복궁의 정기 휴궁일이고, 창덕궁도 10-05(월) 대체공휴일 개방으로 휴궁이 이날로 옮겨져 두 곳 모두 관람할 수 없습니다."
         }
       }
     },
@@ -420,13 +1081,94 @@
           ]
         },
         "llm_naive": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "10월 6일은 화요일이 맞지만, 휴무일 정보가 주어지지 않아 판단할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "입장마감 시각 정보가 주어지지 않아 14:00 도착 시 입장 가능 여부를 확인할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "폐장 시각 정보가 없어 14:00~15:00 체류를 마칠 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "서울시립미술관 서소문본관",
+              "status": "not_applicable",
+              "reason": "방문 장소가 하나뿐이라 장소 간 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "10월 6일(화) 서울시립미술관 서소문본관의 휴무일과 운영시간 정보가 없어 14시부터 1시간 관람이 가능한지 판단을 보류합니다. 방문 전 공식 운영시간을 확인해 주세요."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "2026-10-06(화)의 휴무 여부를 확인할 운영 데이터가 주어지지 않았다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "입장마감 시각 데이터가 없어 14:00 도착 시 입장 가능한지 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 14:00~15:00 체류를 마칠 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "서울시립미술관 서소문본관",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 장소 간 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "10월 6일(화) 서울시립미술관 서소문본관의 휴무 여부와 운영시간을 확인하지 못해, 오후 2시부터 한 시간 관람이 가능한지 아직 판단할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울시립미술관 서소문본관",
+              "status": "pass",
+              "reason": "2026-10-06은 화요일이고 공휴일 목록(유효기간 2026-12-31)에 없다. 휴관일은 매주 월요일과 1월 1일이므로 해당하지 않는다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "pass",
+              "reason": "화요일 운영시간은 10:00~20:00, 입장마감은 19:00이다(유효기간 2026-12-31). 14:00 도착은 입장마감 전이다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "pass",
+              "reason": "체류 60분은 사용자가 지정한 값이다(system_default 표시 없음). 14:00에 시작하면 15:00에 끝나고, 폐장 20:00 이전이다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "서울시립미술관 서소문본관",
+              "status": "not_applicable",
+              "reason": "방문지가 하나뿐이라 이동 구간이 없다."
+            }
+          ],
+          "verdict": "feasible",
+          "message": "10월 6일(화) 14:00에 서울시립미술관 서소문본관에서 60분 관람하는 일정은 운영시간(10:00~20:00, 입장마감 19:00) 안에 있어 실행할 수 있습니다."
         }
       }
     },
@@ -462,13 +1204,94 @@
           ]
         },
         "llm_naive": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "경복궁 정기휴무는 화요일이다. 2026-10-08은 목요일이므로 휴무일이 아니다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "10월 관람시간은 09:00~18:00이고 입장마감은 17:00이다. 16:30 도착이면 입장할 수 있다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "fail",
+              "reason": "16:30에 입장해 2시간을 체류하면 18:30에 끝난다. 폐장 시각 18:00보다 30분 늦다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 이동 구간이 없다."
+            }
+          ],
+          "verdict": "infeasible",
+          "message": "10월 8일 경복궁은 18:00에 문을 닫아서, 16:30에 들어가면 계획한 2시간 관람을 마칠 수 없어요(18:30 종료 예정). 16:00 이전에 입장하시는 게 좋겠어요."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "2026-10-08(목) 경복궁 휴무 여부 데이터를 확보하지 못함"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "경복궁 입장마감 시각 데이터가 없어 16:30 입장 가능 여부를 판단할 수 없음"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 16:30~18:30 두 시간 체류 완료 여부를 판단할 수 없음"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 장소 간 이동 구간이 없음"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "경복궁의 10월 8일 휴무 여부와 입장마감·폐장 시각을 확인하지 못해 16:30 입장 후 두 시간 관람이 가능한지 판단을 보류합니다."
         },
         "llm_with_facts": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이다. 정기휴일은 화요일(TUE)이고, 10-08은 공휴일 목록에 없다. 10-09 공휴일은 화요일이 아니어서 휴일 이동 규칙도 해당하지 않는다. 근거 valid_until은 2026-12-31이다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "10월 운영시간은 09:00~18:00이고 입장마감은 17:00이다(valid_until 2026-12-31). 16:30 도착은 입장마감 전이다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "fail",
+              "reason": "사용자가 지정한 체류시간은 120분이다. 16:30에 시작하면 18:30에 끝나는데, 폐장은 18:00이라 30분이 부족하다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "방문지가 하나뿐이어서 검사할 이동 구간이 없다."
+            }
+          ],
+          "verdict": "infeasible",
+          "message": "10월 8일 경복궁은 18:00에 폐장하므로 16:30에 들어가면 120분 체류를 마칠 수 없습니다. 늦어도 16:00에는 입장해야 합니다(입장마감 17:00)."
         }
       }
     },
@@ -504,13 +1327,94 @@
           ]
         },
         "llm_naive": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이며, 경복궁 정기휴무일은 화요일이므로 휴무가 아니다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "10월 관람시간은 09:00~18:00이고 입장마감은 17:00이다. 16:30 도착이므로 입장할 수 있다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "체류시간이 주어지지 않아 검사가 성립하지 않는다. 참고로 18:00 폐장까지 관람 가능한 시간은 약 1시간 30분이다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "방문 장소가 하나뿐이라 검사할 이동 구간이 없다."
+            }
+          ],
+          "verdict": "feasible",
+          "message": "10월 8일(목) 16:30 경복궁 방문은 가능합니다. 다만 입장마감이 17:00이고 18:00에 폐장하므로 관람 시간은 약 1시간 30분입니다."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "2026-10-08(목) 휴무 여부를 판단할 휴무일 데이터가 주어지지 않아 확인할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "10월 운영시간과 입장마감 시각 데이터가 없어 16:30 도착 시 입장 가능한지 확인할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "체류시간이 명시되지 않았고 폐장 시각 데이터도 없어 체류를 마칠 수 있는지 확인할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 장소 간 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "10월 8일(목) 경복궁의 휴무 여부와 입장마감·폐장 시각 정보가 없어서, 오후 4시 반 방문이 가능한지는 아직 판단할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이고 정기휴일은 화요일이다. 직전 화요일인 10-06은 공휴일 목록에 없어 휴일 이동 규칙도 적용되지 않는다. 근거 valid_until은 2026-12-31이다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "10월 운영시간은 09:00~18:00, 입장마감은 17:00이다. 16:30 도착은 입장마감 전이다. 근거 valid_until은 2026-12-31이다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "사용자가 체류시간을 말하지 않았다. 정책(require_user_dwell_for_completion_check=true)에 따라 체류를 마칠 수 있는지는 판단하지 않는다. 폐장 18:00까지 남은 시간은 90분이다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "방문 장소가 하나뿐이라 장소 간 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "10월 8일(목) 16:30 경복궁 입장은 가능합니다(입장마감 17:00). 다만 폐장 18:00까지 90분이 남는데, 체류시간을 알려주지 않아 관람을 마칠 수 있는지는 판단하지 못했습니다. 궁궐 관람은 보통 90분 정도로 잡으니, 계획한 체류시간을 알려주세요."
         }
       }
     },
@@ -546,21 +1450,102 @@
           ]
         },
         "llm_naive": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-11-05는 목요일입니다. 경복궁의 정기 휴궁일은 화요일로 알려져 있어 휴무일에 해당하지 않습니다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "fail",
+              "reason": "일정에 운영시간 자료가 없어 일반적으로 알려진 기준을 적용했습니다. 11~2월 경복궁은 09:00~17:00에 운영하고 입장 마감은 16:00입니다. 16:30 도착은 입장 마감 이후라 입장할 수 없습니다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "fail",
+              "reason": "입장하더라도 16:30부터 60분을 체류하면 17:30에 끝납니다. 동절기 폐장 시각인 17:00을 넘깁니다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 장소 간 이동 구간이 없습니다."
+            }
+          ],
+          "verdict": "infeasible",
+          "message": "11월 경복궁은 일반적으로 알려진 기준으로 16시에 입장을 마감하고 17시에 문을 닫아, 16시 반 도착으로는 들어갈 수 없으니 15시 30분 이전에 입장하는 것으로 일정을 조정하시고 방문 전 공식 운영시간을 확인하세요."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "2026-11-05(목) 경복궁의 휴무일 데이터를 확보하지 못해 판단할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "11월 경복궁의 입장마감 시각 데이터가 주어지지 않아, 16:30 도착 시 입장 가능한지 확인할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 16:30~17:30 체류(60분)를 마칠 수 있는지 확인할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 경복궁 하나뿐이라 장소 간 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "11월 5일(목) 경복궁의 휴무 여부와 입장마감·폐장 시각을 확인하지 못해, 16:30 입장 후 1시간 관람이 가능한지는 아직 판단할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-11-05는 목요일이다. 경복궁 정기휴일은 화요일(TUE)이고 휴일 이동 규칙도 이날에 해당하지 않는다. 근거 valid_until 2026-12-31 이내다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "fail",
+              "reason": "11월 운영시간은 09:00~17:00이고 입장마감은 16:00이다(valid_until 2026-12-31). 도착 16:30은 입장마감보다 30분 늦어 입장할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "입장 자체가 불가능하므로 체류 완료 검사가 성립하지 않는다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 검사할 이동 구간이 없다."
+            }
+          ],
+          "verdict": "infeasible",
+          "message": "11월 경복궁은 입장마감이 16:00이라 16:30에 도착하면 입장할 수 없습니다. 16:00 이전에 도착하도록 일정을 앞당겨 주세요(폐장 17:00)."
         }
       }
     },
     {
-      "id": "T10-운영시간미확보",
+      "id": "T10-계절시간표정상",
       "set": "dev",
-      "expect": "undetermined",
-      "label_current": false,
+      "expect": "feasible",
+      "label_current": true,
       "arms": {
         "code": {
           "verdict": "feasible",
@@ -588,13 +1573,94 @@
           ]
         },
         "llm_naive": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "10월 8일(목)에 대한 창덕궁 휴무일 정보가 제공되지 않아 판단할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 정보가 없어 14:00 도착 시 입장 가능한지 확인할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "폐장 시각 정보가 없어 14:00~15:30 체류를 마칠 수 있는지 확인할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "창덕궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 장소 간 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "창덕궁의 10월 8일 운영 여부와 운영시간 정보가 없어 14:00~15:30 관람이 가능한지 판단을 보류합니다."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "2026-10-08(목) 창덕궁 휴무 여부에 대한 휴무일 데이터를 확보하지 못함"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 데이터가 없어 14:00 도착 시 입장 가능 여부를 확인할 수 없음"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "창덕궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 14:00~15:30 체류(90분) 완료 가능 여부를 확인할 수 없음"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "창덕궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 장소 간 이동 구간이 없음"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "10월 8일 목요일 14:00~15:30 창덕궁 일정은 휴무일·입장마감·폐장 시각 정보를 확보하지 못해 실행 가능 여부를 판단할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "창덕궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이고 정기휴일은 월요일이다. 10-05(월) 공휴일로 휴궁일이 다음 첫 비공휴일인 10-06(화)로 이동하며, 10-08은 해당하지 않는다. 근거 valid_until은 2026-12-31이다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "창덕궁",
+              "status": "pass",
+              "reason": "10월 운영시간은 09:00~18:00, 입장마감은 17:00이다. 14:00 도착은 마감 전이다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "창덕궁",
+              "status": "pass",
+              "reason": "사용자가 지정한 체류 90분 기준으로 14:00~15:30이다. 폐장 18:00 전에 끝난다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "창덕궁",
+              "status": "not_applicable",
+              "reason": "방문지가 하나뿐이라 검사할 이동 구간이 없다."
+            }
+          ],
+          "verdict": "feasible",
+          "message": "10월 8일(목) 14:00부터 90분 동안 창덕궁을 관람할 수 있습니다. 휴궁일이 아니고, 입장마감 17:00과 폐장 18:00 전에 관람이 끝납니다."
         }
       }
     },
@@ -602,7 +1668,7 @@
       "id": "T11-이동시간미확보",
       "set": "dev",
       "expect": "undetermined",
-      "label_current": false,
+      "label_current": true,
       "arms": {
         "code": {
           "verdict": "undetermined",
@@ -650,13 +1716,148 @@
           ]
         },
         "llm_naive": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장의 휴무일 정보가 제공되지 않아 2026-10-08(목) 영업 여부를 판단할 수 없다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "경복궁의 휴무일 정보가 제공되지 않아 2026-10-08(목) 개방 여부를 확인할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장의 운영시간·입장마감 정보가 없어 11:00 도착 시 입장 가능 여부를 판단할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "경복궁의 입장마감 정보가 제공되지 않아 13:00 도착 시 입장 가능 여부를 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장의 체류시간과 폐장 시각 정보가 없어 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "경복궁의 체류시간과 폐장 시각 정보가 없어 판단할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "광장시장 → 경복궁",
+              "status": "unknown",
+              "reason": "광장시장 체류시간과 이동시간 근거가 제공되지 않았고 이동 수단도 명시되지 않아, 11:00~13:00 사이에 식사 후 이동이 가능한지 판단할 수 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "운영시간, 휴무일, 체류시간, 이동시간 정보가 없어 10월 8일(목) 광장시장 11시 → 경복궁 13시 일정의 실행 가능 여부는 아직 판단할 수 없습니다."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "10월 8일 목요일 광장시장의 휴무 여부 데이터가 확보되지 않음"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장 운영시간·입장마감 정보가 없어 11시 도착 시 이용 가능한지 판단 불가"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "폐장 시각 정보가 없음. 11시~13시 체류를 마칠 수 있는지 확인 불가"
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "10월 8일 목요일 경복궁 휴무 여부 데이터가 확보되지 않음"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "경복궁 입장마감 시각 정보가 없어 13시 도착 시 입장 가능 여부 판단 불가"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "체류 시간이 명시되지 않았고 폐장 시각 정보도 없어 판단 불가"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "광장시장 → 경복궁",
+              "status": "unknown",
+              "reason": "광장시장 체류 종료 시각과 이동시간 데이터가 없음. 이동수단도 언급되지 않아 이동 0분 기준으로는 늦지 않지만 광장시장 체류 종료 시점이 불명확해 확정 불가"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "광장시장과 경복궁의 10월 8일 휴무 여부·운영시간, 이동시간 정보를 확보하지 못해 일정 실행 가능 여부를 아직 판단할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "facts에 광장시장 closed_days가 null이다. 점포마다 달라 시장 단위 휴무 정보를 확보하지 못했다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "facts에 광장시장 hours가 null이라 11:00 도착 시 입장할 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "not_applicable",
+              "reason": "사용자가 체류시간을 말하지 않았다. 정책(require_user_dwell_for_completion_check=true)에 따라 체류 완료 검사는 하지 않는다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이고 공휴일 목록에 없다. 정기휴일은 화요일이며, 직전 화요일인 10-06은 공휴일이 아니어서 휴일 이동 규칙도 적용되지 않는다. 근거 유효기간은 2026-12-31까지다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "10월 운영시간은 09:00~18:00이고 입장마감은 17:00이다. 13:00 시작은 입장마감 전이다. 근거 유효기간은 2026-12-31까지다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "사용자가 체류시간을 말하지 않았다. 정책에 따라 체류 완료 검사는 하지 않는다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "광장시장 → 경복궁",
+              "status": "unknown",
+              "reason": "facts에 광장시장→경복궁 구간 이동시간이 없다. 역방향인 경복궁|광장시장 값만 있다. 체류 0분 하한으로 보면 남은 시간은 120분이고, 이동 0분이면 늦지 않으므로 위반으로 확정할 수 없다. 실제 이동시간이 없어 통과로도 판단할 수 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "경복궁은 10월 8일(목)에 개방하고 13:00 입장도 가능하지만, 광장시장의 운영시간·휴무일 정보와 광장시장→경복궁 이동시간이 없어 전체 일정의 실행 가능 여부는 판단을 보류합니다."
         }
       }
     },
@@ -664,7 +1865,7 @@
       "id": "T12-기본값이판정을흔듦",
       "set": "holdout",
       "expect": "undetermined",
-      "label_current": false,
+      "label_current": true,
       "arms": {
         "code": {
           "verdict": "undetermined",
@@ -712,21 +1913,156 @@
           ]
         },
         "llm_naive": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "10월 8일이 목요일인 것은 맞지만, 경복궁 휴무일 정보가 제공되지 않았다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장 휴무일 정보가 제공되지 않았다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "경복궁 입장마감 시각 정보가 없어 13:00 도착 시 입장 가능 여부를 판단할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장 영업·입장마감 시각 정보가 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 정보가 없다. 일정상 13:00~15:15 사이에 체류하지만 폐장 전에 마칠 수 있는지 확인할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "체류시간과 폐장 시각 정보가 모두 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 광장시장",
+              "status": "unknown",
+              "reason": "이동시간 근거와 이동수단이 제공되지 않았고, 경복궁 체류 종료 시각도 명시되지 않았다. 이동 0분이면 15:15 도착이 가능하므로 위반을 확정할 수 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "운영시간·휴무일과 이동시간 정보가 없어 10월 8일(목) 경복궁 13:00 → 광장시장 15:15 일정의 실행 가능성을 판단할 수 없으니, 해당 정보를 알려주시면 다시 확인해 드리겠습니다."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "10월 8일(목) 경복궁 휴무일 정보가 주어지지 않아 확인 불가"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "경복궁 입장마감 시각 데이터가 없어 13:00 도착 시 입장 가능 여부 확인 불가"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 13:00~15:15 사이 체류 완료 여부 확인 불가"
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "10월 8일(목) 광장시장 휴무 정보가 주어지지 않음"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장 운영시간 데이터가 없어 15:15 도착 시 이용 가능 여부 확인 불가"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "광장시장 체류시간과 폐장 시각 정보가 없어 판단 불가"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 광장시장",
+              "status": "unknown",
+              "reason": "경복궁 체류 종료 시각과 이동시간 데이터가 없음. 이동수단도 명시되지 않았으며, 이동 0분 가정 시에는 늦지 않으므로 위반은 확인되지 않음"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "운영시간·휴무일·이동시간 정보가 없어 10월 8일 경복궁→광장시장 일정의 실행 가능 여부를 아직 판단할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이고 특일 목록에 없다. 정기휴일은 화요일이며, 직전 화요일(10-06)이 공휴일이 아니므로 휴일 이동 규칙도 적용되지 않는다. 근거 valid_until은 2026-12-31이다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "pass",
+              "reason": "10월 운영시간은 09:00~18:00이고 입장마감은 17:00이다. 13:00 도착은 입장마감 전이다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "사용자가 체류시간을 말하지 않았다. 정책(require_user_dwell_for_completion_check)에 따라 계획한 체류를 마칠 수 있는지는 판단하지 않는다."
+            },
+            {
+              "type": "CLOSED_DAY",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "facts에서 closed_days가 null이다. 점포마다 달라 시장 단위 휴무 정보를 확보하지 못했다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "facts에서 hours가 null이어서 15:15 입장이 가능한지 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "광장시장",
+              "status": "unknown",
+              "reason": "운영시간을 모르고 사용자 체류시간도 주어지지 않았다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁 → 광장시장",
+              "status": "unknown",
+              "reason": "경복궁 체류시간을 몰라 출발 시각을 정할 수 없다. 사용자가 이동수단을 말하지 않았으므로 지하철 4.5분(하한선)은 기준으로 쓸 수 없다. 이동 0분이라면 13:00 이후 15:15 전에 도착할 수 있어 위반은 아니다. 다만 출발 시각이 미정이라 통과로 확정하지 않는다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "경복궁은 휴무가 아니고 13:00에 입장할 수 있습니다. 다만 광장시장의 운영시간·휴무 정보가 없고 경복궁 체류시간도 정해지지 않아, 일정 전체의 실행 가능 여부는 판단을 보류합니다(경복궁 체류시간을 알려주시면 다시 확인할 수 있습니다)."
         }
       }
     },
     {
-      "id": "T13-장소미등록",
+      "id": "T13-회차입장검사없음",
       "set": "dev",
       "expect": "undetermined",
-      "label_current": false,
+      "label_current": true,
       "arms": {
         "code": {
           "verdict": "undetermined",
@@ -754,13 +2090,94 @@
           ]
         },
         "llm_naive": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "종묘",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이다. 종묘의 정기 휴무일은 화요일로 알려져 있어 휴무일이 아니다(일반 정보 기준)."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "종묘",
+              "status": "pass",
+              "reason": "10월 운영시간은 09:00~18:00, 입장마감은 17:00으로 알려져 있다. 10:00 도착은 개장 후이고 입장마감 전이다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "종묘",
+              "status": "pass",
+              "reason": "10:00부터 60분을 머물면 11:00에 끝난다. 폐장 18:00 전에 마칠 수 있다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "종묘",
+              "status": "not_applicable",
+              "reason": "방문 장소가 하나뿐이라 장소 사이의 이동 구간이 없다."
+            }
+          ],
+          "verdict": "feasible",
+          "message": "10월 8일 목요일 10시에 종묘를 1시간 둘러보는 일정은 운영시간 안이라 가능합니다. 다만 평일에는 시간제 해설관람으로 운영되는 것으로 알려져 있으니 10시 회차가 있는지 미리 확인해 보세요."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "종묘",
+              "status": "unknown",
+              "reason": "종묘의 휴무일 정보를 확보하지 못해 10월 8일(목) 휴무 여부를 판단할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "종묘",
+              "status": "unknown",
+              "reason": "종묘의 입장마감 시각을 확보하지 못해 10:00 도착 시 입장 가능 여부를 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "종묘",
+              "status": "unknown",
+              "reason": "종묘의 폐장 시각을 확보하지 못해 10:00~11:00 체류를 마칠 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "종묘",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 장소 간 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "종묘의 휴무일과 운영시간 정보를 확보하지 못해 10월 8일(목) 10시부터 1시간 방문이 가능한지 아직 판단할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "종묘",
+              "status": "pass",
+              "reason": "2026-10-08은 목요일이고 공휴일 목록에 없다. 정기휴일은 화요일이며, 직전 화요일 10-06은 공휴일이 아니므로 휴일이 목요일로 밀려오지 않는다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "종묘",
+              "status": "pass",
+              "reason": "목요일은 시간제 회차 입장일이다(10~2월 회차 09:20~16:20). 10:00에 도착하면 10:20 회차로 입장할 수 있고, 마지막 회차(16:20) 이전 도착이라 입장마감 위반이 아니다. 다만 일정에 적힌 10:00 입장은 불가하고 실제 시작은 10:20이다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "종묘",
+              "status": "unknown",
+              "reason": "facts의 종묘 운영시간은 토·일·공휴일용뿐이고 평일(목) 폐장 시각이 없다. 그래서 10:20 입장 후 60분 체류를 마칠 수 있는지 판단할 수 없다. 평일은 해설 동반 약 50분 관람으로 고정되어 있다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "종묘",
+              "status": "not_applicable",
+              "reason": "방문지가 하나뿐이라 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "10월 8일(목) 종묘는 휴무가 아니지만 해설사 동반 회차 입장일이라 10:20 회차로 들어가 약 50분 관람하게 됩니다. 평일 폐장 시각 정보가 없어 계획한 60분 체류를 마칠 수 있는지는 확인하지 못했습니다."
         }
       }
     },
@@ -796,13 +2213,94 @@
           ]
         },
         "llm_naive": {
-          "verdict": "feasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "2027-03-05(금) 경복궁의 휴무일 정보가 제공되지 않아 판단할 수 없다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "해당 날짜의 개장·입장마감 시각 정보가 제공되지 않아 13:00 도착 시 입장 가능 여부를 확인할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 정보가 없어 13:00~15:00 두 시간 체류를 마칠 수 있는지 확인할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 경복궁 하나뿐이라 검사할 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "2027년 3월 5일 경복궁의 휴무일과 운영시간 정보가 없어 오후 1시부터 두 시간 관람이 가능한지 판단을 보류합니다. 이동 구간은 없어 이동시간 문제는 없습니다."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "2027-03-05(금)의 휴무 여부를 확인할 운영 데이터가 주어지지 않았다"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "입장마감 시각 데이터가 없어 13:00 도착 시 입장 가능 여부를 판단할 수 없다"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 13:00~15:00 체류 완료 여부를 판단할 수 없다"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "방문 장소가 하나뿐이라 장소 간 이동 구간이 없다"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "경복궁의 2027년 3월 5일 휴무 여부와 운영시간 정보가 없어 오후 1시부터 두 시간 관람이 가능한지 아직 판단할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "방문일 2027-03-05(금)이 휴무일 근거(closed_days valid_until 2026-12-31)와 공휴일 데이터(2026년) 적용 기간을 벗어나 쓸 수 없다"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "3월 운영시간(입장마감 17:00) 근거의 valid_until이 2026-12-31이라 2027-03-05에는 쓸 수 없다"
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "경복궁",
+              "status": "unknown",
+              "reason": "사용자 체류 120분으로 15:00 종료 예정이나 폐장 시각 근거(close 18:00)가 2026-12-31까지만 유효해 2027년에 적용할 수 없다"
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "경복궁",
+              "status": "not_applicable",
+              "reason": "방문지가 하나뿐이라 이동 구간이 없다"
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "2027년 3월 5일 경복궁의 휴궁일·관람시간 근거가 2026년까지만 유효해 확인할 수 없습니다. 2027년 안내가 나오면 다시 확인해 주세요."
         }
       }
     },
@@ -838,16 +2336,96 @@
           ]
         },
         "llm_naive": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울시립미술관 서소문본관",
+              "status": "pass",
+              "reason": "2026-10-09는 금요일(한글날 공휴일)입니다. 정기 휴관일은 월요일로 알려져 있어 휴관일에 해당하지 않는 것으로 판단했습니다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "10월 9일은 금요일이지만 공휴일이라 평일(약 20시 폐관)과 주말·공휴일(약 19시 폐관) 중 어느 운영시간이 적용되는지, 입장마감이 언제인지 확인된 데이터가 없습니다. 공휴일 시간이 적용되고 입장마감이 폐관 1시간 전이면 18:30 도착은 입장할 수 없습니다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "18:30부터 1시간 관람하면 19:30에 끝납니다. 폐관이 20시면 관람을 마칠 수 있지만 19시면 마칠 수 없습니다. 당일 폐관시각을 확인하지 못했습니다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "서울시립미술관 서소문본관",
+              "status": "not_applicable",
+              "reason": "방문 장소가 하나뿐이라 장소 사이 이동 구간이 없습니다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "10월 9일은 한글날 공휴일이라 서울시립미술관 서소문본관이 평일과 공휴일 중 어느 운영시간을 적용하는지 확인되지 않아, 18:30 입장과 1시간 관람이 가능한지 판단을 보류합니다. 공휴일 운영시간(19시 폐관)이 적용되면 입장이나 관람이 어려울 수 있으니 미술관에 미리 확인해 보세요."
         },
         "llm_only": {
-          "verdict": "undetermined"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "2026-10-09(금, 한글날 공휴일)의 휴무 여부에 대한 휴무일 데이터를 확보하지 못했다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "해당일의 입장마감 시각 데이터가 없어 18:30 도착 시 입장 가능 여부를 판단할 수 없다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "unknown",
+              "reason": "폐장 시각 데이터가 없어 18:30부터 60분(19:30까지) 체류를 마칠 수 있는지 판단할 수 없다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "서울시립미술관 서소문본관",
+              "status": "not_applicable",
+              "reason": "일정에 장소가 하나뿐이라 장소 간 이동 구간이 없다."
+            }
+          ],
+          "verdict": "undetermined",
+          "message": "10월 9일(금, 한글날)의 서울시립미술관 서소문본관 휴무 여부와 운영시간 정보가 없어, 18:30 입장 후 1시간 관람이 가능한지는 아직 판단할 수 없습니다."
         },
         "llm_with_facts": {
-          "verdict": "infeasible"
+          "checks": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "서울시립미술관 서소문본관",
+              "status": "pass",
+              "reason": "2026-10-09는 금요일이자 공휴일(한글날, 특일 목록에 포함)입니다. 휴관일은 매주 월요일과 1월 1일뿐이므로 휴관이 아닙니다. 근거의 valid_until은 2026-12-31입니다."
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "fail",
+              "reason": "방문일은 공휴일이므로 holiday:true인 3~10월 운영시간(10:00~19:00, 입장마감 18:00)을 적용했습니다. 계획한 도착 18:30이 입장마감 18:00보다 늦어 입장할 수 없습니다. 금요일 시간표(입장마감 20:00)가 아니라 공휴일 시간표를 우선 적용한 판단입니다. 근거의 valid_until은 2026-12-31입니다."
+            },
+            {
+              "type": "DWELL_NOT_COMPLETABLE",
+              "target": "서울시립미술관 서소문본관",
+              "status": "not_applicable",
+              "reason": "입장 자체가 불가하므로 체류 완료 여부를 따질 대상이 없습니다."
+            },
+            {
+              "type": "INSUFFICIENT_TRAVEL_TIME",
+              "target": "서울시립미술관 서소문본관",
+              "status": "not_applicable",
+              "reason": "방문지가 하나뿐이라 이동 구간이 없습니다."
+            }
+          ],
+          "verdict": "infeasible",
+          "message": "10월 9일은 한글날(공휴일)이라 서울시립미술관 서소문본관이 19:00에 문을 닫고 입장은 18:00에 마감되므로, 18:30 도착으로는 입장할 수 없습니다. 18:00 이전에 도착하도록 일정을 조정해 주세요."
         }
       }
     }
-  ],
-  "rescored_note": "2026-09-22 라벨 재검토 후 기존 arm 출력을 재채점했다. API 재호출은 없다. 채점 대상이 7건에서 15건으로 늘었다."
+  ]
 }

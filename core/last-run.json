@@ -1,11 +1,21 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20260923-170822",
+  "run_id": "run-20261002-105805",
   "version": "core-0.2",
-  "ran_at": "2026-09-23T08:08:22.283544+00:00",
-  "facts_snapshot": "facts-2026-09-22",
+  "ran_at": "2026-10-02T01:58:05.676542+00:00",
+  "facts_snapshot": "facts-2026-09-29",
   "holidays_verified": true,
   "labeled_at": "2026-09-22",
+  "conditions": {
+    "code_commit": "f6c50c101030a76464a7dc4d2059b8e14f9eb723",
+    "uncommitted": [],
+    "reproducible": true,
+    "fingerprints": {
+      "tests.json": "9f4541c7b253",
+      "facts.json": "e2485c1a1b5e",
+      "policy.json": "d62d67a26f9e"
+    }
+  },
   "results": [
     {
       "id": "T01-정상",
@@ -55,11 +65,14 @@
             "weekly": [
               "MON"
             ],
+            "fixed_dates": [
+              "01-01"
+            ],
             "exception_rule": "open_if_holiday_no_shift",
             "effective_closed_date": null,
             "source": "curated",
             "url": "https://sema.seoul.go.kr/kr/visit/seosomun",
-            "checked_at": "2026-09-21",
+            "checked_at": "2026-09-29",
             "valid_until": "2026-12-31"
           },
           "id": "chk-001"
@@ -74,6 +87,7 @@
             "close": "20:00",
             "last_admission": "19:00",
             "planned_time": "13:00",
+            "entry_at": "13:00",
             "source": "curated",
             "url": "https://sema.seoul.go.kr/kr/visit/seosomun",
             "checked_at": "2026-09-21",
@@ -103,6 +117,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -122,6 +137,7 @@
             "close": "18:00",
             "last_admission": "17:00",
             "planned_time": "15:00",
+            "entry_at": "15:00",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-21",
@@ -148,7 +164,7 @@
           "status": "unknown",
           "severity": null,
           "unknown_reason": "LOWER_BOUND_ONLY",
-          "detail": "metro 주행시간(6.5분)만으로는 도착하지만 장소→역 도보, 환승 이동시간, 열차 대기시간이 빠져 있어 확정할 수 없다",
+          "detail": "지하철 주행시간(6.5분)만으로는 도착하지만 장소→역 도보, 환승 이동시간, 열차 대기시간이 빠져 있어 확정할 수 없다",
           "how_to_resolve": {
             "system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"
           },
@@ -156,9 +172,11 @@
             "depart_at": "14:00",
             "travel_minutes": 6.5,
             "buffer_minutes": 10,
-            "arrival": "14:16",
+            "arrival": "14:06",
             "planned_arrival": "15:00",
+            "arrive_by": "15:00",
             "mode": "metro",
+            "stated_mode": null,
             "method": "metro_ride_only",
             "source": "public_data",
             "snapshot_id": null,
@@ -224,6 +242,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -243,6 +262,7 @@
             "close": "18:00",
             "last_admission": "17:00",
             "planned_time": "17:30",
+            "entry_at": "17:30",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-21",
@@ -327,6 +347,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -346,6 +367,7 @@
             "close": "18:00",
             "last_admission": "17:00",
             "planned_time": "15:00",
+            "entry_at": "15:00",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-21",
@@ -402,7 +424,7 @@
           "status": "unknown",
           "severity": null,
           "unknown_reason": "LOWER_BOUND_ONLY",
-          "detail": "metro 주행시간(4.5분)만으로는 도착하지만 장소→역 도보, 환승 이동시간, 열차 대기시간이 빠져 있어 확정할 수 없다",
+          "detail": "지하철 주행시간(4.5분)만으로는 도착하지만 장소→역 도보, 환승 이동시간, 열차 대기시간이 빠져 있어 확정할 수 없다",
           "how_to_resolve": {
             "system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"
           },
@@ -410,9 +432,11 @@
             "depart_at": "17:00",
             "travel_minutes": 4.5,
             "buffer_minutes": 10,
-            "arrival": "17:14",
+            "arrival": "17:04",
             "planned_arrival": "18:00",
+            "arrive_by": "18:00",
             "mode": "metro",
+            "stated_mode": null,
             "method": "metro_ride_only",
             "source": "public_data",
             "snapshot_id": null,
@@ -495,6 +519,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -514,6 +539,7 @@
             "close": "18:00",
             "last_admission": "17:00",
             "planned_time": "17:30",
+            "entry_at": "17:30",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-21",
@@ -566,7 +592,7 @@
           "status": "unknown",
           "severity": null,
           "unknown_reason": "LOWER_BOUND_ONLY",
-          "detail": "metro 주행시간(4.5분)만으로는 도착하지만 장소→역 도보, 환승 이동시간, 열차 대기시간이 빠져 있어 확정할 수 없다",
+          "detail": "지하철 주행시간(4.5분)만으로는 도착하지만 장소→역 도보, 환승 이동시간, 열차 대기시간이 빠져 있어 확정할 수 없다",
           "how_to_resolve": {
             "system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"
           },
@@ -574,9 +600,11 @@
             "depart_at": "18:30",
             "travel_minutes": 4.5,
             "buffer_minutes": 10,
-            "arrival": "18:44",
+            "arrival": "18:34",
             "planned_arrival": "19:00",
+            "arrive_by": "19:00",
             "mode": "metro",
+            "stated_mode": null,
             "method": "metro_ride_only",
             "source": "public_data",
             "snapshot_id": null,
@@ -621,17 +649,18 @@
             "margin_vs_event": 23,
             "margin_vs_required": 8,
             "is_lower_bound": true,
+            "stated_mode": null,
             "status": "unknown",
-            "unknown_reason": "DEPENDS_ON_DEFAULT_DWELL",
-            "detail": "예상 도착이 기본값 체류시간(60분)에 의존한다. ±50% 범위에서 판정이 뒤집혀 확정할 수 없다",
+            "unknown_reason": "NO_USER_DWELL",
+            "detail": "광장시장 체류시간을 몰라 확정할 수 없다",
             "depends_on_assumptions": [
               "A1"
             ],
             "how_to_resolve": {
               "user": "광장시장에서 몇 시에 나오실 예정인가요?"
             },
-            "confirmed": "설정한 15분 여유 기준으로 8분 여유하다",
-            "not_confirmed": "실제 탑승 가능 여부"
+            "confirmed": "바로 나와도 19:07 이후에 도착한다",
+            "not_confirmed": "광장시장 체류시간과 실제 탑승 가능 여부"
           }
         }
       ]
@@ -701,6 +730,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -736,6 +766,7 @@
             "weekly": [
               "MON"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -825,11 +856,14 @@
             "weekly": [
               "MON"
             ],
+            "fixed_dates": [
+              "01-01"
+            ],
             "exception_rule": "open_if_holiday_no_shift",
             "effective_closed_date": null,
             "source": "curated",
             "url": "https://sema.seoul.go.kr/kr/visit/seosomun",
-            "checked_at": "2026-09-21",
+            "checked_at": "2026-09-29",
             "valid_until": "2026-12-31"
           },
           "id": "chk-001"
@@ -844,6 +878,7 @@
             "close": "20:00",
             "last_admission": "19:00",
             "planned_time": "14:00",
+            "entry_at": "14:00",
             "source": "curated",
             "url": "https://sema.seoul.go.kr/kr/visit/seosomun",
             "checked_at": "2026-09-21",
@@ -917,6 +952,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -936,6 +972,7 @@
             "close": "18:00",
             "last_admission": "17:00",
             "planned_time": "16:30",
+            "entry_at": "16:30",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-21",
@@ -1022,6 +1059,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -1041,6 +1079,7 @@
             "close": "18:00",
             "last_admission": "17:00",
             "planned_time": "16:30",
+            "entry_at": "16:30",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-21",
@@ -1115,6 +1154,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-11-03",
             "source": "curated",
@@ -1134,6 +1174,7 @@
             "close": "17:00",
             "last_admission": "16:00",
             "planned_time": "16:30",
+            "entry_at": "16:30",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-21",
@@ -1204,6 +1245,7 @@
             "weekly": [
               "MON"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -1223,6 +1265,7 @@
             "close": "18:00",
             "last_admission": "17:00",
             "planned_time": "14:00",
+            "entry_at": "14:00",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-22",
@@ -1350,6 +1393,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -1369,6 +1413,7 @@
             "close": "18:00",
             "last_admission": "17:00",
             "planned_time": "13:00",
+            "entry_at": "13:00",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-21",
@@ -1429,7 +1474,7 @@
           "leg 경복궁→광장시장 하한선 4.5분"
         ],
         "assumptions": [
-          "경복궁 체류 기본값 90분 — ±50% 범위에서 판정이 뒤집힘"
+          "경복궁 체류 기본값 90분 — 판정에 쓰지 않고 안내에만 쓴다"
         ],
         "missing": [
           "광장시장 운영정보",
@@ -1481,6 +1526,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -1500,6 +1546,7 @@
             "close": "18:00",
             "last_admission": "17:00",
             "planned_time": "13:00",
+            "entry_at": "13:00",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
             "checked_at": "2026-09-21",
@@ -1557,8 +1604,8 @@
           "target": "경복궁 → 광장시장",
           "status": "unknown",
           "severity": null,
-          "unknown_reason": "DEPENDS_ON_DEFAULT_DWELL",
-          "detail": "출발 시각이 기본값 체류시간(90분)에 의존한다. ±50% 범위에서 판정이 뒤집혀 확정할 수 없다",
+          "unknown_reason": "NO_USER_DWELL",
+          "detail": "경복궁 체류시간을 몰라 확정할 수 없다",
           "depends_on_assumptions": [
             "A1"
           ],
@@ -1569,9 +1616,11 @@
             "depart_at": "14:30",
             "travel_minutes": 4.5,
             "buffer_minutes": 10,
-            "arrival": "14:44",
+            "arrival": "14:34",
             "planned_arrival": "15:15",
+            "arrive_by": "15:15",
             "mode": "metro",
+            "stated_mode": null,
             "method": "metro_ride_only",
             "source": "public_data",
             "snapshot_id": null,
@@ -1641,6 +1690,7 @@
             "weekly": [
               "TUE"
             ],
+            "fixed_dates": null,
             "exception_rule": "shift_to_next_nonholiday",
             "effective_closed_date": "2026-10-06",
             "source": "curated",
@@ -1791,7 +1841,7 @@
       "expect": "infeasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -1828,11 +1878,14 @@
             "weekly": [
               "MON"
             ],
+            "fixed_dates": [
+              "01-01"
+            ],
             "exception_rule": "open_if_holiday_no_shift",
             "effective_closed_date": null,
             "source": "curated",
             "url": "https://sema.seoul.go.kr/kr/visit/seosomun",
-            "checked_at": "2026-09-21",
+            "checked_at": "2026-09-29",
             "valid_until": "2026-12-31"
           },
           "id": "chk-001"
@@ -1847,6 +1900,7 @@
             "close": "19:00",
             "last_admission": "18:00",
             "planned_time": "18:30",
+            "entry_at": "18:30",
             "source": "curated",
             "url": "https://sema.seoul.go.kr/kr/visit/seosomun",
             "checked_at": "2026-09-21",
