@@ -38,11 +38,6 @@
     "경복궁": {
       "type": "palace",
       "resolved": true,
-      "entrance": {
-        "lat": 37.5796,
-        "lng": 126.977,
-        "note": "광화문 매표소 기준"
-      },
       "closed_days": {
         "weekly": [
           "TUE"
@@ -108,11 +103,6 @@
     "서울시립미술관 서소문본관": {
       "type": "museum",
       "resolved": true,
-      "entrance": {
-        "lat": 37.564,
-        "lng": 126.9739,
-        "note": "정문 기준"
-      },
       "closed_days": {
         "weekly": [
           "MON"
@@ -218,11 +208,6 @@
     "광장시장": {
       "type": "market_meal",
       "resolved": true,
-      "entrance": {
-        "lat": 37.5701,
-        "lng": 126.9997,
-        "note": "북2문 기준"
-      },
       "closed_days": null,
       "hours": null,
       "missing_note": "점포마다 달라서 시장 단위 정의를 확보하지 못했다. 일부러 비워둔 값이 아니라 실제로 없는 값이다."
@@ -230,11 +215,6 @@
     "창덕궁": {
       "type": "palace",
       "resolved": true,
-      "entrance": {
-        "lat": 37.5794,
-        "lng": 126.991,
-        "note": "돈화문 기준"
-      },
       "closed_days": {
         "weekly": [
           "MON"
@@ -304,11 +284,6 @@
     "덕수궁": {
       "type": "palace",
       "resolved": true,
-      "entrance": {
-        "lat": 37.5658,
-        "lng": 126.9751,
-        "note": "대한문 기준"
-      },
       "closed_days": {
         "weekly": [
           "MON"
@@ -355,11 +330,6 @@
     "종묘": {
       "type": "palace",
       "resolved": true,
-      "entrance": {
-        "lat": 37.5748,
-        "lng": 126.9938,
-        "note": "외대문 기준. 좌표는 미검증"
-      },
       "closed_days": {
         "weekly": [
           "TUE"
@@ -488,11 +458,6 @@
     "청계천": {
       "type": "street",
       "resolved": true,
-      "entrance": {
-        "lat": 37.5696,
-        "lng": 126.9788,
-        "note": "모전교 기준. 좌표 미검증"
-      },
       "closed_days": null,
       "hours": null,
       "admission": {
@@ -505,11 +470,6 @@
     "덕수궁 돌담길": {
       "type": "street",
       "resolved": true,
-      "entrance": {
-        "lat": 37.5665,
-        "lng": 126.9745,
-        "note": "대한문 앞 기준. 좌표 미검증"
-      },
       "closed_days": null,
       "hours": null,
       "admission": {
@@ -523,7 +483,6 @@
     "북촌한옥마을": {
       "type": "street",
       "resolved": false,
-      "entrance": null,
       "closed_days": null,
       "hours": null,
       "scope": "area",
