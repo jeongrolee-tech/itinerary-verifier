@@ -22,6 +22,7 @@ from datetime import date, datetime, timedelta
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
 PEDESTRIAN = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1"
+PREDICTION = "https://apis.openapi.sk.com/tmap/routes/prediction?version=1"  # 타임머신 자동차 길 안내
 TIMEOUT_S = 20
 TOO_CLOSE = 11  # 대중교통 API 의 "출발지와 도착지가 너무 가까움". HTTP 200 으로 온다
 RETRIES = 3     # 429(너무 빨리 부름)를 받았을 때 다시 묻는 횟수
@@ -131,11 +132,30 @@ def leg(frm: str, frm_at: tuple[float, float], to: str, to_at: tuple[float, floa
     return estimate(props["totalTime"], "walk", "tmap_pedestrian")
 
 
+def taxi(frm: str, frm_at: tuple[float, float], to: str, to_at: tuple[float, float],
+         depart: datetime, key: str) -> dict:
+    """두 곳 사이 택시 예상 시간과 요금. 계획한 출발 시각의 교통으로 예측한다(타임머신 자동차 길 안내)."""
+    point = lambda name, p: {"name": name, "lon": str(p[1]), "lat": str(p[0])}
+    # ⭐ predictionType 은 이름과 반대로 읽는다. "arrival" 이 출발 시각을 넣고 도착을 예측한다.
+    #    "departure" 로 19:30 을 넣었더니 도착이 19:30 으로 왔다(2026-10-05, check-tmap-api.mjs).
+    res = call("POST", PREDICTION, key, {"routesInfo": {
+        "departure": point(frm, frm_at), "destination": point(to, to_at),
+        "predictionType": "arrival", "predictionTime": depart.strftime("%Y-%m-%dT%H:%M:%S+0900")}})
+    props = ((res.get("features") or [{}])[0]).get("properties") or {}
+    if "totalTime" not in props:
+        raise Miss("NO_ROUTE", f"택시 예측이 오지 않았다 {json.dumps(res, ensure_ascii=False)[:200]}")
+    return {**estimate(props["totalTime"], "taxi", "tmap_prediction"), "fare": props.get("taxiFare")}
+
+
 def live_legs(itinerary: dict, key: str) -> tuple[dict, dict]:
     """일정의 구간마다 예상 이동시간을 받는다. (판정 코어의 legs 에 덮어쓸 구간, 받지 못한 구간 → Miss)
 
     출발 시각은 계획한 시작 시각에 사용자가 말한 체류시간을 더한 것이다. 체류를 모르면 바로 나온다고
     본다 — 판정 코어도 체류를 모르면 0분으로 보고, 0분으로도 늦을 때만 확정한다.
+
+    대중교통 구간에는 같은 출발 시각의 택시를 대안(alternatives)으로 붙인다. 판정 코어가 대중교통으로
+    '된다' 가 안 나올 때 본다. 걸어갈 만큼 가까운 구간에는 붙이지 않는다. 택시를 받지 못해도 대중교통
+    판정은 그대로 하고, 이유는 구간의 taxi_miss 에 남긴다.
     """
     stops = itinerary["stops"]
     if not itinerary.get("date") or not stops:
@@ -157,4 +177,11 @@ def live_legs(itinerary: dict, key: str) -> tuple[dict, dict]:
             legs[k] = leg(a["place"], at[a["place"]], b["place"], at[b["place"]], depart, key)
         except Miss as e:
             misses[k] = e
+            continue
+        if legs[k]["mode"] == "transit":
+            try:
+                legs[k]["alternatives"] = [taxi(a["place"], at[a["place"]], b["place"], at[b["place"]],
+                                                depart, key)]
+            except Miss as e:
+                legs[k]["taxi_miss"] = e
     return legs, misses

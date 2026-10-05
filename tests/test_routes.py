@@ -38,11 +38,19 @@ def walking(seconds):
     return {"type": "FeatureCollection", "features": [{"properties": {"totalTime": seconds}}]}
 
 
+def by_taxi(seconds, fare=9100):
+    """타임머신 자동차 길 안내 응답. 2026-10-05 실제 응답처럼 시간 · 요금 · 출발 · 도착이 properties 에 온다."""
+    return {"type": "FeatureCollection", "features": [{"properties": {
+        "totalTime": seconds, "taxiFare": fare,
+        "departureTime": "2026-10-08T14:00:00+0900", "arrivalTime": "2026-10-08T14:13:00+0900"}}]}
+
+
 class FakeTmap:
     """routes.call 대신 들어간다. 주소마다 정해 둔 응답을 돌려주고, 받은 요청을 남긴다."""
 
-    def __init__(self, transit_reply, walk_reply=None, places=None):
+    def __init__(self, transit_reply, walk_reply=None, places=None, taxi_reply=None):
         self.transit_reply, self.walk_reply = transit_reply, walk_reply
+        self.taxi_reply = by_taxi(780) if taxi_reply is None else taxi_reply
         # 2026-10-05 실제 검색 결과처럼 미술관은 "서울시립미술관", 경복궁은 "경복궁역" 이 함께 온다
         self.places = places or {MUSEUM: poi(("서울시립미술관 주차장", 37.565, 126.975), ("서울시립미술관", 37.564, 126.974)),
                                  PALACE: poi(("경복궁역", 37.575, 126.973), (PALACE, 37.578, 126.977))}
@@ -55,6 +63,8 @@ class FakeTmap:
             return self.places[name]
         if "/transit/" in url:
             return self.transit_reply
+        if "/prediction" in url:
+            return self.taxi_reply
         return self.walk_reply
 
 
@@ -252,3 +262,44 @@ def test_still_throttled_is_rate_limited(monkeypatch, waits):
         routes.call("GET", "https://example.invalid", "key")
     assert e.value.reason == "RATE_LIMITED"
     assert waits == [1, 2, 4]
+
+
+# ── 택시 대안 ───────────────────────────────────────────────────────
+
+def test_transit_leg_gets_a_taxi_alternative(tmap):
+    """대중교통 구간에 같은 출발 시각의 택시를 대안으로 붙인다. 출발 시각 기준 예측은 predictionType arrival 이다."""
+    fake = tmap(transit(1260), taxi_reply=by_taxi(780, 9100))
+    leg = live_legs(t01(), "key")[0][f"{MUSEUM}|{PALACE}"]
+    taxi = leg["alternatives"][0]
+    assert (taxi["mode"], taxi["minutes"], taxi["fare"]) == ("taxi", 13, 9100)
+    assert taxi["is_lower_bound"] is False
+    asked = next(b for u, b in fake.sent if "/prediction" in u)["routesInfo"]
+    assert asked["predictionType"] == "arrival"
+    assert asked["predictionTime"] == "2026-10-08T14:00:00+0900"
+
+
+def test_walking_leg_gets_no_taxi(tmap):
+    """걸어갈 만큼 가까운 구간에는 택시를 붙이지 않는다. 묻지도 않는다."""
+    fake = tmap(TOO_CLOSE, walk_reply=walking(420))
+    leg = live_legs(t01(), "key")[0][f"{MUSEUM}|{PALACE}"]
+    assert "alternatives" not in leg
+    assert not any("/prediction" in u for u, _ in fake.sent)
+
+
+def test_taxi_miss_keeps_the_transit_leg(tmap):
+    """택시를 받지 못해도 대중교통 구간은 그대로 쓴다. 못 받은 이유만 남긴다."""
+    tmap(transit(1260), taxi_reply={})
+    legs, misses = live_legs(t01(), "key")
+    leg = legs[f"{MUSEUM}|{PALACE}"]
+    assert leg["minutes"] == 21 and "alternatives" not in leg
+    assert leg["taxi_miss"].reason == "NO_ROUTE" and misses == {}
+
+
+def test_taxi_rescues_a_late_transit_leg(tmap, facts, policy):
+    """대중교통 65분이면 늦지만 택시 20분이면 되는 T01 — 판정 코어에 넘기면 feasible 이고 택시 안내가 붙는다."""
+    tmap(transit(65 * 60), taxi_reply=by_taxi(20 * 60, 9400))
+    legs, _ = live_legs(t01(), "key")
+    out = judge(t01(), {**facts, "legs": {**facts["legs"], **legs}}, policy)
+    assert out["summary"]["verdict"] == "feasible"
+    move = next(c for c in out["checks"] if c["type"] == "INSUFFICIENT_TRAVEL_TIME" and c["status"] == "pass")
+    assert "택시로 가야 한다" in move["notice"]

@@ -48,7 +48,13 @@ def verify(text: str, claude, tmap_key: str, facts: dict, policy: dict, today: s
     if legs or misses:
         lines += ["", "[이동시간 — TMAP 예상, 저장하지 않는다]"]
         for k, leg in legs.items():
-            lines.append(f"  {k.replace('|', ' → ')}  {MODE_NAMES.get(leg['mode'], leg['mode'])} {leg['minutes']}분")
+            line = f"  {k.replace('|', ' → ')}  {MODE_NAMES.get(leg['mode'], leg['mode'])} {leg['minutes']}분"
+            for t in leg.get("alternatives") or []:
+                fare = f"(약 {t['fare']:,}원)" if t.get("fare") else ""
+                line += f" · 택시 {t['minutes']}분{fare}"
+            if leg.get("taxi_miss"):
+                line += f" · 택시 받지 못함 [{leg['taxi_miss'].reason}]"
+            lines.append(line)
         for k, miss in misses.items():
             lines.append(f"  {k.replace('|', ' → ')}  받지 못함 [{miss.reason}] {miss.detail}")
 

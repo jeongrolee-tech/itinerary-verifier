@@ -37,8 +37,8 @@ class Claude:
         return self.reply
 
 
-def tmap(monkeypatch, transit_minutes):
-    """장소 검색과 대중교통에 정해 둔 답을 준다. 받은 요청 주소를 남긴다."""
+def tmap(monkeypatch, transit_minutes, taxi_minutes=70):
+    """장소 검색 · 대중교통 · 택시(타임머신)에 정해 둔 답을 준다. 받은 요청 주소를 남긴다."""
     sent = []
 
     def call(method, url, key, body=None):
@@ -47,6 +47,8 @@ def tmap(monkeypatch, transit_minutes):
             return {"searchPoiInfo": {"pois": {"poi": [
                 {"name": "서울시립미술관", "frontLat": "37.564", "frontLon": "126.974"},
                 {"name": "경복궁", "frontLat": "37.578", "frontLon": "126.977"}]}}}
+        if "/prediction" in url:
+            return {"features": [{"properties": {"totalTime": taxi_minutes * 60, "taxiFare": 9400}}]}
         return {"metaData": {"plan": {"itineraries": [{"totalTime": transit_minutes * 60}]}}}
     monkeypatch.setattr(routes, "call", call)
     return sent
@@ -70,6 +72,15 @@ def test_late_by_estimate_is_shown_but_not_confirmed(monkeypatch, facts, policy)
     out = run(T01, facts, policy)
     assert "[결과]  undetermined" in out
     assert "예상 이동시간(65분) 기준이라 확정하지 않는다" in out
+    assert "택시로도 시간 안에 닿기 어렵다" in out  # 택시 70분이라 택시로도 늦는다
+
+
+def test_taxi_makes_it_and_says_so(monkeypatch, facts, policy):
+    """대중교통 65분이면 늦지만 택시 20분이면 된다. 택시 시간과 요금, 택시로 가야 한다는 안내가 보인다."""
+    tmap(monkeypatch, 65, taxi_minutes=20)
+    out = run(T01, facts, policy)
+    assert "대중교통 65분 · 택시 20분(약 9,400원)" in out
+    assert "[결과]  feasible" in out and "택시로 가야 한다" in out
 
 
 def test_miss_falls_back_to_stored_lower_bound(monkeypatch, facts, policy):
