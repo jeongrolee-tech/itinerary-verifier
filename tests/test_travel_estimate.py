@@ -93,7 +93,6 @@ def test_estimate_short_of_buffer_asks_user(facts, policy):
 
 # ── B. 예상으로는 늦어도 확정하지 않는다 ───────────────────────────────
 
-@pytest.mark.xfail(strict=True, reason="예상 이동시간으로 늦을 때 아직 fail 을 낸다 — 다음 커밋에서 고친다")
 def test_late_by_estimate_is_not_fail_even_with_stated_mode(facts, policy):
     """
     65분이면 15:05 도착이라 예상으로는 늦는다. 대중교통으로 간다고 말했어도 예상치일 뿐이다.
@@ -105,7 +104,6 @@ def test_late_by_estimate_is_not_fail_even_with_stated_mode(facts, policy):
     assert c["unknown_reason"] == "LATE_BY_ESTIMATE"
 
 
-@pytest.mark.xfail(strict=True, reason="예상 이동시간으로 늦을 때 아직 fail 을 낸다 — 다음 커밋에서 고친다")
 def test_late_by_estimate_is_not_train_fail(facts, policy):
     """광장시장에서 20:00 에 나와 40분이면 20:40 — 20:30 KTX 를 놓칠 것 같지만 확정하지 않는다. 중요도는 그대로다."""
     facts["legs"][f"{MARKET}|서울역"] = estimate(40)
