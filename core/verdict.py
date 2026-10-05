@@ -405,7 +405,7 @@ def leg_between(facts: dict, a: str, b: str) -> dict | None:
     return facts["legs"].get(f"{a}|{b}")
 
 
-MODE_NAMES = {"metro": "지하철", "transit": "대중교통"}
+MODE_NAMES = {"metro": "지하철", "transit": "대중교통", "walk": "도보"}
 EVENT_NAMES = {"TRAIN_DEPARTURE": "열차 출발", "FLIGHT_DEPARTURE": "항공편 출발",
                "ARRIVE_BY": "도착 기한", "OTHER": "필수 조건"}
 

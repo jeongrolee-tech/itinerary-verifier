@@ -138,6 +138,8 @@ def live_legs(itinerary: dict, key: str) -> tuple[dict, dict]:
     본다 — 판정 코어도 체류를 모르면 0분으로 보고, 0분으로도 늦을 때만 확정한다.
     """
     stops = itinerary["stops"]
+    if not itinerary.get("date") or not stops:
+        return {}, {}  # 날짜나 장소가 없으면 판정 코어가 입력부터 묻는다. 길을 찾을 출발 시각도 없다
     pairs = list(zip(stops, stops[1:])) + [
         (stops[-1], {"place": hc["place"]}) for hc in itinerary.get("hard_constraints", [])]
     day = date.fromisoformat(itinerary["date"])
