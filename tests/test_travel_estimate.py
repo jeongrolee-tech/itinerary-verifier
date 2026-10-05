@@ -135,7 +135,6 @@ def test_late_even_with_zero_travel_is_still_fail(facts, policy):
 # 택시로 시간 안에 닿는 것도 '된다' 다. 대신 택시로 가야 한다는 것과 요금, 당일 교통에 따라
 # 달라질 수 있다는 것을 알린다. 사용자가 말한 수단이 있으면 그 수단으로만 판정한다.
 
-@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
 def test_taxi_makes_it_when_transit_is_late(facts, policy):
     """대중교통 65분이면 15:05 라 늦지만, 택시 20분이면 14:20 — 권장 여유를 더해도 15:00 전이다."""
     facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
@@ -146,14 +145,12 @@ def test_taxi_makes_it_when_transit_is_late(facts, policy):
     assert out["summary"]["verdict"] == "feasible"
 
 
-@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
 def test_stated_taxi_is_judged_by_taxi(facts, policy):
     """택시로 간다고 말했으면 대중교통 시간이 아니라 택시 시간으로 판정한다."""
     facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
     assert travel(judge(t01(mode="taxi"), facts, policy), MUSEUM, PALACE)["status"] == PASS
 
 
-@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
 def test_taxi_also_late_is_told(facts, policy):
     """택시로도 늦으면 대중교통 결과(늦을 가능성이 높다)를 그대로 두고, 택시로도 어렵다고 알린다."""
     facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 70)
@@ -162,7 +159,6 @@ def test_taxi_also_late_is_told(facts, policy):
     assert "택시" in (c.get("notice") or "")
 
 
-@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
 def test_taxi_makes_the_train(facts, policy):
     """광장시장에서 20:00 에 나와 대중교통 40분이면 20:30 KTX 를 놓칠 것 같지만, 택시 12분이면 20:12 —
     권장 여유 15분을 둔 20:15 전이다."""
@@ -179,7 +175,6 @@ def test_stated_transit_is_not_passed_by_taxi(facts, policy):
     assert c["status"] == UNKNOWN and c["unknown_reason"] == "LATE_BY_ESTIMATE"
 
 
-@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
 def test_stated_transit_is_told_taxi_would_make_it(facts, policy):
     """대중교통으로 간다고 했으면 판정은 그대로 두되, 택시로는 시간 안에 닿는다는 것을 알려 준다.
     사용자가 고를 수 있게 하려는 것이다."""

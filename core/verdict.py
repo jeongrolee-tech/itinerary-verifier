@@ -405,12 +405,68 @@ def leg_between(facts: dict, a: str, b: str) -> dict | None:
     return facts["legs"].get(f"{a}|{b}")
 
 
-MODE_NAMES = {"metro": "지하철", "transit": "대중교통", "walk": "도보"}
+MODE_NAMES = {"metro": "지하철", "transit": "대중교통", "walk": "도보", "taxi": "택시"}
 EVENT_NAMES = {"TRAIN_DEPARTURE": "열차 출발", "FLIGHT_DEPARTURE": "항공편 출발",
                "ARRIVE_BY": "도착 기한", "OTHER": "필수 조건"}
 
 
+# ⭐ 대중교통으로 '된다' 가 안 나오면 택시 대안을 본다. pass 는 갈 수 있는 수단이 하나는 있으면
+#    되므로(_travel 의 late 주석), 수단을 말하지 않았으면 택시로 시간 안에 닿는 것도 '된다' 다.
+#    대신 택시로 가야 한다는 것, 요금, 당일 교통에 따라 달라질 수 있다는 것을 알린다.
+#    택시로 간다고 했으면 택시로 판정한다. 다른 수단을 말했으면 그 수단으로 판정한 결과를 그대로
+#    두고, 택시로는 되는지만 알린다 — 판정을 바꾸지 않고 사용자가 고를 수 있게 한다.
+WHY_NOT_TRANSIT = {"LATE_BY_ESTIMATE": "늦을 가능성이 높아", "BUFFER_NOT_MET": "권장 여유가 모자라"}
+
+
+def _taxi_notice(taxi: dict, lead: str) -> str:
+    fare = f", 요금 약 {taxi['fare']:,}원" if taxi.get("fare") else ""
+    return f"{lead} — 택시 예상 {taxi['minutes']}분{fare}. 당일 교통에 따라 달라질 수 있다"
+
+
+def _add_notice(result: dict, text: str) -> dict:
+    result["notice"] = f"{result['notice']} / {text}" if result.get("notice") else text
+    return result
+
+
+def _with_taxi(result: dict, taxi: dict, assess, travel_mode: str | None) -> dict:
+    """대중교통으로 '된다' 가 안 나온 결과(result)에 택시 대안을 적용한다.
+
+    assess(stated) 는 택시 구간을 stated 수단을 말한 것으로 보고 판정한 결과다.
+    결과 dict 는 이동 검사든 필수 조건의 policy 든 status · unknown_reason · notice 만 본다.
+    """
+    if travel_mode not in (None, taxi["mode"]):
+        if assess(None)["status"] == PASS:
+            _add_notice(result, _taxi_notice(taxi, "택시로는 시간 안에 닿는다"))
+        return result
+    by_taxi = assess(travel_mode)
+    if by_taxi["status"] == PASS:
+        why = WHY_NOT_TRANSIT.get(result.get("unknown_reason"), "확인되지 않아")
+        lead = ("택시로 간다고 해서 택시 기준으로 확인했다" if travel_mode else
+                f"대중교통으로는 {why} 택시 기준으로 확인했다. 택시로 가야 한다")
+        return _add_notice(by_taxi, _taxi_notice(taxi, lead))
+    if travel_mode:  # 택시로 간다고 했으면 택시로 판정한 결과가 답이다
+        return _add_notice(by_taxi, _taxi_notice(taxi, "택시 기준으로 확인했다"))
+    # 택시로도 늦거나 여유가 모자랄 때만 알린다. 체류시간을 몰라 보류한 것 등은 택시와 상관이 없다
+    if by_taxi.get("unknown_reason") == "LATE_BY_ESTIMATE":
+        _add_notice(result, _taxi_notice(taxi, "택시로도 시간 안에 닿기 어렵다"))
+    elif by_taxi.get("unknown_reason") == "BUFFER_NOT_MET":
+        _add_notice(result, _taxi_notice(taxi, "택시로도 권장 여유가 모자란다"))
+    return result
+
+
 def check_travel(frm, to, facts, policy, closed_statuses, visit_date, travel_mode=None) -> dict:
+    """구간 하나의 이동 검사. 대중교통으로 '된다' 가 안 나오면 붙어 있는 택시 대안을 본다."""
+    leg = leg_between(facts, frm["name"], to["name"])
+    result = _travel(frm, to, leg, policy, closed_statuses, visit_date, travel_mode)
+    taxi = ((leg or {}).get("alternatives") or [None])[0]
+    if taxi is None or result["status"] != UNKNOWN:
+        return result
+    return _with_taxi(result, taxi, lambda stated: _travel(frm, to, taxi, policy, closed_statuses,
+                                                           visit_date, stated), travel_mode)
+
+
+def _travel(frm, to, leg, policy, closed_statuses, visit_date, travel_mode=None) -> dict:
+    """구간 하나를 leg 로 판정한다. 택시 대안은 보지 않는다 — check_travel 이 본다."""
     label = f"{frm['name']} → {to['name']}"
     if closed_statuses.get(frm["name"]) == FAIL or closed_statuses.get(to["name"]) == FAIL:
         return check("INSUFFICIENT_TRAVEL_TIME", label, NA,
@@ -434,7 +490,6 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date, travel_mod
                      detail=f"{frm['name']}에서 빨라도 {to_hhmm(earliest_departure)}에 나오는데 "
                             f"{to['name']}에는 {by}까지 가야 한다 — 이동시간이 0분이어도 늦는다")
 
-    leg = leg_between(facts, frm["name"], to["name"])
     if leg is None:
         return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
                      unknown_reason="UNVERIFIED_TRAVEL_TIME",
@@ -590,6 +645,19 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date, travel_mod
 
 # ── 필수 조건 (KTX 등) ──────────────────────────────────────────────
 def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=None) -> dict:
+    """필수 조건 하나. 대중교통으로 '된다' 가 안 나오면 붙어 있는 택시 대안을 본다(check_travel 과 같다)."""
+    leg = leg_between(facts, stops[-1]["name"], hc["place"])
+    result = _hard_constraint(hc, stops, leg, policy, visit_date, travel_mode)
+    taxi = ((leg or {}).get("alternatives") or [None])[0]
+    if taxi is None or result["policy"]["status"] != UNKNOWN:
+        return result
+    result["policy"] = _with_taxi(
+        result["policy"], taxi,
+        lambda stated: _hard_constraint(hc, stops, taxi, policy, visit_date, stated)["policy"], travel_mode)
+    return result
+
+
+def _hard_constraint(hc, stops, leg, policy, visit_date, travel_mode=None) -> dict:
     """
     사용자가 말한 것과 서비스가 정한 권장 기준을 섞지 않는다.
 
@@ -611,7 +679,6 @@ def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, travel_mode=N
     result = {"id": hc["id"], "event": event}
 
     last = stops[-1]
-    leg = leg_between(facts, last["name"], hc["place"])
     buffer = policy["buffer_minutes"].get(hc.get("buffer_rule", "rail_boarding"))
     required = to_min(hc["time"]) - buffer
 
