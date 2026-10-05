@@ -9,6 +9,7 @@
   닿기는 하지만 권장 여유가 모자란다   unknown (BUFFER_NOT_MET) — 사용자에게 묻는다
   예상으로는 늦는다                   unknown (LATE_BY_ESTIMATE) — 예상치라 확정하지 않는다
   이동 0분으로도 늦는다               fail — 지금처럼 확정한다
+  대중교통으로 안 되고 택시로는 된다   pass — "택시로 가야 한다" 고 알린다 (수단을 말하지 않았을 때)
 
 xfail(strict=True) 는 "지금 코드가 틀렸고, 고칠 작업이 정해져 있다" 는 표시다.
 고치면 XPASS 가 되어 스위트가 실패하므로, 그 작업에서 표시를 지워야 한다.
@@ -29,6 +30,13 @@ def estimate(minutes, mode="transit"):
     """판정할 때 길찾기로 받는 구간과 같은 모양이다. 값은 테스트용으로 정했다."""
     return {"minutes": minutes, "mode": mode, "is_lower_bound": False,
             "source": "synthetic_fixture", "method": "synthetic_fixture"}
+
+
+def with_taxi(transit_minutes, taxi_minutes, fare=9400):
+    """대중교통 구간에 택시 구간을 대안으로 붙인다. 판정할 때 TMAP 타임머신 길 안내로 받는 모양이다."""
+    leg = estimate(transit_minutes)
+    leg["alternatives"] = [{**estimate(taxi_minutes, mode="taxi"), "fare": fare}]
+    return leg
 
 
 def travel(result, frm, to):
@@ -120,3 +128,69 @@ def test_late_even_with_zero_travel_is_still_fail(facts, policy):
     facts["legs"][f"{MUSEUM}|{PALACE}"] = estimate(25)
     c = travel(judge(t01("13:50", mode="transit"), facts, policy), MUSEUM, PALACE)
     assert c["status"] == FAIL
+
+
+# ── D. 대중교통으로 안 되면 택시로 ──────────────────────────────────
+# 판정 코어의 원칙: pass 는 갈 수 있는 수단이 하나는 있으면 된다. 사용자가 수단을 말하지 않았으면
+# 택시로 시간 안에 닿는 것도 '된다' 다. 대신 택시로 가야 한다는 것과 요금, 당일 교통에 따라
+# 달라질 수 있다는 것을 알린다. 사용자가 말한 수단이 있으면 그 수단으로만 판정한다.
+
+@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
+def test_taxi_makes_it_when_transit_is_late(facts, policy):
+    """대중교통 65분이면 15:05 라 늦지만, 택시 20분이면 14:20 — 권장 여유를 더해도 15:00 전이다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
+    out = judge(t01(), facts, policy)
+    c = travel(out, MUSEUM, PALACE)
+    assert c["status"] == PASS
+    assert "택시" in c["notice"] and "9,400원" in c["notice"] and "당일 교통" in c["notice"]
+    assert out["summary"]["verdict"] == "feasible"
+
+
+@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
+def test_stated_taxi_is_judged_by_taxi(facts, policy):
+    """택시로 간다고 말했으면 대중교통 시간이 아니라 택시 시간으로 판정한다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
+    assert travel(judge(t01(mode="taxi"), facts, policy), MUSEUM, PALACE)["status"] == PASS
+
+
+@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
+def test_taxi_also_late_is_told(facts, policy):
+    """택시로도 늦으면 대중교통 결과(늦을 가능성이 높다)를 그대로 두고, 택시로도 어렵다고 알린다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 70)
+    c = travel(judge(t01(), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == UNKNOWN and c["unknown_reason"] == "LATE_BY_ESTIMATE"
+    assert "택시" in (c.get("notice") or "")
+
+
+@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
+def test_taxi_makes_the_train(facts, policy):
+    """광장시장에서 20:00 에 나와 대중교통 40분이면 20:30 KTX 를 놓칠 것 같지만, 택시 12분이면 20:12 —
+    권장 여유 15분을 둔 20:15 전이다."""
+    facts["legs"][f"{MARKET}|서울역"] = with_taxi(40, 12)
+    p = train(judge(market_then_ktx("20:30"), facts, policy))
+    assert p["status"] == PASS
+    assert "택시" in p["notice"]
+
+
+def test_stated_transit_is_not_passed_by_taxi(facts, policy):
+    """대조군: 대중교통으로 간다고 말했으면 택시로는 된다는 이유로 통과시키지 않는다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
+    c = travel(judge(t01(mode="transit"), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == UNKNOWN and c["unknown_reason"] == "LATE_BY_ESTIMATE"
+
+
+@pytest.mark.xfail(strict=True, reason="택시 대안을 아직 보지 않는다 — 다음 커밋에서 고친다")
+def test_stated_transit_is_told_taxi_would_make_it(facts, policy):
+    """대중교통으로 간다고 했으면 판정은 그대로 두되, 택시로는 시간 안에 닿는다는 것을 알려 준다.
+    사용자가 고를 수 있게 하려는 것이다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
+    c = travel(judge(t01(mode="transit"), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == UNKNOWN and c["unknown_reason"] == "LATE_BY_ESTIMATE"
+    assert "택시" in (c.get("notice") or "") and "9,400원" in c["notice"]
+
+
+def test_transit_ok_needs_no_taxi(facts, policy):
+    """대조군: 대중교통으로 되면 택시를 꺼내지 않는다. 택시 안내도 붙이지 않는다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(25, 10)
+    c = travel(judge(t01(), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == PASS and not c.get("notice")
