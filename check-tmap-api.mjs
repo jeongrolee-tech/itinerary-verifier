@@ -11,6 +11,7 @@
  *   대중교통 — 경로가 오나, 출발 시각(searchDttm)을 몇 달 뒤로 넣어도 되나, 아주 가까운 구간은 어떻게 오나
  *   걷기     — 보행자 경로가 오나
  *   자동차   — 경로와 택시 요금이 오나
+ *   자동차 예측 — 타임머신 자동차 길 안내. 출발 시각을 넣으면 그 시각 교통으로 도착을 예측하나, 몇 달 뒤도 되나
  *   자전거   — TMAP 공개 API 목록에 없어서 부르지 않는다
  *
  * 값은 화면에만 보여 주고 파일로 남기지 않는다. TMAP 약관상 받은 데이터는
@@ -46,6 +47,7 @@ const POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyw
 const TRANSIT = "https://apis.openapi.sk.com/transit/routes";
 const PEDESTRIAN = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1";
 const CAR = "https://apis.openapi.sk.com/tmap/routes?version=1";
+const PREDICTION = "https://apis.openapi.sk.com/tmap/routes/prediction?version=1";
 
 // 429(너무 빨리 부름)면 기다렸다 다시 묻는다 — core/routes.py 와 같은 규칙이다. 기다릴 시간(Retry-After)을
 // 주면 그만큼, 안 주면 1 · 2 · 4초. 세 번 다시 물어도 막히면 429 응답을 그대로 돌려준다.
@@ -102,6 +104,8 @@ const CASES = [
   { mode: "걷기", from: "덕수궁", to: MUSEUM, note: "아주 가까운 구간" },
   { mode: "걷기", from: "경복궁", to: "창덕궁", note: "1km 남짓" },
   { mode: "자동차", from: "광장시장", to: "서울역", note: "택시 요금도 오는지" },
+  { mode: "자동차 예측", from: "광장시장", to: "서울역", at: "2026-10-08T19:30:00+0900", note: "10월 8일 19:30 출발 기준" },
+  { mode: "자동차 예측", from: "경복궁", to: "광장시장", at: "2027-03-05T15:00:00+0900", note: "5개월 뒤 출발 기준" },
 ];
 
 function requestFor({ mode, from, to, at }) {
@@ -111,6 +115,15 @@ function requestFor({ mode, from, to, at }) {
     return { url: TRANSIT, body: { ...xy, count: 1, lang: 0, format: "json", searchDttm: at } };
   }
   const coord = { reqCoordType: "WGS84GEO", resCoordType: "WGS84GEO" };
+  if (mode === "자동차 예측") {
+    // 요청 모양은 SK open API 문서의 예제를 따랐다.
+    // ⭐ predictionType 이름이 헷갈린다. "departure" 는 출발 시각을 '예측' 한다 — 도착 시각을 넣으면 언제
+    //    떠나야 하는지를 준다. 2026-10-05 에 departure 로 19:30 을 넣자 도착 19:30, 출발 19:05 가 왔다.
+    //    우리는 출발 시각을 넣고 도착을 받아야 하므로 "arrival"(도착 시각을 예측)을 쓴다.
+    const point = (name, p) => ({ name, lon: String(p.lng), lat: String(p.lat) });
+    return { url: PREDICTION, body: { routesInfo: { departure: point(from, s), destination: point(to, e),
+                                                    predictionType: "arrival", predictionTime: at } } };
+  }
   if (mode === "걷기") {
     return { url: PEDESTRIAN, body: { ...xy, ...coord, startName: encodeURIComponent(from), endName: encodeURIComponent(to) } };
   }
@@ -126,6 +139,10 @@ function readRoute(mode, json) {
   }
   const p = json?.features?.[0]?.properties;
   if (p?.totalTime === undefined) return null;
+  if (mode === "자동차 예측") {
+    return { seconds: p.totalTime,
+             extra: `택시 요금 ${p.taxiFare ?? "없음"}원 · 출발 ${p.departureTime ?? "?"} · 도착 ${p.arrivalTime ?? "?"}` };
+  }
   return { seconds: p.totalTime, extra: mode === "자동차" ? `택시 요금 ${p.taxiFare ?? "없음"}원` : "" };
 }
 
@@ -183,7 +200,7 @@ for (const c of CASES) {
 console.log("➖ 자전거  TMAP 공개 API 목록에 자전거 경로가 없어 부르지 않았다");
 
 console.log("\n--- 수단별 ---");
-for (const mode of ["대중교통", "걷기", "자동차"]) {
+for (const mode of ["대중교통", "걷기", "자동차", "자동차 예측"]) {
   const rs = results.filter(r => r.mode === mode);
   console.log(`${mode}: ${rs.filter(r => r.ok).length}/${rs.length} 경로 받음`);
 }
