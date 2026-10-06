@@ -146,6 +146,7 @@ def closed_date_for(visit_date: str, cd: dict, holidays: dict) -> str | None:
     기관마다 규칙이 다르다. 코드에 박지 않고 facts 의 exception_rule 로 분기한다.
       shift_to_next_nonholiday : 정기휴일이 공휴일이면 개방하고, 다음 첫 비공휴일이 휴일이 된다 (궁궐)
       open_if_holiday_no_shift : 정기휴일이 공휴일이면 개방하고, 밀지 않는다 (미술관)
+      없음 (None · "none")       : 공휴일이어도 정기휴일에 쉰다. 밀지도 않는다
     """
     # ⭐ "월요일이면 휴관" 같은 규칙을 코드에 박으면 안 된다.
     #    2026-10-06 은 궁궐은 휴궁이고 미술관은 개관이다. 규칙이 기관마다 다르다.
@@ -155,7 +156,7 @@ def closed_date_for(visit_date: str, cd: dict, holidays: dict) -> str | None:
     cur = Date.fromisoformat(visit_date).weekday()
     base = shift_date(visit_date, -((cur - target) % 7))  # 가장 가까운 과거(또는 당일) 정기휴일
 
-    if base not in holidays["dates"]:
+    if base not in holidays["dates"] or cd.get("exception_rule") in (None, "none"):
         return base
     if cd.get("exception_rule") == "open_if_holiday_no_shift":
         return None  # 그 주에는 휴일이 없다
@@ -376,11 +377,12 @@ def check_dwell(name, place, visit_date, start, dwell, admission_status, policy,
         return check("DWELL_NOT_COMPLETABLE", name, NA,
                      reason="입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다")
 
-    # ⭐ 이 프로젝트가 비교 실험에서 이긴 지점이다 (docs 및 last-compare.json 참조).
+    # ⭐ 9월 22일 비교 실험에서 이 프로젝트가 이긴 지점이다 (README '비교 실험').
     #    "16:30 에 경복궁" — 입장마감 17:00 전이라 들어갈 수는 있다. 그런데 몇 시간
     #    볼 건지 사용자가 말하지 않았다. 기본값 90분을 넣으면 18:00 폐장을 넘는다.
     #    우리가 정한 값으로 사용자 일정의 오류를 만들어내면 안 되므로 판단하지 않는다.
-    #    같은 데이터를 준 LLM 은 이 규칙을 문서로 받고도 feasible 을 냈다 (T08).
+    #    같은 데이터를 준 LLM 은 이 규칙을 문서로 받고도 feasible 을 냈다 (T08). 10월 2일 실행에서는
+    #    지켰지만 대신 하한선을 실제 이동시간처럼 썼다 (T01). 놓치는 규칙이 실행마다 바뀐다.
     if policy["require_user_dwell_for_completion_check"] and dwell["source"] != "user_stated":
         return check("DWELL_NOT_COMPLETABLE", name, UNKNOWN,
                      unknown_reason="NO_USER_DWELL",
@@ -479,6 +481,16 @@ def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
                                "travel_minutes": 0},
                      detail=f"{frm['name']}에서 빨라도 {to_hhmm(earliest_departure)}에 나오는데 "
                             f"{to['name']}에는 {by}까지 가야 한다 — 이동시간이 0분이어도 늦는다")
+
+    # ⭐ 구역 일정은 대표 지점으로 판정하지 않는다 (장소 검사와 같은 원칙). "명동에서 쇼핑" 이면
+    #    명동역이나 명동 중심점까지의 시간은 실제로 갈 가게까지의 시간이 아니다. 0분으로도 늦는
+    #    경우만 위에서 확정하고, 나머지는 어디로 가는지 물어본다.
+    area = next((s["name"] for s in (frm, to) if s.get("scope") == "area"), None)
+    if area:
+        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                     unknown_reason="PLACE_NOT_RESOLVED",
+                     detail=f"{area} 일정은 구역만 정해져 있어 이동시간을 판정하지 않는다",
+                     how_to_resolve={"user": f"{area}에서 정확히 어디로 가시나요?"})
 
     if leg is None:
         return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
@@ -692,6 +704,16 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
             status=FAIL,
             detail=f"{last['name']}에서 빨라도 {to_hhmm(earliest_departure)}에 나오는데 "
                    f"{ev}에 늦는다 — 이동시간이 0분이어도 늦는다",
+        )
+        result["policy"] = policy_eval
+        return result
+
+    # check_travel 과 같다. 마지막 일정이 구역이면 어디서 출발하는지 몰라 판정하지 않는다
+    if last.get("scope") == "area":
+        policy_eval.update(
+            status=UNKNOWN, unknown_reason="PLACE_NOT_RESOLVED",
+            detail=f"{last['name']} 일정은 구역만 정해져 있어 {hc['place']}까지 이동시간을 판정하지 않는다",
+            how_to_resolve={"user": f"{last['name']}에서 정확히 어디서 출발하시나요?"},
         )
         result["policy"] = policy_eval
         return result

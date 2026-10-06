@@ -32,7 +32,7 @@ def estimate(minutes, mode="transit"):
             "source": "synthetic_fixture", "method": "synthetic_fixture"}
 
 
-def with_taxi(transit_minutes, taxi_minutes, fare=9400):
+def with_taxi(transit_minutes, taxi_minutes, fare=10000):
     """대중교통 구간에 택시 구간을 대안으로 붙인다. 판정할 때 TMAP 타임머신 길 안내로 받는 모양이다."""
     leg = estimate(transit_minutes)
     leg["alternatives"] = [{**estimate(taxi_minutes, mode="taxi"), "fare": fare}]
@@ -134,7 +134,7 @@ def test_taxi_makes_it_when_transit_is_late(facts, policy):
     out = judge(t01(), facts, policy)
     c = travel(out, MUSEUM, PALACE)
     assert c["status"] == PASS
-    assert "택시" in c["notice"] and "9,400원" in c["notice"] and "당일 교통" in c["notice"]
+    assert "택시" in c["notice"] and "10,000원" in c["notice"] and "당일 교통" in c["notice"]
     assert out["summary"]["verdict"] == "feasible"
 
 
@@ -160,3 +160,37 @@ def test_transit_ok_needs_no_taxi(facts, policy):
     facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(25, 10)
     c = travel(judge(t01(), facts, policy), MUSEUM, PALACE)
     assert c["status"] == PASS and not c.get("notice")
+
+
+# ── E. 구역 일정 ────────────────────────────────────────────────────
+# 구역은 대표 지점으로 판정하지 않는다. 구간 값이 있어도 이동을 판정하지 않고 어디로 가는지 묻는다.
+
+def palace_then_area(area_start):
+    return {"date": THURSDAY, "stops": [
+        {"place": PALACE, "start": "10:00", "dwell_minutes": 60},
+        {"place": "명동", "start": area_start, "dwell_minutes": 60, "scope": "area",
+         "scope_note": "쇼핑할 가게가 특정되지 않았다"}]}
+
+
+def test_travel_to_an_area_is_not_judged(facts, policy):
+    """명동까지 15분짜리 구간이 있어도 명동 어디로 가는지 모르니 통과시키지 않는다."""
+    facts["legs"][f"{PALACE}|명동"] = estimate(15)
+    c = travel(judge(palace_then_area("12:00"), facts, policy), PALACE, "명동")
+    assert c["status"] == UNKNOWN and c["unknown_reason"] == "PLACE_NOT_RESOLVED"
+
+
+def test_area_still_fails_when_late_with_zero_travel(facts, policy):
+    """대조군: 11:00 에 나오는데 10:30 명동이면 명동 어디로 가든 늦는다."""
+    facts["legs"][f"{PALACE}|명동"] = estimate(15)
+    assert travel(judge(palace_then_area("10:30"), facts, policy), PALACE, "명동")["status"] == FAIL
+
+
+def test_train_from_an_area_is_not_judged(facts, policy):
+    """마지막 일정이 구역이면 어디서 출발하는지 몰라 열차 조건도 판정하지 않는다. 중요도는 그대로다."""
+    facts["legs"]["명동|서울역"] = estimate(15)
+    it = {"date": THURSDAY, "stops": [{"place": "명동", "start": "18:00", "dwell_minutes": 60, "scope": "area"}],
+          "hard_constraints": [{"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역",
+                                "time": "20:30", "buffer_rule": "rail_boarding", "source": "user_stated"}]}
+    p = train(judge(it, facts, policy))
+    assert p["status"] == UNKNOWN and p["unknown_reason"] == "PLACE_NOT_RESOLVED"
+    assert p["severity"] == "blocking"

@@ -266,13 +266,15 @@ run = {
     "conditions": run_meta(),
     "results": results,
 }
-(HERE / "last-run.json").write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
+# 일부만 돌린 결과(--case)는 공식 기록을 덮어쓰지 않는다 — compare.py 와 같은 규칙. README 가 인용하는 것은 전체 실행이다
+RECORD = "last-run-subset.json" if only else "last-run.json"
+(HERE / RECORD).write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
 
 all_match = all(r["match"] for r in results)
 if json_only:
     print(json.dumps(run, ensure_ascii=False, indent=2))
 else:
-    print(f"\n  기록: core/last-run.json  ({run['run_id']}, {VERSION})")
+    print(f"\n  기록: core/{RECORD}  ({run['run_id']}, {VERSION})")
     print(describe(run["conditions"]))
     if not facts["holidays"]["verified"]:
         print("  ⚠ 공휴일 캘린더 미검증 — 휴무일 예외 규칙이 걸린 검사는 unknown 으로 나온다.")

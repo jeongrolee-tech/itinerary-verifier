@@ -3,6 +3,8 @@
 
 Claude 응답은 SDK 의 Message 로 만들고(test_llm.py 와 같은 이유), TMAP 은 routes.call 을 바꿔 끼운다.
 진짜로 부르지 않으니 키도 요금도 들지 않는다. 진짜 호출은 사람이 키를 넣어 한 번 돌려 확인한다.
+가짜 응답의 시간 · 요금은 테스트용으로 정한 값이다. 실제로 받은 값은 약관상 저장할 수 없어서
+일부러 겹치지 않는 둥근 값을 쓴다.
 """
 
 import json
@@ -48,7 +50,7 @@ def tmap(monkeypatch, transit_minutes, taxi_minutes=70):
                 {"name": "서울시립미술관", "frontLat": "37.564", "frontLon": "126.974"},
                 {"name": "경복궁", "frontLat": "37.578", "frontLon": "126.977"}]}}}
         if "/prediction" in url:
-            return {"features": [{"properties": {"totalTime": taxi_minutes * 60, "taxiFare": 9400}}]}
+            return {"features": [{"properties": {"totalTime": taxi_minutes * 60, "taxiFare": 10000}}]}
         return {"metaData": {"plan": {"itineraries": [{"totalTime": transit_minutes * 60}]}}}
     monkeypatch.setattr(routes, "call", call)
     return sent
@@ -59,10 +61,10 @@ def run(extraction, facts, policy):
 
 
 def test_t01_is_feasible_end_to_end(monkeypatch, facts, policy):
-    """TMAP 이 13분이라고 하면 14:13 도착, 권장 여유를 더해도 15:00 전이다. 저장된 하한선이면 보류였던 일정이다."""
-    tmap(monkeypatch, 13)
+    """TMAP 이 20분이라고 하면 14:20 도착, 권장 여유를 더해도 15:00 전이다. 저장된 하한선이면 보류였던 일정이다."""
+    tmap(monkeypatch, 20)
     out = run(T01, facts, policy)
-    assert "서울시립미술관 서소문본관 → 경복궁  대중교통 13분" in out
+    assert "서울시립미술관 서소문본관 → 경복궁  대중교통 20분" in out
     assert "[결과]  feasible" in out
 
 
@@ -79,7 +81,7 @@ def test_taxi_makes_it_and_says_so(monkeypatch, facts, policy):
     """대중교통 65분이면 늦지만 택시 20분이면 된다. 택시 시간과 요금, 택시로 가야 한다는 안내가 보인다."""
     tmap(monkeypatch, 65, taxi_minutes=20)
     out = run(T01, facts, policy)
-    assert "대중교통 65분 · 택시 20분(약 9,400원)" in out
+    assert "대중교통 65분 · 택시 20분(약 10,000원)" in out
     assert "[결과]  feasible" in out and "택시로 가야 한다" in out
 
 
@@ -95,7 +97,7 @@ def test_miss_falls_back_to_stored_lower_bound(monkeypatch, facts, policy):
 
 def test_no_date_asks_first_and_calls_no_tmap(monkeypatch, facts, policy):
     """날짜가 없으면 TMAP 을 부르지 않는다. 판정 코어가 날짜부터 묻는다."""
-    sent = tmap(monkeypatch, 13)
+    sent = tmap(monkeypatch, 20)
     out = run({**T01, "date": None, "date_source": "missing", "weekday_stated": None}, facts, policy)
     assert sent == []
     assert "[결과]  undetermined" in out

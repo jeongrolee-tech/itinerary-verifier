@@ -4,8 +4,11 @@ TMAP 길찾기 — 가짜 응답으로 "TMAP 이 이렇게 답하면 우리 코�
 진짜 TMAP 은 부르지 않는다. 키와 요금이 들고, 인터넷이나 TMAP 사정으로 코드가 멀쩡해도 실패하고,
 시간 초과 같은 상황은 일부러 만들 수 없다. 대신 가짜 응답은 2026-10-02 에 check-tmap-api.mjs 로
 실제로 받은 모양과 공식 문서를 따랐다. TMAP 이 정말 그렇게 답하는지는 진짜 키로 따로 확인한다.
+가짜 응답의 시간 · 요금은 테스트용으로 정한 값이다. 실제로 받은 값은 약관상 저장할 수 없어서
+일부러 겹치지 않는 둥근 값을 쓴다.
 """
 
+import http.client
 import json
 import socket
 import urllib.error
@@ -38,11 +41,11 @@ def walking(seconds):
     return {"type": "FeatureCollection", "features": [{"properties": {"totalTime": seconds}}]}
 
 
-def by_taxi(seconds, fare=9100):
+def by_taxi(seconds, fare=10000):
     """타임머신 자동차 길 안내 응답. 2026-10-05 실제 응답처럼 시간 · 요금 · 출발 · 도착이 properties 에 온다."""
     return {"type": "FeatureCollection", "features": [{"properties": {
         "totalTime": seconds, "taxiFare": fare,
-        "departureTime": "2026-10-08T14:00:00+0900", "arrivalTime": "2026-10-08T14:13:00+0900"}}]}
+        "departureTime": "2026-10-08T14:00:00+0900", "arrivalTime": "2026-10-08T14:10:00+0900"}}]}
 
 
 class FakeTmap:
@@ -50,7 +53,7 @@ class FakeTmap:
 
     def __init__(self, transit_reply, walk_reply=None, places=None, taxi_reply=None):
         self.transit_reply, self.walk_reply = transit_reply, walk_reply
-        self.taxi_reply = by_taxi(780) if taxi_reply is None else taxi_reply
+        self.taxi_reply = by_taxi(600) if taxi_reply is None else taxi_reply
         # 2026-10-05 실제 검색 결과처럼 미술관은 "서울시립미술관", 경복궁은 "경복궁역" 이 함께 온다
         self.places = places or {MUSEUM: poi(("서울시립미술관 주차장", 37.565, 126.975), ("서울시립미술관", 37.564, 126.974)),
                                  PALACE: poi(("경복궁역", 37.575, 126.973), (PALACE, 37.578, 126.977))}
@@ -115,11 +118,11 @@ def test_place_without_entrance_uses_center(tmap):
 # ── 구간 ────────────────────────────────────────────────────────────
 
 def test_transit_becomes_an_estimate_leg(tmap):
-    """대중교통 1260초 → 21분. 하한선이 아니라 예상치이고, 판정할 때 받은 값이라고 표시한다."""
-    fake = tmap(transit(1260))
+    """대중교통 1200초 → 20분. 하한선이 아니라 예상치이고, 판정할 때 받은 값이라고 표시한다."""
+    fake = tmap(transit(1200))
     legs, misses = live_legs(t01(), "key")
     leg = legs[f"{MUSEUM}|{PALACE}"]
-    assert leg["minutes"] == 21 and leg["mode"] == "transit"
+    assert leg["minutes"] == 20 and leg["mode"] == "transit"
     assert leg["is_lower_bound"] is False and leg["source"] == "api_runtime"
     assert misses == {}
     # 출발 시각은 13:00 시작 + 체류 60분
@@ -135,9 +138,9 @@ def test_minutes_are_rounded_up(tmap):
 @pytest.mark.parametrize("too_close", [TOO_CLOSE, TOO_CLOSE["result"]])
 def test_too_close_asks_walking_instead(tmap, too_close):
     """HTTP 200 이어도 '너무 가까움'(11)이면 경로가 없다. 걷기로 다시 묻는다. status 가 어디에 와도 읽는다."""
-    tmap(too_close, walk_reply=walking(420))
+    tmap(too_close, walk_reply=walking(360))
     leg = live_legs(t01(), "key")[0][f"{MUSEUM}|{PALACE}"]
-    assert leg["mode"] == "walk" and leg["minutes"] == 7
+    assert leg["mode"] == "walk" and leg["minutes"] == 6
 
 
 def test_no_transit_route_is_a_miss(tmap):
@@ -147,21 +150,47 @@ def test_no_transit_route_is_a_miss(tmap):
     assert legs == {} and misses[f"{MUSEUM}|{PALACE}"].reason == "NO_ROUTE"
 
 
+def test_area_stop_is_not_routed(tmap):
+    """구역 일정은 대표 지점으로 길을 찾지 않는다. 그 구간은 묻지도 않는다."""
+    it = {"date": "2026-10-08", "stops": [
+        {"place": MUSEUM, "start": "13:00", "dwell_minutes": 60},
+        {"place": "명동", "start": "15:00", "scope": "area"}]}
+    fake = tmap(transit(1200))
+    assert live_legs(it, "key") == ({}, {})
+    assert fake.sent == []
+
+
+def test_place_not_found_is_asked_once(tmap):
+    """못 찾은 장소는 다음 구간에서 다시 묻지 않는다. 두 구간 모두 받지 못한 이유를 남긴다."""
+    it = {"date": "2026-10-08", "stops": [
+        {"place": MUSEUM, "start": "10:00", "dwell_minutes": 60},
+        {"place": "없는곳", "start": "12:00", "dwell_minutes": 60},
+        {"place": PALACE, "start": "14:00", "dwell_minutes": 60}]}
+    places = {MUSEUM: poi(("서울시립미술관", 37.564, 126.974)), "없는곳": poi(("다른곳", 37.5, 127.0)),
+              PALACE: poi((PALACE, 37.578, 126.977))}
+    fake = tmap(transit(1200), places=places)
+    legs, misses = live_legs(it, "key")
+    assert set(misses) == {f"{MUSEUM}|없는곳", f"없는곳|{PALACE}"}
+    assert all(m.reason == "PLACE_NOT_FOUND" for m in misses.values())
+    asked = [u for u, _ in fake.sent if "/pois" in u and u.endswith(routes.urllib.parse.quote("없는곳"))]
+    assert len(asked) == 1
+
+
 def test_train_destination_is_a_leg_too(tmap):
     """열차 조건이 있으면 마지막 장소 → 역 구간도 받는다."""
     it = {"date": "2026-10-08", "stops": [{"place": MUSEUM, "start": "19:00", "dwell_minutes": 30}],
           "hard_constraints": [{"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30"}]}
     places = {MUSEUM: poi(("서울시립미술관", 37.564, 126.974)),
               "서울역": poi(("서울역[수도권1호선]", 37.556, 126.972), ("서울역[KTX정차역]", 37.555, 126.971))}
-    tmap(transit(900), places=places)
-    assert live_legs(it, "key")[0][f"{MUSEUM}|서울역"]["minutes"] == 15
+    tmap(transit(1500), places=places)
+    assert live_legs(it, "key")[0][f"{MUSEUM}|서울역"]["minutes"] == 25
 
 
 # ── 판정까지 ─────────────────────────────────────────────────────────
 
 def test_t01_is_feasible_with_live_leg(tmap, facts, policy):
     """받은 구간을 판정 코어의 legs 에 덮어쓰면 T01 이 feasible 이 된다. 저장된 하한선 대신 쓰인다."""
-    tmap(transit(1260))
+    tmap(transit(1200))
     legs, _ = live_legs(t01(), "key")
     out = judge(t01(), {**facts, "legs": {**facts["legs"], **legs}}, policy)
     assert out["summary"]["verdict"] == "feasible"
@@ -188,6 +217,10 @@ class Body:
     (socket.timeout("timed out"), "TIMEOUT"),
     (urllib.error.URLError(TimeoutError("timed out")), "TIMEOUT"),
     (urllib.error.URLError("getaddrinfo failed"), "NETWORK_ERROR"),
+    # 요청을 보낸 뒤 응답을 받다가 끊기면 URLError 로 감싸지지 않고 그대로 온다
+    (http.client.RemoteDisconnected("closed"), "NETWORK_ERROR"),
+    (ConnectionResetError("reset by peer"), "NETWORK_ERROR"),
+    (http.client.IncompleteRead(b""), "NETWORK_ERROR"),
 ])
 def test_call_failures_are_named(monkeypatch, error, reason):
     """실패를 한데 뭉치지 않는다. 키 오류 · 시간 초과 · 네트워크는 고치는 방법이 다르다."""
@@ -248,6 +281,13 @@ def test_throttled_call_waits_and_asks_again(monkeypatch, waits):
     assert waits == [1]
 
 
+def test_long_retry_after_is_capped(monkeypatch, waits):
+    """기다리라는 시간이 아무리 길어도 30초까지만 기다린다. 검증 하나가 몇 분씩 멈추지 않게."""
+    answers(monkeypatch, throttled({"Retry-After": "300"}), b'{"ok": 1}')
+    routes.call("GET", "https://example.invalid", "key")
+    assert waits == [30]
+
+
 def test_retry_after_sets_the_wait(monkeypatch, waits):
     """TMAP 이 기다릴 시간을 알려 주면 그만큼 기다린다."""
     answers(monkeypatch, throttled({"Retry-After": "3"}), b'{"ok": 1}')
@@ -268,10 +308,10 @@ def test_still_throttled_is_rate_limited(monkeypatch, waits):
 
 def test_transit_leg_gets_a_taxi_alternative(tmap):
     """대중교통 구간에 같은 출발 시각의 택시를 대안으로 붙인다. 출발 시각 기준 예측은 predictionType arrival 이다."""
-    fake = tmap(transit(1260), taxi_reply=by_taxi(780, 9100))
+    fake = tmap(transit(1200), taxi_reply=by_taxi(600, 10000))
     leg = live_legs(t01(), "key")[0][f"{MUSEUM}|{PALACE}"]
     taxi = leg["alternatives"][0]
-    assert (taxi["mode"], taxi["minutes"], taxi["fare"]) == ("taxi", 13, 9100)
+    assert (taxi["mode"], taxi["minutes"], taxi["fare"]) == ("taxi", 10, 10000)
     assert taxi["is_lower_bound"] is False
     asked = next(b for u, b in fake.sent if "/prediction" in u)["routesInfo"]
     assert asked["predictionType"] == "arrival"
@@ -280,7 +320,7 @@ def test_transit_leg_gets_a_taxi_alternative(tmap):
 
 def test_walking_leg_gets_no_taxi(tmap):
     """걸어갈 만큼 가까운 구간에는 택시를 붙이지 않는다. 묻지도 않는다."""
-    fake = tmap(TOO_CLOSE, walk_reply=walking(420))
+    fake = tmap(TOO_CLOSE, walk_reply=walking(360))
     leg = live_legs(t01(), "key")[0][f"{MUSEUM}|{PALACE}"]
     assert "alternatives" not in leg
     assert not any("/prediction" in u for u, _ in fake.sent)
@@ -288,16 +328,16 @@ def test_walking_leg_gets_no_taxi(tmap):
 
 def test_taxi_miss_keeps_the_transit_leg(tmap):
     """택시를 받지 못해도 대중교통 구간은 그대로 쓴다. 못 받은 이유만 남긴다."""
-    tmap(transit(1260), taxi_reply={})
+    tmap(transit(1200), taxi_reply={})
     legs, misses = live_legs(t01(), "key")
     leg = legs[f"{MUSEUM}|{PALACE}"]
-    assert leg["minutes"] == 21 and "alternatives" not in leg
+    assert leg["minutes"] == 20 and "alternatives" not in leg
     assert leg["taxi_miss"].reason == "NO_ROUTE" and misses == {}
 
 
 def test_taxi_rescues_a_late_transit_leg(tmap, facts, policy):
     """대중교통 65분이면 늦지만 택시 20분이면 되는 T01 — 판정 코어에 넘기면 feasible 이고 택시 안내가 붙는다."""
-    tmap(transit(65 * 60), taxi_reply=by_taxi(20 * 60, 9400))
+    tmap(transit(65 * 60), taxi_reply=by_taxi(20 * 60, 10000))
     legs, _ = live_legs(t01(), "key")
     out = judge(t01(), {**facts, "legs": {**facts["legs"], **legs}}, policy)
     assert out["summary"]["verdict"] == "feasible"

@@ -10,6 +10,7 @@ TMAP 길찾기 — 판정할 때 일정의 구간마다 예상 이동시간을 �
 
 from __future__ import annotations
 
+import http.client
 import json
 import math
 import socket
@@ -27,6 +28,7 @@ TIMEOUT_S = 20
 TOO_CLOSE = 11  # 대중교통 API 의 "출발지와 도착지가 너무 가까움". HTTP 200 으로 온다
 RETRIES = 3     # 429(너무 빨리 부름)를 받았을 때 다시 묻는 횟수
 BACKOFF_S = 1   # Retry-After 가 없으면 1초 · 2초 · 4초 기다린다
+MAX_WAIT_S = 30  # Retry-After 가 아무리 길어도 이만큼만 기다린다. 넘으면 RATE_LIMITED 로 남는다
 sleep = time.sleep  # 테스트에서 바꿔 끼운다
 
 # TMAP 장소 검색에서 이름이 우리 이름과 다르게 나오는 곳. 2026-10-05 check-tmap-api.mjs 로 확인했다.
@@ -59,7 +61,7 @@ def call(method: str, url: str, key: str, body: dict | None = None) -> dict:
             #    네 번 부르자 네 번째가 429 였다(하루 무료 한도 안). 기다릴 시간(Retry-After)을 주면
             #    그만큼, 안 주면 1 · 2 · 4초 기다렸다 다시 묻는다. 그래도 막히면 RATE_LIMITED 로 남긴다.
             if e.code == 429 and attempt < RETRIES:
-                sleep(_retry_after(e) or BACKOFF_S * 2 ** attempt)
+                sleep(min(_retry_after(e) or BACKOFF_S * 2 ** attempt, MAX_WAIT_S))
                 continue
             raise Miss("RATE_LIMITED" if e.code == 429 else "HTTP_ERROR", f"HTTP {e.code}") from e
         except (TimeoutError, socket.timeout) as e:
@@ -69,6 +71,10 @@ def call(method: str, url: str, key: str, body: dict | None = None) -> dict:
             if isinstance(e.reason, (TimeoutError, socket.timeout)):
                 raise Miss("TIMEOUT", f"{TIMEOUT_S}초 안에 응답하지 않았다") from e
             raise Miss("NETWORK_ERROR", str(e.reason)) from e
+        except (http.client.HTTPException, OSError) as e:
+            # 요청을 보낸 뒤 응답을 받다가 끊긴 것은 URLError 로 감싸지지 않고 그대로 온다
+            # (RemoteDisconnected · ConnectionResetError · IncompleteRead). 한 구간 때문에 검증 전체가 멈추면 안 된다
+            raise Miss("NETWORK_ERROR", f"{type(e).__name__}: {e}") from e
     if not raw.strip():
         return {}
     try:
@@ -167,11 +173,18 @@ def live_legs(itinerary: dict, key: str) -> tuple[dict, dict]:
     for a, b in pairs:
         if not a.get("start"):
             continue  # 시각이 없으면 판정 코어도 이 구간을 판정하지 않는다
+        if "area" in (a.get("scope"), b.get("scope")):
+            continue  # 구역은 대표 지점으로 길을 찾지 않는다. 판정 코어도 이 구간을 판정하지 않는다
         k = f"{a['place']}|{b['place']}"
         try:
             for name in (a["place"], b["place"]):
                 if name not in at:
-                    at[name] = place_entrance(name, key)
+                    try:
+                        at[name] = place_entrance(name, key)
+                    except Miss as e:
+                        at[name] = e  # 못 찾은 장소는 다음 구간에서 다시 묻지 않는다
+                if isinstance(at[name], Miss):
+                    raise at[name]
             depart = (datetime.combine(day, datetime.strptime(a["start"], "%H:%M").time())
                       + timedelta(minutes=a.get("dwell_minutes") or 0))
             legs[k] = leg(a["place"], at[a["place"]], b["place"], at[b["place"]], depart, key)

@@ -224,6 +224,16 @@ def test_fixed_date_on_holiday_monday_is_rule_conflict(facts, policy):
     assert c["unknown_reason"] == "RULE_CONFLICT"
 
 
+def test_no_exception_rule_closes_even_on_a_holiday(facts, policy):
+    """
+    예외 규칙이 없으면 정기휴일이 공휴일이어도 쉬고, 다음 날로 밀지도 않는다. 지금 이 규칙을 쓰는 장소는
+    없지만, 전에는 궁궐처럼 다음 날로 밀어서 문을 연 날을 휴무로 확정했다. 2026-10-05(월)은 개천절 대체공휴일이다.
+    """
+    facts["places"][MUSEUM]["closed_days"]["exception_rule"] = "none"
+    assert closed_day(judge(museum_on("2026-10-05"), facts, policy), MUSEUM)["status"] == FAIL
+    assert closed_day(judge(museum_on("2026-10-06"), facts, policy), MUSEUM)["status"] == PASS
+
+
 # ── F. LLM 이 추정한 입력 ─────────────────────────────────────────────
 # 추출 단계는 "점심 먹고" 같은 표현에서 시각을 짐작하면 start_source=inferred,
 # 연도가 없으면 가장 가까운 미래로 채우고 date_source=inferred 로 표시한다.

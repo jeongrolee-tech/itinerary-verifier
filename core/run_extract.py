@@ -214,7 +214,8 @@ run = {
     "estimated_cost_per_case_usd": None if cost is None else round(cost / max(len(results), 1), 4),
     "results": results,
 }
-(HERE / "last-extract-run.json").write_text(
-    json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
-print(f"  기록: core/last-extract-run.json  ({run['run_id']})")
+# 일부만 돌린 결과(--case · --extract-only)는 공식 기록을 덮어쓰지 않는다 — compare.py 와 같은 규칙
+RECORD = "last-extract-run-subset.json" if only or extract_only else "last-extract-run.json"
+(HERE / RECORD).write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
+print(f"  기록: core/{RECORD}  ({run['run_id']})")
 print(describe(CONDITIONS))
