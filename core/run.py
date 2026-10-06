@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from labels import stale_reason  # noqa: E402
 from report import render, report  # noqa: E402
 from runmeta import describe, run_meta  # noqa: E402
 from verdict import UNKNOWN, judge  # noqa: E402
@@ -50,39 +51,9 @@ FACTS_SNAPSHOT = facts["snapshot_id"]
 LABEL_SNAPSHOT = suite.get("labeled_against_snapshot")
 
 
-def stale_reason(case: dict) -> str | None:
-    """
-    라벨은 판정 코드와 독립이어야 하지만 데이터 스냅샷과는 독립일 수 없다.
-    같은 입력의 정답이 facts.json 버전에 따라 달라지기 때문이다 — T10 이 그 증거다.
-
-    다만 스냅샷 id 만 비교하면 너무 거칠다. 데이터가 한 곳 바뀌었다고 15건을 전부
-    무효로 보면 지표가 사라진다. **케이스가 의존하는 키가 바뀌었을 때만** 미검토로 본다.
-
-    판정 결과를 보고 판단하지 않는다는 점이 중요하다. 케이스의 stops 와 changed_keys 의
-    교집합만 본다 — 코드가 무엇을 냈는지는 쓰지 않는다.
-    """
-    # ⭐ 여기서 out["summary"]["verdict"] 를 쓰고 싶어지는데, 쓰면 순환 논리가 된다.
-    #    "코드 출력이 라벨과 다르면 라벨이 낡은 것" 으로 판단하면, 코드에 진짜
-    #    버그가 있을 때도 "라벨이 낡았네" 로 넘어가 버려 버그를 영원히 못 잡는다.
-    #    그래서 데이터끼리만(케이스의 장소 목록 ↔ 바뀐 키 목록) 비교한다.
-    if case.get("label_review_needed"):
-        return case["label_review_needed"]
-    if case.get("labeled_against", LABEL_SNAPSHOT) == FACTS_SNAPSHOT:
-        return None
-
-    hist = facts.get("snapshot_history") or []
-    changed = (hist[-1].get("changed_keys") if hist else None) or {}
-    places = [s["place"] for s in case["stops"]]
-    n_legs = max(0, len(places) - 1) + len(case.get("hard_constraints", []))
-
-    hits = [f"places: {p}" for p in places if p in (changed.get("places") or [])]
-    if n_legs and changed.get("legs") == "ALL":
-        hits.append(f"legs {n_legs}구간")
-    return " / ".join(hits) if hits else None
-
-
 def label_is_current(case: dict) -> bool:
-    return stale_reason(case) is None
+    """라벨이 지금 데이터에서도 유효한가. 판단은 core/labels.py — run_extract · compare 와 같은 규칙이다."""
+    return stale_reason(case, suite, facts) is None
 
 
 def detail(case, out, problems):
@@ -209,7 +180,7 @@ for case in cases:
     results.append({"id": case["id"], "set": case["set"], "expect": case["expect"],
                     "match": not problems, "problems": problems, "elapsed_ms": ms,
                     "label_current": label_is_current(case),
-                    "stale_reason": stale_reason(case),
+                    "stale_reason": stale_reason(case, suite, facts),
                     "expect_applied": case.get("expect_applied"), **out})
     rows.append((case, out, problems))
 

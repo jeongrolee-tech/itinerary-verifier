@@ -12,6 +12,7 @@
     "transit_leg": 10,
     "rail_boarding": 15
   },
+  "buffer_note": "flight_boarding 은 일부러 두지 않는다. 항공편은 탑승 수속 · 보안 검색 마감이 항공사와 공항마다 달라 우리가 정한 값으로 '탈 수 있다' 고 할 수 없다. 기준이 없으면 판정 코어가 pass 를 내지 않는다(NO_BUFFER_RULE).",
 
   "default_dwell_note": "판정에는 쓰지 않는다. 체류시간을 모르면 0분을 하한으로 보고, 기본값은 사용자에게 물어볼 때 안내에만 쓴다.",
 

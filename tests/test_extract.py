@@ -114,3 +114,9 @@ def test_value_and_its_source_must_agree(path, value):
     """시각이 있는데 출처가 missing 이면 판정 코어가 그 시각을 사용자가 말한 값처럼 쓴다."""
     with pytest.raises(ValidationError):
         Extraction.model_validate(changed(path, value))
+
+
+def test_flight_gets_no_buffer_rule_from_policy():
+    """항공편은 flight_boarding 으로 옮긴다. 정책에 그 기준이 없어서 판정 코어가 pass 를 내지 않는다."""
+    ex = Extraction.model_validate(changed(("hard_constraints", 0, "type"), "FLIGHT_DEPARTURE"))
+    assert to_itinerary(ex)["hard_constraints"][0]["buffer_rule"] == "flight_boarding"

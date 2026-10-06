@@ -346,9 +346,16 @@ def test_arriving_by_next_opening_is_enough(facts, policy):
 # "까지 도착" 은 그 시각에 닿으면 제시간이다.
 
 def market_until(time, type_, place="김포공항"):
+    rule = "flight_boarding" if type_ == "FLIGHT_DEPARTURE" else "transit_leg"  # extract.BUFFER_RULES 와 같다
     return {"date": THURSDAY, "stops": [{"place": MARKET, "start": "18:00", "dwell_minutes": 60}],
             "hard_constraints": [{"id": "HC1", "type": type_, "place": place, "time": time,
-                                  "buffer_rule": "transit_leg", "source": "user_stated"}]}
+                                  "buffer_rule": rule, "source": "user_stated"}]}
+
+
+def to_airport(facts, minutes=20):
+    """광장시장 → 김포공항 구간을 판정할 때 받는 예상치 모양으로 넣는다. 값은 테스트용으로 정했다."""
+    facts["legs"][f"{MARKET}|김포공항"] = {"minutes": minutes, "mode": "transit", "is_lower_bound": False,
+                                       "source": "synthetic_fixture", "method": "synthetic_fixture"}
 
 
 def test_flight_message_does_not_say_train(facts, policy):
@@ -366,3 +373,18 @@ def test_leaving_at_departure_time_misses_the_flight(facts, policy):
 def test_leaving_at_deadline_is_not_late_for_arrive_by(facts, policy):
     """19:00 에 나와서 "19:00 까지 도착" — 이동 0분이면 제시간이라 그것만으로 fail 이 아니다."""
     assert train(judge(market_until("19:00", "ARRIVE_BY"), facts, policy))["status"] != FAIL
+
+
+def test_flight_is_never_passed_without_a_boarding_rule(facts, policy):
+    """19:00 에 나와 20분이면 19:20 공항 — 21:00 항공편보다 100분 일러도 pass 가 아니다. 탑승 수속 ·
+    보안 검색 기준을 확보하지 않았다. 중요도는 그대로다."""
+    to_airport(facts)
+    p = train(judge(market_until("21:00", "FLIGHT_DEPARTURE"), facts, policy))
+    assert p["status"] == UNKNOWN and p["unknown_reason"] == "NO_BUFFER_RULE"
+    assert p["severity"] == "blocking"
+
+
+def test_arrive_by_still_passes_with_its_rule(facts, policy):
+    """대조군: '21:00 까지 도착' 은 권장 여유 기준(transit_leg)이 있어 지금처럼 pass 다."""
+    to_airport(facts)
+    assert train(judge(market_until("21:00", "ARRIVE_BY"), facts, policy))["status"] == PASS

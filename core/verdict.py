@@ -688,13 +688,14 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
     result = {"id": hc["id"], "event": event}
 
     last = stops[-1]
+    # 권장 도착 여유. 정책에 기준이 없으면(항공편) None 이고, 그때는 pass 를 내지 않는다(아래 NO_BUFFER_RULE)
     buffer = policy["buffer_minutes"].get(hc.get("buffer_rule", "rail_boarding"))
-    required = to_min(hc["time"]) - buffer
+    required = None if buffer is None else to_min(hc["time"]) - buffer
 
     policy_eval = {
         "buffer_minutes": buffer,
-        "buffer_source": "system_default",
-        "required_arrival": to_hhmm(required),
+        "buffer_source": None if buffer is None else "system_default",
+        "required_arrival": None if required is None else to_hhmm(required),
         # ⭐ status 와 severity 는 서로 다른 질문이다. 섞으면 위험한 문제가 숨는다.
         #      status   지금 정보로 확정할 수 있나   pass / fail / unknown / n.a.
         #      severity 실패하면 타격이 큰가        blocking / warning
@@ -765,7 +766,7 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
         travel_minutes=leg["minutes"],
         travel_source=leg.get("source"), travel_snapshot=leg.get("snapshot_id"),
         margin_vs_event=round(event_time - est),
-        margin_vs_required=round(required - est),
+        margin_vs_required=None if required is None else round(required - est),
         is_lower_bound=leg.get("is_lower_bound", False),
     )
 
@@ -799,7 +800,7 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
             policy_eval.update(
                 estimated_arrival=to_hhmm(earliest),
                 margin_vs_event=round(event_time - earliest),
-                margin_vs_required=round(required - earliest),
+                margin_vs_required=None if required is None else round(required - earliest),
             )
             return late(f"{last['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {ev}에 늦는다")
 
@@ -823,7 +824,21 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
     # 확정 위반은 아니다.
     if misses(est):
         return late(f"예상 도착({to_hhmm(est)})이 {ev}보다 늦다")
-    if est > required:
+    if required is None:
+        # ⭐ 권장 여유 기준이 없는 필수 조건은 pass 를 내지 않는다 (2차 피드백 1번 "가능하다고 단정해서도
+        #    안 된다"). 항공편은 탑승 수속 · 보안 검색 마감이 항공사와 공항마다 달라 우리가 정한 값으로
+        #    탈 수 있다고 할 수 없다. 출발 전에 닿는다는 것까지만 알린다. 이동 0분으로도 늦으면 위에서 fail 이다.
+        policy_eval.update(
+            status=UNKNOWN,
+            unknown_reason="NO_BUFFER_RULE",
+            detail=(f"{ev} 전 {round(event_time - est)}분 도착 예상이지만, 탑승 수속 · 보안 검색에 필요한 "
+                    f"시간 기준이 없어 탈 수 있는지 확정하지 않는다"),
+            confirmed=f"현재 이동시간 기준으로는 {ev} 전 {round(event_time - est)}분 도착한다",
+            not_confirmed="탑승 수속 · 보안 검색을 마치고 탈 수 있는지",
+            how_to_resolve={"user": "항공사 안내에서 탑승 수속 마감 시각을 확인해 주세요",
+                            "system": "공항 · 항공사 공식 안내에서 권장 도착 시각 확보"},
+        )
+    elif est > required:
         policy_eval.update(
             status=UNKNOWN,
             unknown_reason="BUFFER_NOT_MET",

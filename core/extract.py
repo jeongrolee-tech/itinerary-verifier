@@ -138,6 +138,12 @@ def extract(text: str, client: anthropic.Anthropic | None = None,
                content=f"오늘은 {today} 이다.\n\n{text}", schema=Extraction)
 
 
+# 필수 조건마다 권장 도착 여유 기준(policy.json buffer_minutes). flight_boarding 은 정책에 일부러 두지 않았다 —
+# 탑승 수속 기준을 확보하지 않아서다. 기준이 없으면 판정 코어가 pass 를 내지 않는다(NO_BUFFER_RULE).
+BUFFER_RULES = {"TRAIN_DEPARTURE": "rail_boarding", "FLIGHT_DEPARTURE": "flight_boarding",
+                "ARRIVE_BY": "transit_leg", "OTHER": "transit_leg"}
+
+
 def to_itinerary(ex: Extraction) -> dict:
     """판정 코어가 읽는 모양으로 옮긴다. 값을 채우지 않는다."""
     return {
@@ -157,7 +163,7 @@ def to_itinerary(ex: Extraction) -> dict:
         ],
         "hard_constraints": [
             {"id": f"HC{i + 1}", "type": hc.type, "place": hc.place, "time": hc.time,
-             "buffer_rule": "rail_boarding" if hc.type == "TRAIN_DEPARTURE" else "transit_leg",
+             "buffer_rule": BUFFER_RULES[hc.type],
              "source": "user_stated", "raw": hc.raw}
             for i, hc in enumerate(ex.hard_constraints)
         ],

@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic  # noqa: E402
 from extract import SYSTEM, Extraction, extract, to_itinerary  # noqa: E402
+from labels import stale_reason  # noqa: E402
 from llm import InvalidOutput, Refusal  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
@@ -159,6 +160,9 @@ for case in cases:
            "notes": ex.notes}
 
     if not extract_only:
+        # 라벨을 검토한 뒤 데이터가 바뀌었으면 판정 채점에서 뺀다 — run.py · compare.py 와 같은 규칙
+        stale = stale_reason(case, suite, facts)
+        row["label_current"], row["stale_reason"] = stale is None, stale
         # 추출 결과를 그대로 판정 코어에 넣는다. 사람이 고치지 않는다.
         if got.get("date"):
             out = judge(got, facts, policy)
@@ -189,10 +193,14 @@ for r in results:
 n_ex = sum(1 for r in results if r.get("extraction_ok"))
 print(f"\n  추출 {n_ex}/{len(results)}")
 if not extract_only:
-    n_e2e = sum(1 for r in results if r.get("end_to_end_ok"))
-    n_v = sum(1 for r in results if r.get("verdict_ok"))
-    print(f"  판정 {n_v}/{len(results)}")
-    print(f"  전체 {n_e2e}/{len(results)}  (추출과 판정이 모두 맞은 건수)")
+    scored = [r for r in results if r.get("label_current", True)]
+    stale = [r for r in results if not r.get("label_current", True)]
+    n_e2e = sum(1 for r in scored if r.get("end_to_end_ok"))
+    n_v = sum(1 for r in scored if r.get("verdict_ok"))
+    print(f"  판정 {n_v}/{len(scored)}")
+    print(f"  전체 {n_e2e}/{len(scored)}  (추출과 판정이 모두 맞은 건수)")
+    if stale:
+        print(f"  ⚠ 라벨 미검토 {len(stale)}건은 판정 채점에서 뺐다: " + ", ".join(r["id"] for r in stale))
 
 totals = {"in": sum(u["input_tokens"] for u in usages), "out": sum(u["output_tokens"] for u in usages),
           "cache_read": sum(u["cache_read"] for u in usages),

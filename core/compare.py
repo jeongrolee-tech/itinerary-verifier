@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).parent))
+from labels import stale_reason  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
@@ -64,17 +65,7 @@ cases = [c for c in suite["cases"] if not only or c["id"].startswith(only)]
 
 # ── 라벨 유효성 (run.py 와 같은 규칙) ────────────────────────────────
 def label_is_current(case: dict) -> bool:
-    if case.get("label_review_needed"):
-        return False
-    if case.get("labeled_against", suite.get("labeled_against_snapshot")) == facts["snapshot_id"]:
-        return True
-    hist = facts.get("snapshot_history") or []
-    changed = (hist[-1].get("changed_keys") if hist else None) or {}
-    places = [s["place"] for s in case["stops"]]
-    n_legs = max(0, len(places) - 1) + len(case.get("hard_constraints", []))
-    if any(p in (changed.get("places") or []) for p in places):
-        return False
-    return not (n_legs and changed.get("legs") == "ALL")
+    return stale_reason(case, suite, facts) is None
 
 
 # ── LLM arm 의 출력 스키마 — 코드 출력과 같은 모양이어야 비교가 된다 ──
