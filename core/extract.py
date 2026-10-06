@@ -35,7 +35,7 @@ class Stop(BaseModel):
     place: str = Field(description="입력에 적힌 장소명 그대로. 바꾸거나 정식 명칭으로 고치지 않는다")
     start: Clock | None = Field(description="HH:MM (24시간). 입력에 시각이 없으면 null")
     start_source: Source = Field(
-        description="explicit=시각이 적혀 있음 / inferred='점심 먹고' 처럼 문맥에서 추정 / missing=없음"
+        description="explicit=오전·오후·아침·저녁·밤이 붙은 시각이나 '17시 30분' 같은 24시간 표기 / inferred='점심 먹고', 오전·오후 없는 '3시' 처럼 추정 / missing=없음"
     )
     # ⭐ int 가 아니라 int | None 인 것이 핵심이다.
     #    "광장시장에서 저녁" 에 60분을 넣어버리면, 나중에 그 60분이 사용자가
@@ -98,7 +98,9 @@ SYSTEM = """너는 여행 일정 텍스트를 구조화하는 추출기다. 판�
    장소 유형으로 체류시간을 추정하지 않는다. 그건 판정 단계의 정책이다.
 
 2. 시각을 문맥에서 추정했으면 start_source 를 inferred 로 적는다.
-   "점심 먹고" → 12:00 은 추정이다. "오후 1시" 는 explicit 이다.
+   "점심 먹고" → 12:00 은 추정이다. "오후 1시", "저녁 6시 반", "17시 30분" 은 explicit 이다.
+   오전·오후·아침·저녁·밤 같은 말이 그 시각에 붙어 있지 않으면 추정이다. "3시에 경복궁" 은 일정에
+   가장 그럴듯한 15:00 으로 적고 inferred 로 표시한다. 앞에 "오후 1시" 가 있어도 붙지 않은 "3시" 는 inferred 다.
 
 3. 장소명은 입력에 적힌 그대로 옮긴다. 정식 명칭으로 고치거나 지점을 붙이지 않는다.
 
