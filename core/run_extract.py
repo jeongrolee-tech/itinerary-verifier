@@ -21,10 +21,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic  # noqa: E402
-from extract import SYSTEM, extract, to_itinerary  # noqa: E402
-from llm import Refusal  # noqa: E402
+from extract import SYSTEM, Extraction, extract, to_itinerary  # noqa: E402
+from llm import InvalidOutput, Refusal  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
-from runmeta import describe, fingerprint, reference_date, run_meta  # noqa: E402
+from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -45,7 +45,10 @@ cases = [c for c in suite["cases"] if not only or c["id"].startswith(only)]
 
 # 연도가 빠진 날짜를 푸는 기준 날짜. 실행한 날이 아니라 tests.json 의 값이다 (runmeta.reference_date).
 REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
-CONDITIONS = run_meta(reference_date=REFERENCE_DATE, prompts={"extract": fingerprint(SYSTEM)})
+# 모델이 받는 것은 시스템 프롬프트와 출력 스키마다. 스키마도 지문으로 남기고, 스키마를 만드는 SDK 버전도 적는다
+SCHEMA = json.dumps(anthropic.transform_schema(Extraction), ensure_ascii=False, sort_keys=True)
+CONDITIONS = run_meta(reference_date=REFERENCE_DATE, libraries=library_versions(),
+                      prompts={"extract": fingerprint(SYSTEM), "extract_schema": fingerprint(SCHEMA)})
 
 LINE = "═" * 78
 MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
@@ -115,6 +118,12 @@ for case in cases:
         usages.append(e.usage)  # 거부된 호출도 청구될 수 있다(model_info.billed)
         print(f"❌ 추출 거부: {e}")
         results.append({"id": case["id"], "extraction_ok": False, "error": f"refusal: {e}",
+                        "usage": e.usage})
+        continue
+    except InvalidOutput as e:
+        usages.append(e.usage)  # 끝까지 온 응답이라 청구된다
+        print(f"❌ 추출 형식 오류: {e}")
+        results.append({"id": case["id"], "extraction_ok": False, "error": f"invalid_output: {e}",
                         "usage": e.usage})
         continue
     except anthropic.APIError as e:

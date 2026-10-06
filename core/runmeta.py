@@ -66,6 +66,21 @@ def reference_date(suite: dict, override: str | None = None) -> str:
     return date.fromisoformat(override or suite["reference_date"]).isoformat()
 
 
+def library_versions() -> dict:
+    """모델에 보내는 스키마를 만드는 SDK(anthropic)와 받은 것을 검증하는 pydantic 의 버전.
+
+    requirements.txt 는 하한만 적어서, 같은 커밋이라도 설치된 버전에 따라 모델이 받는 스키마가 달라질 수 있다.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+    found = {}
+    for name in ("anthropic", "pydantic"):
+        try:
+            found[name] = version(name)
+        except PackageNotFoundError:
+            found[name] = None
+    return found
+
+
 def describe(meta: dict) -> str:
     """화면용 한두 줄."""
     commit = (meta["code_commit"] or "알 수 없음")[:7]

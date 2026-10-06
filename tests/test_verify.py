@@ -9,9 +9,11 @@ Claude 응답은 SDK 의 Message 로 만들고(test_llm.py 와 같은 이유), T
 
 import json
 
+import pytest
 from anthropic.types import Message
 
 import routes
+from llm import InvalidOutput
 from verify import verify
 
 TEXT = "10월 8일 목요일 오후 1시에 서울시립미술관 서소문본관에서 한 시간, 3시에 경복궁에서 두 시간 볼 거예요."
@@ -101,3 +103,12 @@ def test_no_date_asks_first_and_calls_no_tmap(monkeypatch, facts, policy):
     out = run({**T01, "date": None, "date_source": "missing", "weekday_stated": None}, facts, policy)
     assert sent == []
     assert "[결과]  undetermined" in out
+
+
+def test_malformed_extraction_stops_before_tmap(monkeypatch, facts, policy):
+    """Claude 가 '1:00 PM' 처럼 형식이 틀린 시각을 내면 판정 코어와 TMAP 에 넘기지 않고 멈춘다."""
+    sent = tmap(monkeypatch, 20)
+    bad = {**T01, "stops": [{**T01["stops"][0], "start": "1:00 PM"}, T01["stops"][1]]}
+    with pytest.raises(InvalidOutput):
+        run(bad, facts, policy)
+    assert sent == []

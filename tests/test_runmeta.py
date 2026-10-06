@@ -9,7 +9,7 @@
 import pytest
 
 import runmeta
-from runmeta import fingerprint, reference_date, run_meta, uncommitted
+from runmeta import fingerprint, library_versions, reference_date, run_meta, uncommitted
 
 
 def test_fingerprint_ignores_line_endings():
@@ -58,3 +58,10 @@ def test_reference_date_must_be_a_real_date():
     """13월 같은 값은 실행을 시작하기 전에 멈춘다. 이상한 날짜로 돌린 기록이 남지 않게."""
     with pytest.raises(ValueError):
         reference_date({"reference_date": "2026-09-22"}, "2026-13-01")
+
+
+def test_library_versions_are_recorded():
+    """모델이 받는 스키마는 SDK 버전에 따라 달라질 수 있다. 같은 커밋이라도 버전을 함께 남긴다."""
+    versions = library_versions()
+    assert set(versions) == {"anthropic", "pydantic"}
+    assert all(versions.values())  # 테스트 환경에는 둘 다 설치돼 있다

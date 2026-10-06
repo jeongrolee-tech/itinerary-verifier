@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic  # noqa: E402
 from extract import extract, to_itinerary  # noqa: E402
-from llm import Refusal  # noqa: E402
+from llm import InvalidOutput, Refusal  # noqa: E402
 from report import render, report  # noqa: E402
 from routes import live_legs  # noqa: E402
 from verdict import MODE_NAMES, judge  # noqa: E402
@@ -76,6 +76,8 @@ def main() -> None:
         print(verify(text, claude, tmap_key, load("facts.json"), load("policy.json"), date.today().isoformat()))
     except Refusal as e:
         raise SystemExit(f"일정을 옮기지 못했다 — 모델이 거부했다: {e}") from e
+    except InvalidOutput as e:
+        raise SystemExit(f"일정을 옮기지 못했다 — 모델 출력이 형식에 맞지 않았다: {e}") from e
 
 
 if __name__ == "__main__":

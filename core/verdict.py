@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date as Date, timedelta
 from typing import Any
 
@@ -22,6 +23,8 @@ PASS, FAIL, UNKNOWN, NA = "pass", "fail", "unknown", "not_applicable"
 
 # date.weekday() 는 월요일이 0
 WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+# 판정 코어가 읽는 시각 형식. HH:MM 24시간 — 추출(extract.py)도 이 형식으로만 내보낸다
+HHMM = r"([01]\d|2[0-3]):[0-5]\d"
 
 
 # ── 시간 유틸 (전부 '분' 단위 정수로 다룬다) ──────────────────────────
@@ -79,7 +82,9 @@ def input_checks(itinerary: dict) -> list[dict]:
 
     추출 단계는 날짜나 시작 시각을 None 으로 남길 수 있다. 그 값을 그대로
     시간 계산에 넘기면 예외로 죽는다. 입력이 부족한 것도 검증 결과의
-    일부이므로 오류를 내지 않고 unknown 검사로 돌려준다.
+    일부이므로 오류를 내지 않고 unknown 검사로 돌려준다. "1:00 PM" 처럼
+    읽을 수 없는 시각도 같다 — tests.json 이나 사용자가 고친 일정(recheck)은 추출의
+    형식 검증을 거치지 않고 들어온다.
     """
     missing: list[dict] = []
 
@@ -127,6 +132,13 @@ def input_checks(itinerary: dict) -> list[dict]:
                 detail="방문 시작 시각이 없어 입장과 이동시간을 계산할 수 없다",
                 how_to_resolve={"user": f"{name}에 몇 시에 도착할 예정인가요?"},
             ))
+        elif not re.fullmatch(HHMM, str(stop["start"])):
+            missing.append(check(
+                "INPUT_REQUIRED", name, UNKNOWN,
+                unknown_reason="INVALID_TIME",
+                detail=f"방문 시작 시각({stop['start']})을 HH:MM(24시간)으로 해석할 수 없다",
+                how_to_resolve={"user": f"{name}에 몇 시에 도착할 예정인가요?"},
+            ))
 
     for i, constraint in enumerate(itinerary.get("hard_constraints") or [], 1):
         if not constraint.get("place") or not constraint.get("time"):
@@ -135,6 +147,13 @@ def input_checks(itinerary: dict) -> list[dict]:
                 unknown_reason="INCOMPLETE_HARD_CONSTRAINT",
                 detail="필수 조건에 장소 또는 시각이 없다",
                 how_to_resolve={"user": "필수 이동수단의 장소와 출발 시각을 알려주세요"},
+            ))
+        elif not re.fullmatch(HHMM, str(constraint["time"])):
+            missing.append(check(
+                "INPUT_REQUIRED", f"필수 조건 HC{i}", UNKNOWN,
+                unknown_reason="INVALID_TIME",
+                detail=f"필수 조건 시각({constraint['time']})을 HH:MM(24시간)으로 해석할 수 없다",
+                how_to_resolve={"user": "필수 조건의 시각을 다시 알려주세요"},
             ))
 
     return missing

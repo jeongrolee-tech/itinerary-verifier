@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from anthropic import transform_schema
+from pydantic import ValidationError
 
 
 class Refusal(Exception):
@@ -23,12 +24,24 @@ class Refusal(Exception):
         self.usage = usage
 
 
+class InvalidOutput(Exception):
+    """모델 출력을 쓸 수 없다 — 응답이 끝까지 오지 않았거나(max_tokens 등) 스키마 검증을 통과하지 못했다.
+
+    거부와 같이 사용량을 함께 넘긴다. 청구된 호출이라 비용에서 빠지면 안 되고, 평가 실행은 이 케이스를
+    오류로 남기고 다음으로 넘어간다.
+    """
+
+    def __init__(self, message: str, usage: dict):
+        super().__init__(message)
+        self.usage = usage
+
+
 def ask(client, *, model: str, effort: str | None, system: str, content: str, schema,
         max_tokens: int = 16000):
     """한 번 불러 schema(pydantic 모델)로 검증한 결과와 사용량을 돌려준다.
 
     system 은 캐시한다 — 케이스마다 같으므로 두 번째 호출부터 캐시 읽기 단가가 붙는다.
-    거부면 Refusal 을, 응답이 끝까지 오지 않았으면(max_tokens 등) RuntimeError 를 낸다.
+    거부면 Refusal 을, 응답이 끝까지 오지 않았거나 스키마에 맞지 않으면 InvalidOutput 을 낸다.
     """
     # ⭐ SDK 의 messages.parse() 를 쓰지 않는다. parse() 는 stop_reason 을 보기 전에 본문을
     #    스키마로 검증한다(anthropic 1.7.0 · 1.11.0 의 lib/_parse/_response.py). 출력 도중 거부돼 JSON 이
@@ -63,6 +76,12 @@ def ask(client, *, model: str, effort: str | None, system: str, content: str, sc
     if r.stop_reason == "refusal":
         raise Refusal(f"{usage['refusal_category']} — {usage['refusal_explanation']}", usage)
     if r.stop_reason != "end_turn":
-        raise RuntimeError(f"응답이 끝까지 오지 않았다: stop_reason={r.stop_reason} (max_tokens={max_tokens})")
+        raise InvalidOutput(f"응답이 끝까지 오지 않았다: stop_reason={r.stop_reason} (max_tokens={max_tokens})",
+                            usage)
     text = next(b.text for b in r.content if b.type == "text")
-    return schema.model_validate_json(text), usage
+    try:
+        return schema.model_validate_json(text), usage
+    except ValidationError as e:
+        first = e.errors()[0]
+        where = ".".join(str(p) for p in first["loc"]) or "본문"
+        raise InvalidOutput(f"스키마에 맞지 않는다 ({e.error_count()}곳) — {where}: {first['msg']}", usage) from e

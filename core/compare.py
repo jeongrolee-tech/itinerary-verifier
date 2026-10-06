@@ -36,7 +36,7 @@ from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).parent))
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
-from runmeta import describe, fingerprint, reference_date, run_meta  # noqa: E402
+from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -195,6 +195,9 @@ def run_llm(case, client, Judgment, system: str, payload: str):
         return {"verdict": "refused", "checks": [], "message": "",
                 "stop_details": {"category": e.usage["refusal_category"],
                                  "explanation": e.usage["refusal_explanation"]}}, e.usage
+    except InvalidOutput as e:
+        # 형식이 틀린 응답도 판정이 아니다. 따로 세고, 청구된 사용량은 비용에 넣는다
+        return {"verdict": "invalid", "checks": [], "message": str(e)}, e.usage
     return j.model_dump(), usage
 
 
@@ -242,6 +245,8 @@ def metrics(scored: list[dict]) -> dict:
         "decisive_rate": round(sum(1 for r in scored if got(r) in ("feasible", "infeasible")) / n, 3),
         # 모델이 응답을 거부한 건수
         "refused": sum(1 for r in scored if got(r) == "refused"),
+        # 형식이 틀린 응답 건수. 보류와 섞지 않는다
+        "invalid_output": sum(1 for r in scored if got(r) == "invalid"),
         "counts": {"actual_infeasible": len(actual_bad), "actual_feasible": len(actual_ok),
                    "actual_undetermined": n - len(actual_bad) - len(actual_ok)},
     }
@@ -283,11 +288,13 @@ class StubClient:
 
 DRY = "--dry-run" in args
 need_llm = any(a.startswith("llm") for a in ARMS)
-client = Judgment = None
+client = Judgment = JUDGMENT_SCHEMA = None
 if need_llm:
     # anthropic 이 있어야 읽힌다. 코드 arm 만 돌릴 때는 읽지 않는다
-    from llm import Refusal, ask  # noqa: E402
+    from anthropic import transform_schema  # noqa: E402
+    from llm import InvalidOutput, Refusal, ask  # noqa: E402
     Judgment = build_models()
+    JUDGMENT_SCHEMA = fingerprint(json.dumps(transform_schema(Judgment), ensure_ascii=False, sort_keys=True))
     if DRY:
         client = StubClient()
         print("  [--dry-run] API 를 부르지 않는다. 배선만 확인한다.\n")
@@ -331,9 +338,9 @@ FACTS_LLM = facts_for_llm()
 # LLM arm 이 연도 없는 날짜를 푸는 기준. 고정해 둬야 언제 돌려도 같은 입력이 된다.
 # 추출 채점과 같은 값을 tests.json 에서 읽는다 (runmeta.reference_date).
 REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
-CONDITIONS = run_meta(reference_date=REFERENCE_DATE, prompts={
+CONDITIONS = run_meta(reference_date=REFERENCE_DATE, libraries=library_versions(), prompts={
     "llm_naive": fingerprint(SYSTEM_LLM_NAIVE), "llm_only": fingerprint(SYSTEM_LLM_ONLY),
-    "llm_with_facts": fingerprint(SYSTEM_LLM_FACTS)})
+    "llm_with_facts": fingerprint(SYSTEM_LLM_FACTS), "judgment_schema": JUDGMENT_SCHEMA})
 # ⭐ last-compare.json 에는 모든 arm · 모든 케이스를 한 조건에서 돌린 결과만 둔다.
 #    일부만 돌린 결과를 이전 기록에 얹었더니 한 기록 안에 다른 라벨 · 다른 코드로 낸
 #    판정이 섞였다 — 옛 기대값이 남은 행이 멘토 피드백 3번에서 지적됐다. 일부 실행은
@@ -412,6 +419,7 @@ if scorable:
         ("undetermined_rate", "판정 보류 비율"),
         ("decisive_rate", "유효 판단 제공 비율"),
         ("refused", "모델 거부 (건)"),
+        ("invalid_output", "형식 오류 응답 (건)"),
     ]
     w = max(len(l) for _, l in LABELS) + 2
     print(f"\n  {'지표'.ljust(w)}" + "".join(f"{a:<18}" for a in ARMS))

@@ -11,21 +11,29 @@
 
 from __future__ import annotations
 
-from typing import Literal
+import datetime as dt
+from typing import Annotated, Literal
 
 import anthropic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from llm import ask
 from model_info import DEFAULT_MODEL
+from verdict import HHMM
 
 Source = Literal["explicit", "inferred", "missing"]
+Weekday = Literal["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+# ⭐ 형식이 맞아야 판정 코어와 길찾기가 읽는다. "1:00 PM" 이나 "2026-02-30" 을 그대로 넘기면 계산하다
+#    멈추거나 엉뚱한 시각으로 판정한다 (2차 피드백 4번). 날짜 형식과 요일 목록은 스키마에 넣어 API 가
+#    지키게 하고, 시각 패턴과 체류 범위는 API 가 설명으로만 받으므로 받은 뒤에 한 번 더 검증한다(llm.ask).
+Clock = Annotated[str, StringConstraints(pattern=rf"^{HHMM}$")]
+Minutes = Annotated[int, Field(ge=1, le=24 * 60)]
 
 
 class Stop(BaseModel):
     raw: str = Field(description="이 스톱에 해당하는 입력 원문 조각")
     place: str = Field(description="입력에 적힌 장소명 그대로. 바꾸거나 정식 명칭으로 고치지 않는다")
-    start: str | None = Field(description="HH:MM. 입력에 시각이 없으면 null")
+    start: Clock | None = Field(description="HH:MM (24시간). 입력에 시각이 없으면 null")
     start_source: Source = Field(
         description="explicit=시각이 적혀 있음 / inferred='점심 먹고' 처럼 문맥에서 추정 / missing=없음"
     )
@@ -33,7 +41,7 @@ class Stop(BaseModel):
     #    "광장시장에서 저녁" 에 60분을 넣어버리면, 나중에 그 60분이 사용자가
     #    말한 값인지 우리가 채운 값인지 구분할 수 없다. 없으면 null 로 둔다.
     #    기본값을 채우는 일은 판정 단계(verdict.py)의 정책이다.
-    dwell_minutes: int | None = Field(description="체류시간(분). 입력에 없으면 null. 임의로 채우지 않는다")
+    dwell_minutes: Minutes | None = Field(description="체류시간(분). 입력에 없으면 null. 임의로 채우지 않는다")
     # ⭐ "장소를 찾은 것" 과 "그 활동을 검증한 것" 은 다르다.
     #    "명동에서 쇼핑" 을 임의로 특정 상점에 연결하면, 그 상점의 운영시간으로
     #    판정해놓고 사용자가 갈 곳은 다른 데가 된다. 구역은 area 로 남긴다.
@@ -42,18 +50,26 @@ class Stop(BaseModel):
     )
     scope_note: str | None = Field(description="area 인 경우 무엇이 특정되지 않았는지. 아니면 null")
 
+    # 값과 출처가 맞아야 한다. 시각이 있는데 출처가 missing 이면 판정 코어가 그 시각을 사용자가 말한
+    # 값처럼 쓰고, 없는데 explicit 이면 무엇을 사용자가 말했는지 기록이 틀린다
+    @model_validator(mode="after")
+    def _start_matches_source(self) -> Stop:
+        if (self.start is None) != (self.start_source == "missing"):
+            raise ValueError(f"start 가 {self.start!r} 인데 start_source 가 {self.start_source} 다")
+        return self
+
 
 class HardConstraint(BaseModel):
     raw: str = Field(description="해당 입력 원문 조각")
     type: Literal["TRAIN_DEPARTURE", "FLIGHT_DEPARTURE", "ARRIVE_BY", "OTHER"]
     place: str
-    time: str = Field(description="HH:MM")
+    time: Clock = Field(description="HH:MM (24시간)")
 
 
 class Extraction(BaseModel):
-    date: str | None = Field(description="YYYY-MM-DD. 날짜 자체가 없으면 null")
+    date: dt.date | None = Field(description="YYYY-MM-DD. 날짜 자체가 없으면 null")
     date_source: Source
-    weekday_stated: str | None = Field(
+    weekday_stated: Weekday | None = Field(
         description="사용자가 말한 요일을 그대로. '목요일' → THU. 안 말했으면 null. 맞는지는 판정 단계에서 확인한다"
     )
     stops: list[Stop]
@@ -61,6 +77,12 @@ class Extraction(BaseModel):
         description="'꼭 타야 해요' 처럼 사용자가 반드시 지켜야 한다고 말한 조건만. 일반 스톱은 넣지 않는다"
     )
     notes: list[str] = Field(description="옮기면서 애매했던 점. 없으면 빈 배열")
+
+    @model_validator(mode="after")
+    def _date_matches_source(self) -> Extraction:
+        if (self.date is None) != (self.date_source == "missing"):
+            raise ValueError(f"date 가 {self.date} 인데 date_source 가 {self.date_source} 다")
+        return self
 
 
 # ⭐ LLM 에게 판정을 시키지 않는다. 옮겨 적는 일만 시킨다.
@@ -119,7 +141,7 @@ def extract(text: str, client: anthropic.Anthropic | None = None,
 def to_itinerary(ex: Extraction) -> dict:
     """판정 코어가 읽는 모양으로 옮긴다. 값을 채우지 않는다."""
     return {
-        "date": ex.date,
+        "date": ex.date.isoformat() if ex.date else None,
         "date_source": ex.date_source,
         "weekday_stated": ex.weekday_stated,
         "stops": [

@@ -621,6 +621,7 @@ itinerary-verifier/
 | `MISSING_DATE` · `INVALID_DATE` | 방문 날짜가 없거나 `YYYY-MM-DD`로 못 읽는다 |
 | `MISSING_STOPS` · `MISSING_PLACE` | 방문할 장소가 없다 |
 | `MISSING_START_TIME` | 방문 시작 시각이 없다 |
+| `INVALID_TIME` | 시각을 `HH:MM`(24시간)으로 못 읽는다 — `"1:00 PM"` 같은 값 |
 | `INCOMPLETE_HARD_CONSTRAINT` | 필수 조건에 장소 또는 시각이 빠졌다 |
 | `MISMATCHED_WEEKDAY` | 날짜와 요일이 서로 맞지 않는다. 어느 날을 뜻했는지 모르므로 `infeasible`이 아니라 판정 보류다 |
 
@@ -684,17 +685,19 @@ itinerary-verifier/
 
 | 모델 | 필드 | 요점 |
 | --- | --- | --- |
-| `Stop` | `raw` `place` `start` `start_source` `dwell_minutes` `scope` `scope_note` | `dwell_minutes`가 **`int \| None`** 인 것이 핵심 |
-| `HardConstraint` | `raw` `type` `place` `time` | `"꼭 타야 해요"` 처럼 사용자가 못 박은 조건만 |
-| `Extraction` | `date` `date_source` `weekday_stated` `stops` `hard_constraints` `notes` | `weekday_stated`는 검증하지 않고 옮기기만 한다 |
+| `Stop` | `raw` `place` `start` `start_source` `dwell_minutes` `scope` `scope_note` | `dwell_minutes`가 **`int \| None`** 인 것이 핵심. `start`는 `HH:MM`(24시간), 체류는 1분~24시간 |
+| `HardConstraint` | `raw` `type` `place` `time` | `"꼭 타야 해요"` 처럼 사용자가 못 박은 조건만. `time`은 `HH:MM` |
+| `Extraction` | `date` `date_source` `weekday_stated` `stops` `hard_constraints` `notes` | `date`는 실제로 있는 날짜, `weekday_stated`는 `MON`~`SUN`. 요일이 날짜와 맞는지는 판정 단계가 본다 |
 
 `start_source`가 `explicit` / `inferred` / `missing` 셋인 이유 — `"점심 먹고"`를 12:00으로 읽은 것은 추정이고, `"오후 1시"`는 명시다. 그 구분이 없으면 나중에 무엇이 사용자 말인지 알 수 없다.
+
+**받자마자 형식을 검증한다** (2차 피드백 4번) — 판정 코어가 읽을 수 없는 값(`"1:00 PM"`, `"2026-02-30"`)은 넘기지 않는다. 날짜 형식과 요일 목록은 스키마에 넣어 API가 지키게 하고, 시각 패턴과 체류 범위는 API가 설명으로만 받으므로 받은 뒤에 pydantic이 다시 본다. 값과 출처도 맞아야 한다 — 시각이 있는데 `start_source`가 `missing`이거나 날짜가 없는데 `date_source`가 `inferred`면 받지 않는다. 검증에 실패하면 `llm.InvalidOutput`이 난다.
 
 **시스템 프롬프트 규칙 7개** — 없는 값을 만들지 않는다 / 추정은 표시한다 / 장소명을 고치지 않는다 / 구역은 `area`로 남긴다 / 필수 조건은 `stops`에 중복하지 않는다 / 연도는 가장 가까운 미래로 / 요일은 옮기기만 한다
 
 `effort: low`를 쓰는 이유 — 옮겨 적기는 기계적인 작업이라 깊게 생각할 게 없다. 출력 토큰이 절반으로 줄었는데 정확도는 같았다.
 
-**⭐ 주석이 표시한 결정** — `int | None` · `scope: area` · LLM 경계
+**⭐ 주석이 표시한 결정** — `int | None` · `scope: area` · LLM 경계 · 받자마자 형식 검증
 
 ---
 
@@ -935,7 +938,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | `grade_extraction` | `tests.json`의 `date`·`stops`·`hard_constraints`를 기대 추출값으로 놓고 대조 |
 | `ask_key` | `--key=` → 환경변수 → 물어보기 순서 |
 
-비용 계산에 **캐시 토큰을 포함한다.** 이걸 빼면 실제보다 싸게 나온다. 캐시 단가는 모델마다 `core/model_info.py`에 값으로 적어 두었다 — 대부분 읽기가 입력의 0.1배지만 Opus 5.5는 0.05배다. 모델이 응답을 거부하면(refusal) 그 케이스는 오류로 남기고 계속 돈다. 거부된 호출은 청구되는 경우에만 비용에 넣는다(`core/model_info.py`).
+비용 계산에 **캐시 토큰을 포함한다.** 이걸 빼면 실제보다 싸게 나온다. 캐시 단가는 모델마다 `core/model_info.py`에 값으로 적어 두었다 — 대부분 읽기가 입력의 0.1배지만 Opus 5.5는 0.05배다. 모델이 응답을 거부하거나(refusal) 형식에 맞지 않는 응답을 내면 그 케이스는 오류로 남기고 계속 돈다. 거부된 호출은 청구되는 경우에만 비용에 넣는다(`core/model_info.py`).
 
 1차 실행에서 추출 12/15였는데 실패 3건의 원인이 전부 **라벨과 프롬프트 쪽**이었다. 입력에 없는 체류시간이 라벨에 적혀 있었고, 필수 조건으로 뽑은 서울역이 `stops`에도 들어갔다. 모델이 틀린 건 0건이었다.
 
@@ -968,8 +971,8 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | --- | --- |
 | `build_models` | LLM 출력 스키마. **코드 출력과 같은 모양**이어야 비교가 된다 |
 | `facts_for_llm` | arm2와 arm3에 **완전히 같은** 사실 데이터를 준다 |
-| `run_llm` | `core/llm.py`의 `ask`로 부르고 토큰·지연을 모은다. 거부(refusal)는 `refused`로 남긴다 |
-| `metrics` | 아래 지표를 계산한다. 거부는 유효 판단으로 세지 않고 `refused`로 따로 센다 |
+| `run_llm` | `core/llm.py`의 `ask`로 부르고 토큰·지연을 모은다. 거부(refusal)는 `refused`, 형식 오류는 `invalid`로 남긴다 |
+| `metrics` | 아래 지표를 계산한다. 거부와 형식 오류는 유효 판단으로 세지 않고 따로 센다 |
 | `StubClient` | `--dry-run`용. API 없이 배선만 통과시킨다. 응답은 실제 호출과 같은 스키마 검증을 지난다 |
 | `save` | 진행 중에는 케이스마다 `last-compare.partial.json`에 저장하고(실패 시 홈 디렉터리), 끝까지 돌면 지운다 |
 
@@ -986,6 +989,7 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | 판정 보류 비율 | 얼마나 자주 답을 못 주나 |
 | 유효 판단 제공 비율 | **전부 보류하면 지표는 완벽해지고 서비스는 쓸모없어진다** |
 | 모델 거부 | 보류와 섞으면 모델이 판단을 보류한 건지 응답을 거부한 건지 구분되지 않는다 |
+| 형식 오류 응답 | 스키마에 맞지 않는 응답도 판정이 아니다. 보류와 섞지 않는다 |
 
 **⭐ 주석이 표시한 결정** — 지시와 정의 분리 · 입력 일치 · 정확도만 보면 안 되는 이유 · 공식 기록은 전체 실행만
 
@@ -1007,7 +1011,8 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | `reproducible` | 커밋만으로 같은 실행을 다시 만들 수 있나. 숫자를 인용할 때는 `true`인 기록만 쓴다 |
 | `fingerprints` | `tests.json` · `facts.json` · `policy.json`의 내용 지문(sha256 앞 12자리). 줄바꿈을 맞춰서 Windows와 다른 OS에서 같은 값이 나온다 |
 | `reference_date` | 연도가 빠진 날짜를 푸는 기준 날짜. 추출 채점과 비교 실험 모두 `tests.json`의 값(2026-09-22)을 쓰고, `--reference-date`로 바꿀 수 있다 |
-| `prompts` | 추출 · 비교 실험 시스템 프롬프트의 지문 |
+| `prompts` | 추출 · 비교 실험 시스템 프롬프트와 출력 스키마의 지문 |
+| `libraries` | `anthropic` · `pydantic` 버전. 출력 스키마를 만들고 검증하는 쪽이라, 같은 커밋이라도 버전이 다르면 모델이 받는 스키마가 달라질 수 있다 |
 
 커밋하지 않은 변경이 있어도 실행은 막지 않는다. 개발 중에도 돌려 봐야 하기 때문이다. 대신 화면에 경고를 내고 기록에 `reproducible: false`로 적는다.
 
@@ -1036,10 +1041,12 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | --- | --- |
 | **역할** | 구조화 출력(JSON 스키마)으로 Claude를 한 번 부르고, 끝까지 온 응답만 스키마로 검증한다 |
 | **입력** | `ask(client, model, effort, system, content, schema)` |
-| **출력** | `(검증된 결과, usage)`. 거부면 `Refusal`(사용량을 함께 넘긴다), 응답이 잘렸으면(`max_tokens`) 오류 |
+| **출력** | `(검증된 결과, usage)`. 거부면 `Refusal`, 응답이 잘렸거나(`max_tokens`) 스키마에 맞지 않으면 `InvalidOutput`. 둘 다 사용량을 함께 넘긴다 |
 | **읽는 쪽** | `extract.py` · `compare.py` |
 
 SDK의 `messages.parse()`를 쓰지 않는다. `parse()`는 `stop_reason`을 보기 전에 본문을 스키마로 검증해서, 출력 도중 거부돼 JSON이 잘린 응답이면 거부를 확인하기도 전에 `ValidationError`로 실행이 멈춘다(anthropic 1.7.0 · 1.11.0에서 확인). 공식 문서도 거부된 응답의 부분 출력은 버리라고 한다. 그래서 `messages.create`로 받아 `stop_reason`을 먼저 보고, 끝까지 온 응답만 검증한다. 요청 스키마는 `parse()`와 같은 `transform_schema`로 만든다.
+
+검증에 실패한 응답도 끝까지 온 응답이라 청구된다. 그래서 `InvalidOutput`에 사용량을 담아 넘기고, 평가 실행은 그 케이스를 오류로 남긴 채 다음으로 넘어간다.
 
 거부(refusal)가 나와도 다른 모델로 넘기는 설정(fallbacks)은 켜지 않는다. 평가하는 실행에서 다른 모델이 대신 답하면 그 결과는 이 모델의 결과가 아니다. 거부는 거부로 남긴다.
 

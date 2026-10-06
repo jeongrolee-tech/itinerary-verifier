@@ -10,7 +10,7 @@ import pytest
 from anthropic.types import Message
 from pydantic import BaseModel
 
-from llm import Refusal, ask
+from llm import InvalidOutput, Refusal, ask
 
 REFUSAL = {"type": "refusal", "category": "cyber", "explanation": "declined"}
 ANSWER = [{"type": "text", "text": '{"verdict": "feasible"}'}]
@@ -66,10 +66,18 @@ def test_refusal_before_output():
     assert e.value.usage["input_tokens"] == 412
 
 
-def test_cut_off_answer_stops_with_a_clear_error():
-    """max_tokens 에 걸려 잘린 응답은 검증하지 않는다 — 왜 멈췄는지 보이게 한다."""
-    with pytest.raises(RuntimeError, match="max_tokens"):
+def test_cut_off_answer_is_invalid_output_with_usage():
+    """max_tokens 에 걸려 잘린 응답은 검증하지 않는다. 왜 멈췄는지 보이게 하고, 청구된 사용량을 함께 넘긴다."""
+    with pytest.raises(InvalidOutput, match="max_tokens") as e:
         call(FakeClient(CUT, "max_tokens", output_tokens=16000))
+    assert e.value.usage["output_tokens"] == 16000
+
+
+def test_answer_that_breaks_the_schema_is_invalid_output():
+    """끝까지 왔지만 스키마에 맞지 않는 답은 InvalidOutput 이다. 어디가 틀렸는지 적고, 사용량을 함께 넘긴다."""
+    with pytest.raises(InvalidOutput, match="verdict") as e:
+        call(FakeClient([{"type": "text", "text": "{}"}], "end_turn"))
+    assert e.value.usage["input_tokens"] == 412
 
 
 def test_request_carries_schema_effort_and_cached_system():
