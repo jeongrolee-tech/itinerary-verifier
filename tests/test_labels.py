@@ -4,7 +4,9 @@
 데이터 이력은 테스트용으로 만든다. 판정 결과는 보지 않고 데이터끼리만 비교하는지 본다.
 """
 
-from labels import stale_reason
+import pytest
+
+from labels import case_facts, stale_reason
 
 SUITE = {"labeled_against_snapshot": "s1"}
 MUSEUM, PALACE, MARKET = "서울시립미술관 서소문본관", "경복궁", "광장시장"
@@ -58,3 +60,28 @@ def test_all_legs_change_spares_a_single_stop():
 def test_unknown_labeled_snapshot_is_stale():
     """어느 데이터로 검토했는지 이력에 없으면 무엇이 바뀌었는지 알 수 없다. 유효하다고 보지 않는다."""
     assert "찾지 못했다" in stale_reason(case(PALACE, labeled="s0"), SUITE, facts({"places": []}))
+
+
+# ── 케이스별 테스트용 이동시간 ───────────────────────────────────────
+
+def leg(minutes, source="synthetic_fixture"):
+    return {"minutes": minutes, "mode": "transit", "is_lower_bound": False, "source": source, "method": source}
+
+
+def test_case_legs_are_laid_over_the_stored_legs():
+    """케이스에 적은 구간은 저장한 구간 위에 얹히고, 원래 데이터는 바뀌지 않는다."""
+    stored = {"legs": {f"{PALACE}|{MARKET}": leg(4.5, "public_data")}}
+    merged = case_facts({"legs": {f"{MUSEUM}|{PALACE}": leg(20)}}, stored)
+    assert set(merged["legs"]) == {f"{PALACE}|{MARKET}", f"{MUSEUM}|{PALACE}"}
+    assert set(stored["legs"]) == {f"{PALACE}|{MARKET}"}
+
+
+def test_case_without_legs_uses_the_stored_data():
+    stored = {"legs": {}}
+    assert case_facts({}, stored) is stored
+
+
+def test_case_legs_must_be_marked_as_test_values():
+    """실제 API 값이 평가셋에 섞여 들어오지 않게, 테스트용 표시가 없는 구간은 받지 않는다."""
+    with pytest.raises(ValueError, match="synthetic_fixture"):
+        case_facts({"id": "T99", "legs": {f"{MUSEUM}|{PALACE}": leg(20, "api_runtime")}}, {"legs": {}})

@@ -780,6 +780,7 @@ itinerary-verifier/
 | `expect` · `expect_checks` · `expect_hard_constraints` | **기대 판정** |
 | `why` | 왜 그 판정인지. 라벨의 근거 |
 | `label_review_needed` | 데이터가 바뀌어 재검토가 필요할 때 이유가 들어간다 |
+| `legs` | (있을 때만) 케이스별 이동시간. `source: synthetic_fixture`만 받는다 — 3~6곳 일정을 고정값으로 채점하려고 정한 값이다 (`core/labels.py`의 `case_facts`) |
 
 **셋 구분** — `dev`는 개발 중 확인용, `holdout`은 최종 성능 확인용으로 구현을 맞추지 않는다.
 
@@ -928,7 +929,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | | |
 | --- | --- |
 | **역할** | 라벨을 검토한 뒤 데이터가 바뀌어, 그 라벨을 더는 정답으로 믿을 수 없는지 본다 |
-| **읽는 쪽** | `run.py` · `run_extract.py` · `compare.py` — 미검토 라벨은 셋 다 판정 채점에서 뺀다 |
+| **읽는 쪽** | `run.py` · `run_extract.py` · `compare.py` — 미검토 라벨은 셋 다 판정 채점에서 뺀다. 케이스의 `legs`는 셋 다 사실 데이터에 얹어 쓴다(`case_facts`) |
 
 라벨을 검토한 스냅샷(`labeled_against`, 없으면 `tests.json`의 `labeled_against_snapshot`) **뒤의 데이터 변경을 모두** 본다. 그중 하나라도 케이스가 쓰는 장소나 구간(`snapshot_history`의 `changed_keys`)을 건드렸으면 미검토다. 가장 최근 변경 하나만 보면, 그 전 변경이 건드린 라벨이 다음 변경 뒤에 다시 유효해 보인다. 구간은 전체(`"ALL"`) 또는 `"A|B"` 목록으로 적는다.
 

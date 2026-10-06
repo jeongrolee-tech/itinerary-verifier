@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from labels import stale_reason  # noqa: E402
+from labels import case_facts, stale_reason  # noqa: E402
 from report import render, report  # noqa: E402
 from runmeta import describe, run_meta  # noqa: E402
 from verdict import UNKNOWN, judge  # noqa: E402
@@ -174,7 +174,7 @@ def grade_applied(case, out):
 results, rows = [], []
 for case in cases:
     started = datetime.now(timezone.utc)
-    out = judge(case, facts, policy)
+    out = judge(case, case_facts(case, facts), policy)
     ms = round((datetime.now(timezone.utc) - started).total_seconds() * 1000, 2)
     problems = grade(case, out) + grade_applied(case, out)
     results.append({"id": case["id"], "set": case["set"], "expect": case["expect"],

@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic  # noqa: E402
 from extract import SYSTEM, Extraction, extract, to_itinerary  # noqa: E402
-from labels import stale_reason  # noqa: E402
+from labels import case_facts, stale_reason  # noqa: E402
 from llm import InvalidOutput, Refusal  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
@@ -165,7 +165,7 @@ for case in cases:
         row["label_current"], row["stale_reason"] = stale is None, stale
         # 추출 결과를 그대로 판정 코어에 넣는다. 사람이 고치지 않는다.
         if got.get("date"):
-            out = judge(got, facts, policy)
+            out = judge(got, case_facts(case, facts), policy)
             ok = out["summary"]["verdict"] == case["expect"]
             print(f"\n[판정]  {out['summary']['verdict']}  "
                   f"{'✅ 기대와 일치' if ok else '❌ 기대 ' + case['expect']}")

@@ -1,5 +1,7 @@
 """
-라벨 노후화 — 라벨을 검토한 뒤 데이터가 바뀌어, 그 라벨을 더는 정답으로 믿을 수 없는지 본다.
+평가셋 케이스가 기대는 데이터 — 라벨 노후화와 케이스별 테스트용 이동시간.
+
+라벨 노후화: 라벨을 검토한 뒤 데이터가 바뀌어, 그 라벨을 더는 정답으로 믿을 수 없는지 본다.
 
 라벨은 판정 코드와 독립이어야 하지만 데이터 스냅샷과는 독립일 수 없다. 같은 입력의 정답이
 facts.json 버전에 따라 달라지기 때문이다 — T10 이 그 증거다. run.py · run_extract.py · compare.py 가
@@ -48,3 +50,20 @@ def stale_reason(case: dict, suite: dict, facts: dict) -> str | None:
         elif isinstance(changed_legs, list):
             hits += [f"{h['id']} 구간 {k}" for k in legs if k in changed_legs]
     return " / ".join(hits) if hits else None
+
+
+def case_facts(case: dict, facts: dict) -> dict:
+    """케이스에 적어 둔 테스트용 이동시간(legs)을 사실 데이터에 얹은 사본. 없으면 facts 를 그대로 돌려준다.
+
+    3~6곳 일정은 저장해 둔 이동시간(지하철 하한선 4구간)만으로는 판정할 수 없다. 판정할 때 받는 TMAP 값은
+    저장할 수 없어 같은 결과를 다시 만들 수 없다(2차 피드백 3번). 그래서 평가셋 케이스는 구간마다 테스트용으로
+    정한 이동시간을 적을 수 있고, 라벨도 그 값을 기준으로 정한다. 실제 이동시간이 아니다.
+    """
+    legs = case.get("legs")
+    if not legs:
+        return facts
+    # 실제 API 값이 섞여 들어오지 않게, 테스트용 표시가 없는 구간은 받지 않는다
+    wrong = [k for k, leg in legs.items() if leg.get("source") != "synthetic_fixture"]
+    if wrong:
+        raise ValueError(f"{case.get('id')} 의 legs 는 source 가 synthetic_fixture 여야 한다: {wrong}")
+    return {**facts, "legs": {**facts["legs"], **legs}}

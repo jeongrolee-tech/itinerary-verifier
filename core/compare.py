@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).parent))
-from labels import stale_reason  # noqa: E402
+from labels import case_facts, stale_reason  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
@@ -164,18 +164,19 @@ def itinerary_for(case: dict) -> dict:
             "hard_constraints": case.get("hard_constraints", [])}
 
 
-def facts_for_llm() -> dict:
+def facts_for_llm(f: dict) -> dict:
     """
     arm 2 와 arm 3 은 **완전히 같은 사실 데이터**를 받아야 한다.
     그래야 둘의 차이가 판정 방식 차이만 남는다 — 그것이 이 실험의 목적이다.
 
     케이스별로 부분집합을 주면 arm 2 만 정보가 줄어들어, 차이가 판정 방식 때문인지
-    정보량 때문인지 다시 구분할 수 없게 된다. 그래서 전체를 준다.
+    정보량 때문인지 다시 구분할 수 없게 된다. 그래서 전체를 준다. 케이스에 테스트용 이동시간이
+    있으면 그것을 얹은 사실 데이터(labels.case_facts)를 arm 2 와 arm 3 에 똑같이 준다.
     """
     # ⭐ 실제로 이 버그를 한 번 냈다. arm2 에는 케이스별 부분집합을, arm3 에는
     #    전체 facts 를 주고 있었다. 그러면 arm2 가 못 맞힌 게 판정 능력 때문인지
     #    정보가 적어서인지 알 수 없다. 비교 실험은 **바꾸는 변수 하나만** 달라야 한다.
-    return {k: v for k, v in facts.items() if k != "snapshot_history"}
+    return {k: v for k, v in f.items() if k != "snapshot_history"}
 
 
 def run_llm(case, client, Judgment, system: str, payload: str):
@@ -325,7 +326,6 @@ def save(payload: dict, name: str) -> bool:
     return False
 
 
-FACTS_LLM = facts_for_llm()
 # LLM arm 이 연도 없는 날짜를 푸는 기준. 고정해 둬야 언제 돌려도 같은 입력이 된다.
 # 추출 채점과 같은 값을 tests.json 에서 읽는다 (runmeta.reference_date).
 REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
@@ -345,9 +345,10 @@ rows, usage_total = [], {}
 for case in cases:
     rec = {"id": case["id"], "set": case["set"], "expect": case["expect"],
            "label_current": label_is_current(case), "arms": {}}
+    case_f = case_facts(case, facts)  # 테스트용 이동시간이 있으면 얹는다 — arm 2 와 arm 3 이 같이 쓴다
 
     if "code" in ARMS:
-        out = judge(itinerary_for(case), facts, policy)
+        out = judge(itinerary_for(case), case_f, policy)
         rec["arms"]["code"] = {"verdict": out["summary"]["verdict"],
                                "checks": [{"type": c["type"], "target": c["target"],
                                            "status": c["status"]} for c in out["checks"]]}
@@ -367,7 +368,7 @@ for case in cases:
 
     if "llm_with_facts" in ARMS:
         payload = (f"[구조화 일정]\n{json.dumps(itinerary_for(case), ensure_ascii=False, indent=1)}\n\n"
-                   f"[사실 데이터]\n{json.dumps(FACTS_LLM, ensure_ascii=False, indent=1)}\n\n"
+                   f"[사실 데이터]\n{json.dumps(facts_for_llm(case_f), ensure_ascii=False, indent=1)}\n\n"
                    f"[정책]\n{json.dumps(policy, ensure_ascii=False, indent=1)}")
         j, u = run_llm(case, client, Judgment, SYSTEM_LLM_FACTS, payload)
         rec["arms"]["llm_with_facts"] = j
