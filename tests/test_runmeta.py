@@ -6,8 +6,10 @@
 알 수 있어야 한다.
 """
 
+import pytest
+
 import runmeta
-from runmeta import fingerprint, run_meta, uncommitted
+from runmeta import fingerprint, reference_date, run_meta, uncommitted
 
 
 def test_fingerprint_ignores_line_endings():
@@ -40,3 +42,19 @@ def test_without_git_the_run_is_not_reproducible(monkeypatch):
     assert meta["code_commit"] is None
     assert meta["uncommitted"] is None
     assert meta["reproducible"] is False
+
+
+def test_reference_date_comes_from_the_suite_not_the_clock():
+    """연도가 빠진 날짜를 푸는 기준은 tests.json 의 값이다. 실행한 날을 쓰면 날짜가 지날수록
+    같은 입력이 다른 연도로 옮겨진다 (2차 피드백 4번)."""
+    assert reference_date({"reference_date": "2026-09-22"}) == "2026-09-22"
+
+
+def test_reference_date_can_be_set_when_running():
+    assert reference_date({"reference_date": "2026-09-22"}, "2026-10-01") == "2026-10-01"
+
+
+def test_reference_date_must_be_a_real_date():
+    """13월 같은 값은 실행을 시작하기 전에 멈춘다. 이상한 날짜로 돌린 기록이 남지 않게."""
+    with pytest.raises(ValueError):
+        reference_date({"reference_date": "2026-09-22"}, "2026-13-01")

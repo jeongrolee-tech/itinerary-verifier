@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
+from datetime import date
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -53,6 +54,16 @@ def run_meta(**extra) -> dict:
         "fingerprints": {name: fingerprint((HERE / name).read_bytes()) for name in INPUT_FILES},
         **extra,
     }
+
+
+def reference_date(suite: dict, override: str | None = None) -> str:
+    """연도가 빠진 날짜("10월 8일")를 푸는 기준 날짜. tests.json 의 값을 쓰고, --reference-date 로 바꿀 수 있다.
+
+    실행한 날을 쓰지 않는다. 기대 추출값이 이 날을 '오늘' 로 보고 만들어졌으므로, 실행한 날을 쓰면
+    날짜가 지날수록 같은 입력이 다른 연도로 옮겨져 같은 기록을 다시 만들 수 없다 (2차 피드백 4번).
+    날짜가 아닌 값은 여기서 바로 멈춘다.
+    """
+    return date.fromisoformat(override or suite["reference_date"]).isoformat()
 
 
 def describe(meta: dict) -> str:

@@ -7,6 +7,7 @@
     python core/compare.py --arms code      코드만 (API 키 불필요) → last-compare-subset.json
     python core/compare.py --case T05       한 건만         → last-compare-subset.json
     python core/compare.py --model claude-sonnet-5-5
+    python core/compare.py --reference-date 2026-10-01   기준 날짜를 바꿔서 (기본은 tests.json)
 
 arm 을 나눈 이유는 **개선이 어디서 왔는지 구분**하기 위해서다.
 
@@ -35,7 +36,7 @@ from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).parent))
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
-from runmeta import describe, fingerprint, run_meta  # noqa: E402
+from runmeta import describe, fingerprint, reference_date, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -325,7 +326,8 @@ def save(payload: dict, name: str) -> bool:
 
 FACTS_LLM = facts_for_llm()
 # LLM arm 이 연도 없는 날짜를 푸는 기준. 고정해 둬야 언제 돌려도 같은 입력이 된다.
-REFERENCE_DATE = "2026-09-22"
+# 추출 채점과 같은 값을 tests.json 에서 읽는다 (runmeta.reference_date).
+REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
 CONDITIONS = run_meta(reference_date=REFERENCE_DATE, prompts={
     "llm_naive": fingerprint(SYSTEM_LLM_NAIVE), "llm_only": fingerprint(SYSTEM_LLM_ONLY),
     "llm_with_facts": fingerprint(SYSTEM_LLM_FACTS)})

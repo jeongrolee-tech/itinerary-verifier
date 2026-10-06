@@ -316,7 +316,8 @@ node check-tmap-api.mjs                     # 수단별로 경로가 오나 — 
   `feasible`이 나오지 않는다. 판정할 때 TMAP을 부르는 실제 사용 경로(`core/verify.py`)는 이 기록에 들어 있지 않다.
 
 **기록을 만든 뒤 바뀐 것** — 판정 규칙이 바뀌었다(예상 이동시간으로는 `fail` 확정 안 함, 대중교통으로 안 되면
-택시, 이동수단은 보지 않음). `facts.json`에서는 판정에 쓰지 않는 장소 입구 좌표를 지웠다. 지금 코드로 골든
+택시, 이동수단은 보지 않음). `facts.json`에서는 판정에 쓰지 않는 장소 입구 좌표를 지웠다. 추출 채점의 기준
+날짜는 실행한 날(이 기록은 2026-10-01)에서 `tests.json`의 2026-09-22로 바꿨다. 지금 코드로 골든
 15건을 돌려도 판정은 같다(2026-10-06 확인). 세 기록은 새 평가셋을 넣을 때 같은 코드로 함께 다시 만든다.
 
 **예전 숫자는 조건이 다른 숫자다** — 노션 실험기록과 이 README의 지난 판에 나온 숫자들이다.
@@ -664,7 +665,7 @@ itinerary-verifier/
 | | |
 | --- | --- |
 | **역할** | 자연어 일정을 판정 코어가 읽는 구조로 **옮겨 적는다** |
-| **입력** | `extract(text, client, model, today, effort)` |
+| **입력** | `extract(text, client, model, today=…, effort)` — 기준 날짜 `today`는 꼭 넣는다. 함수 안에서 시스템 시계를 읽지 않는다 |
 | **출력** | `(Extraction, usage)` → `to_itinerary()`로 판정 코어 입력 형태로 |
 | **모델** | 기본 `claude-opus-5-5`(`core/model_info.py`), structured outputs (pydantic 스키마, 호출은 `core/llm.py`), `effort: low` |
 
@@ -768,6 +769,8 @@ itinerary-verifier/
 **셋 구분** — `dev`는 개발 중 확인용, `holdout`은 최종 성능 확인용으로 구현을 맞추지 않는다.
 
 **`labeled_against_snapshot`** — 이 라벨을 어느 데이터 스냅샷 기준으로 검토했는지. 현재 `facts.json`의 `snapshot_id`와 다르면 그 라벨은 미검토로 취급된다.
+
+**`reference_date`** — 입력의 '오늘'. 연도가 빠진 날짜(`"10월 8일"`)는 이 날 기준 가장 가까운 미래로 푼다. 기대 추출값(`date`)이 이 날을 오늘로 보고 만들어졌다. `run_extract.py`와 `compare.py`가 읽고, 실행할 때 `--reference-date`로 바꿀 수 있다.
 
 > 라벨은 판정 코드와 독립이어야 하지만 **데이터 스냅샷과는 독립일 수 없다.**
 > T10이 그 증거다 — 입력은 그대로인데 창덕궁 운영시간을 확보하자 정답이 바뀌었다.
@@ -911,10 +914,12 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | | |
 | --- | --- |
 | **역할** | 자연어 → 추출 → 판정을 끝까지 돌리고 **추출과 판정을 따로 채점**한다 |
-| **실행** | `python core/run_extract.py [--case T05] [--extract-only] [--model ...]` — 키 필요 |
+| **실행** | `python core/run_extract.py [--case T05] [--extract-only] [--model ...] [--reference-date ...]` — 키 필요 |
 | **출력** | 화면 + `last-extract-run.json` |
 
 두 단계를 따로 채점하는 이유 — 전체가 틀렸을 때 **추출 문제인지 판정 문제인지** 구분해야 고칠 곳을 알 수 있다.
+
+**기준 날짜는 실행한 날이 아니라 `tests.json`의 `reference_date`다.** 실행한 날을 쓰면 날짜가 지날수록 같은 입력을 다른 연도로 옮겨서, 같은 조건으로 기록을 다시 만들 수 없다.
 
 | 함수 | 하는 일 |
 | --- | --- |
@@ -932,7 +937,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | | |
 | --- | --- |
 | **역할** | 판정 방식 4종을 같은 케이스로 돌려 비교한다 |
-| **실행** | `python core/compare.py [--dry-run] [--arms ...] [--case T05] [--model ...]` |
+| **실행** | `python core/compare.py [--dry-run] [--arms ...] [--case T05] [--model ...] [--reference-date ...]` |
 | **출력** | 화면 + `last-compare.json` |
 
 **arm 구성**
@@ -992,7 +997,7 @@ arm2 → 3   판정 방식 효과    입력이 같으므로 그 차이만 남는
 | `uncommitted` | `core/`에서 커밋하지 않은 변경. 실행 기록(`last-*.json`)은 출력이라 세지 않는다 |
 | `reproducible` | 커밋만으로 같은 실행을 다시 만들 수 있나. 숫자를 인용할 때는 `true`인 기록만 쓴다 |
 | `fingerprints` | `tests.json` · `facts.json` · `policy.json`의 내용 지문(sha256 앞 12자리). 줄바꿈을 맞춰서 Windows와 다른 OS에서 같은 값이 나온다 |
-| `reference_date` | 연도가 빠진 날짜를 푸는 기준 날짜. 추출은 실행한 날 하나로, 비교 실험은 2026-09-22로 고정한다 |
+| `reference_date` | 연도가 빠진 날짜를 푸는 기준 날짜. 추출 채점과 비교 실험 모두 `tests.json`의 값(2026-09-22)을 쓰고, `--reference-date`로 바꿀 수 있다 |
 | `prompts` | 추출 · 비교 실험 시스템 프롬프트의 지문 |
 
 커밋하지 않은 변경이 있어도 실행은 막지 않는다. 개발 중에도 돌려 봐야 하기 때문이다. 대신 화면에 경고를 내고 기록에 `reproducible: false`로 적는다.
@@ -1421,7 +1426,6 @@ Google은 한국에서 대중교통 경로만 줘서(걷기 · 자동차는 빈 
 
 | | 왜 |
 | --- | --- |
-| 추출 채점의 기준 날짜를 넣을 수 있게 | 지금은 실행한 날을 기준 날짜로 쓴다. 날짜가 지나면 같은 입력도 연도를 다르게 옮겨서, 같은 조건으로 기록을 다시 만들 수 없다 (2차 피드백 4번) |
 | 종묘 회차 입장 검사 | 정보는 확보했고 검사가 없다 (`UNSUPPORTED_ADMISSION_TYPE`) |
 | 수정안 생성 + 재검사 | `core/recheck.py`에서 수정 전·후 전체 일정을 다시 검사한다. 수정안 자체의 자동 생성은 아직 범위 밖이다 |
 | 결과를 보지 않은 새 holdout | 현재 15건은 전부 결과를 본 상태다 |

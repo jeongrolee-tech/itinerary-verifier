@@ -5,6 +5,7 @@
     python core/run_extract.py            전체 케이스: 자연어 → 추출 → 판정
     python core/run_extract.py --case T05 한 건만
     python core/run_extract.py --extract-only   추출만 채점 (판정 생략)
+    python core/run_extract.py --reference-date 2026-10-01   기준 날짜를 바꿔서 (기본은 tests.json)
 
 추출 문제와 판정 문제를 구분해서 재기 위해 두 단계를 따로 채점한다.
   · 추출 평가 — 날짜·장소·시각·체류시간·필수 조건을 정확히 옮겼는가.
@@ -14,7 +15,7 @@
 
 import json
 import sys
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -23,7 +24,7 @@ import anthropic  # noqa: E402
 from extract import SYSTEM, extract, to_itinerary  # noqa: E402
 from llm import Refusal  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
-from runmeta import describe, fingerprint, run_meta  # noqa: E402
+from runmeta import describe, fingerprint, reference_date, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -42,9 +43,8 @@ MODEL = flag("--model", DEFAULT_MODEL)
 EFFORT = effort_for(MODEL, flag("--effort", "low"))
 cases = [c for c in suite["cases"] if not only or c["id"].startswith(only)]
 
-# 연도가 빠진 날짜를 푸는 기준이다. 실행 하나 안에서는 한 날짜만 쓴다 — 케이스마다
-# 오늘을 다시 구하면 자정을 넘긴 실행은 케이스마다 기준이 달라진다.
-REFERENCE_DATE = date.today().isoformat()
+# 연도가 빠진 날짜를 푸는 기준 날짜. 실행한 날이 아니라 tests.json 의 값이다 (runmeta.reference_date).
+REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
 CONDITIONS = run_meta(reference_date=REFERENCE_DATE, prompts={"extract": fingerprint(SYSTEM)})
 
 LINE = "═" * 78

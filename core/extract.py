@@ -6,7 +6,7 @@
 여기서 채우면 사용자가 말한 값과 구분이 안 된다.
 
     from extract import extract
-    result = extract("10월 8일 목요일 오후 1시에 경복궁 두 시간...")
+    result, usage = extract("10월 8일 목요일 오후 1시에 경복궁 두 시간...", today="2026-09-22")
 """
 
 from __future__ import annotations
@@ -101,15 +101,15 @@ SYSTEM = """너는 여행 일정 텍스트를 구조화하는 추출기다. 판�
 
 
 def extract(text: str, client: anthropic.Anthropic | None = None,
-            model: str = DEFAULT_MODEL, today: str | None = None,
+            model: str = DEFAULT_MODEL, *, today: str,
             effort: str | None = "low") -> tuple[Extraction, dict]:
     """자연어 → Extraction. (결과, 사용량) 을 돌려준다. 모델이 거부하면 llm.Refusal 이 난다.
 
     today 는 연도가 빠진 날짜를 푸는 기준이다. 시스템 프롬프트가 아니라
     사용자 메시지에 넣는다 — 시스템 프롬프트를 고정해야 캐시가 붙는다.
+    시스템 시계는 여기서 읽지 않고 부르는 쪽이 넣는다. 평가는 tests.json 의 기준 날짜를,
+    실제로 쓸 때(verify.py)는 그날을 넣는다.
     """
-    from datetime import date as _Date
-    today = today or _Date.today().isoformat()
     # 추출은 적힌 값을 옮기는 기계적인 작업이다. 깊게 생각할 필요가 없고,
     # 사고 토큰도 출력으로 과금되므로 effort 를 낮춘다.
     return ask(client or anthropic.Anthropic(), model=model, effort=effort, system=SYSTEM,
