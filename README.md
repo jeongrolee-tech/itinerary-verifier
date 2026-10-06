@@ -17,8 +17,8 @@
 > `누출` · `하한선` · `arm` · `라벨 노후화` 처럼 이 프로젝트가 정한 말을 예시와 함께 정리해뒀다.
 
 **목차** — 처음이면 [왜 만들었나](#왜-만들었나) → [무엇이 다른가](#무엇이-다른가) → [돌려보기](#돌려보기) → [현재 상태](#현재-상태-2026-10-02-기록) →
-[어떻게 여기까지 왔나](#어떻게-여기까지-왔나) 넷만 봐도 된다. 무엇을 만들었고, 어떻게 생겼고,
-결과가 얼마고, 왜 이 모양이 됐는지가 그 넷에 있다.
+[어떻게 여기까지 왔나](#어떻게-여기까지-왔나) 다섯만 봐도 된다. 무엇을 만들었고, 어떻게 생겼고,
+결과가 얼마고, 왜 이 모양이 됐는지가 그 다섯에 있다.
 [파일별 역할](#파일별-역할)은 파일 하나하나의 설계 근거라 길다. 필요할 때 찾아보는 용도다.
 
 [왜 만들었나](#왜-만들었나) · [무엇이 다른가](#무엇이-다른가) · [돌려보기](#돌려보기) · [실행](#실행) ·
@@ -84,7 +84,8 @@ LLM은 자연어를 구조로 옮기는 데만 쓰고, 근거가 충분한지와
 
 ## 돌려보기
 
-키 없이 바로 된다. 자연어 일정을 넣으면 검사별로 무엇을 확인했고 무엇을 못 했는지 나온다.
+키 없이 바로 된다(`python core/run.py --case T08`). 골든 케이스마다 검사별로 무엇을 확인했고 무엇을 못 했는지 나온다.
+자연어 일정을 직접 넣어 보려면 Anthropic · TMAP 키가 필요하다(`core/verify.py`).
 판정 3종이 각각 어떻게 생겼는지 아래 셋으로 보면 된다.
 `[검사]`는 검사 하나하나의 상세이고, `[결과]`는 그것을 사용자에게 보여줄 묶음으로 나눈 것이다 —
 어긋난 것 · 확인하지 못한 것 · 확인한 것 · 해당 없음, 그리고 이 서비스가 **검사하지 않는 것**.
@@ -262,7 +263,7 @@ pip install -r requirements.txt     # anthropic, pydantic, pytest
 python core/run.py                          # 골든 테스트 채점 + 실행 기록
 python core/run.py --case T05               # 한 케이스 상세
 python core/run.py --all                    # 전부 상세
-pytest                                      # 규칙 테스트 (확정 fail 반례 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출)
+pytest                                      # 규칙 테스트 (확정 fail 반례 · 예상 이동시간 · 길찾기 · 일정 검증 · 추출 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출)
 python core/compare.py --dry-run            # 비교 실험 배선 확인
 python core/compare.py --arms code          # 비교 실험, 코드 arm만 (일부 실행 → last-compare-subset.json)
 python core/build_transit_legs.py           # 지하철 주행시간 하한선 계산
@@ -282,11 +283,13 @@ python core/fetch_holidays.py 2026          # 공휴일 스냅샷 재생성
 GKEY=... node check-places-api.mjs
 GKEY=... node check-routes-api.mjs
 
-# TMAP 앱 키 필요 (판정할 때 쓸 길찾기. 지금은 능력 확인만)
+# TMAP 앱 키 필요 (길찾기 능력 확인. 판정할 때 부르는 건 위 verify.py)
 node check-tmap-api.mjs                     # 수단별로 경로가 오나 — 키를 물어본다
 ```
 
-키는 그때그때 **실행 시 물어본다.** 화면에 안 찍히고 셸 히스토리에도 안 남는다.
+Anthropic · TMAP · 공공데이터포털 키는 환경변수에 없으면 **실행할 때 물어본다.** 그렇게 넣으면 화면에 안 찍히고
+셸 히스토리에도 안 남는다(공휴일 스크립트는 환경변수를 읽지 않고 바로 묻는다). Google 확인 스크립트 둘은 `GKEY`
+환경변수로만 받는다. `--key=`로 넘길 수도 있지만 그러면 셸 히스토리에 남는다.
 어떤 키가 필요한지는 위 주석대로이고, 판정 코어만 돌릴 거라면 키가 아예 필요 없다.
 
 ---
@@ -294,7 +297,7 @@ node check-tmap-api.mjs                     # 수단별로 경로가 오나 — 
 ## 현재 상태 (2026-10-02 기록)
 
 아래 숫자는 모두 같은 코드(`f6c50c1`)와 같은 데이터로 만든 기록 세 개에서 나왔다.
-기록마다 코드 커밋 · 입력 지문 · 모델 · 기준 날짜가 함께 남아 있다.
+기록마다 코드 커밋과 입력 지문이 남아 있고, 추출과 비교 실험 기록에는 모델과 기준 날짜도 있다.
 
 | | 결과 | 기록 |
 | --- | --- | --- |
@@ -471,16 +474,18 @@ Routes API로 구간 이동시간을 받아둔 뒤 약관을 확인했다. 소�
 ## 구조
 
 ```
-[조회 계층]   외부 API 호출 · 실패 처리
-     ↓        fetch_holidays.py · build_transit_legs.py
+[조회 계층]   외부 데이터 조회 · 실패 처리
+     ↓        fetch_holidays.py (공휴일 API) · build_transit_legs.py (지하철 CSV)
      ↓        facts.json  (사실)   policy.json  (정책)
+     ↓        routes.py (TMAP 길찾기) — 판정할 때만 부르고 저장하지 않는다
 [추출]        extract.py — 자연어를 구조로 옮긴다. 값을 채우지 않는다
      ↓        LLM 이 담당하는 유일한 단계
 [판정 코어]   verdict.py — 순수 함수. 네트워크 호출 없음
      ↓        checks[] + hard_constraints[] + assumptions[]
-[결과 묶기]   report.py — run.py 화면용. 상태별로 묶고 검사하지 않는 것을 붙인다. 판정은 바꾸지 않는다
+[결과 묶기]   report.py — run.py · verify.py 화면용. 상태별로 묶고 검사하지 않는 것을 붙인다. 판정은 바꾸지 않는다
      ↓
 [채점·기록]   run.py · run_extract.py · compare.py → last-*.json (실행 조건 포함 — runmeta.py)
+[일정 하나]   verify.py — 추출 → 길찾기 → 판정 → 결과. 아무것도 저장하지 않는다
 ```
 
 판정 코어를 외부 API에서 분리했다. **API 없이 고정 입력으로 테스트할 수 있어야** 하기 때문이다.
@@ -492,7 +497,7 @@ Routes API로 구간 이동시간을 받아둔 뒤 약관을 확인했다. 소�
 | 자연어 → 구조화 | **LLM** | 표현이 다양해 규칙으로 못 잡는다 |
 | 장소 식별 · 운영정보 · 이동시간 조회 | 코드 | |
 | **근거 충분성 판단** | **코드** | `unknown`이 여기서 나온다 |
-| 실행 가능 여부 판정 | **코드** | LLM은 규칙을 일관되게 적용하지 못했다 (위 T08) |
+| 실행 가능 여부 판정 | **코드** | LLM은 규칙을 일관되게 적용하지 못했다 (위 비교 실험 — 놓치는 규칙이 실행마다 바뀌었다) |
 
 ---
 
@@ -526,14 +531,17 @@ itinerary-verifier/
 │   ├── verify.py                일정 하나 검증 (Claude 추출 → TMAP 길찾기 → 판정)
 │   └── last-*.json              실행 기록 (자동 생성)
 ├── docs/
+│   ├── 용어.md                  용어 정리 — 처음 읽는 사람은 여기부터
 │   ├── data-policy.md           제공사별 저장·공개 범위
 │   ├── label-review-260922.md   라벨 재검토 워크시트
 │   └── experiments/             실험 기록
+├── tests/                       pytest 규칙 테스트
 ├── check-places-api.mjs         Places API 능력 확인
 ├── check-routes-api.mjs         Routes API 모드 확인
 ├── check-tmap-api.mjs           TMAP 모드 확인
 ├── fetch-travel-times.mjs       Routes API 이동시간 조회
 ├── requirements.txt             추출·비교 실험에만 필요한 패키지
+├── CLAUDE.md                    Claude Code와 일할 때의 작업 규칙
 └── LICENSE                      권리 보유 + 포함 데이터의 출처·이용 조건
 ```
 
@@ -555,6 +563,7 @@ itinerary-verifier/
 | 코드 | 무엇을 보나 | 필요한 근거 |
 | --- | --- | --- |
 | `INPUT_REQUIRED` | **판정에 필요한 입력이 있나** | 없음. 입력만 본다 |
+| `INPUT_CONFLICT` | **입력끼리 맞나** — 말한 요일이 날짜와 다르면 어느 날인지 묻는다 | 없음. 입력만 본다 |
 | `CLOSED_DAY` | 방문일이 휴무일인가 | 정기휴일 + 공휴일 캘린더 + 기관별 예외 규칙 |
 | `ADMISSION_NOT_POSSIBLE` | 도착 시각에 **입장**할 수 있나. 개장 전 도착은 기다려서 개장 시각에 들어간다고 본다 | 운영시간 + 입장마감 |
 | `DWELL_NOT_COMPLETABLE` | 계획한 **체류를 마칠** 수 있나 | 위 + 체류시간 |
@@ -650,7 +659,7 @@ itinerary-verifier/
 | **역할** | 판정 결과를 사용자에게 보여줄 묶음으로 나눈다 |
 | **입력** | `report(result)` — `judge()`의 결과. **읽기만 하고 바꾸지 않는다** |
 | **출력** | `groups[]` — 어긋난 것 · 확인하지 못한 것 · 확인한 것 · 해당 없음 / `not_checked[]` — 검사하지 않는 것 |
-| **읽는 쪽** | `run.py` — `render()`로 `[결과]`를 찍는다 |
+| **읽는 쪽** | `run.py` · `verify.py` — `render()`로 `[결과]`를 찍는다 |
 
 멘토 피드백 2번 — 결과 화면에서도 검사한 것과 확인하지 못한 것을 각각 보여줘야 한다. 묶는 방식은 웹 접근성 검사기 axe-core(위반 · 통과 · 판단 못 함 · 해당 없음)와 Lighthouse(도구가 검사하지 않는 항목을 매 보고서에 붙인다)를 따랐다. 고칠 것이 먼저 보이도록 어긋난 것부터 적는다.
 
@@ -669,7 +678,7 @@ itinerary-verifier/
 | **출력** | `(Extraction, usage)` → `to_itinerary()`로 판정 코어 입력 형태로 |
 | **모델** | 기본 `claude-opus-5-5`(`core/model_info.py`), structured outputs (pydantic 스키마, 호출은 `core/llm.py`), `effort: low` |
 
-**LLM이 담당하는 유일한 단계다.** 판정은 시키지 않는다. 자연어를 구조로 바꾸는 데는 강하지만 규칙을 일관되게 적용하는 데는 약하기 때문이다 (비교 실험 T08 참조).
+**LLM이 담당하는 유일한 단계다.** 판정은 시키지 않는다. 자연어를 구조로 바꾸는 데는 강하지만 규칙을 일관되게 적용하는 데는 약하기 때문이다 (비교 실험 참조 — 놓치는 규칙이 실행마다 바뀌었다).
 
 **pydantic 모델**
 
@@ -695,7 +704,7 @@ itinerary-verifier/
 | --- | --- |
 | **역할** | 판정에 쓰는 **사실**. 운영정보·이동시간·공휴일 |
 | **읽는 쪽** | `verdict.py` · `run.py` · `compare.py` |
-| **쓰는 쪽** | 사람(curated) · `build_transit_legs.py --write` |
+| **쓰는 쪽** | 사람(curated) · `build_transit_legs.py --write` · `fetch_holidays.py`(`holidays`) |
 
 **최상위 구조**
 
@@ -712,7 +721,7 @@ itinerary-verifier/
 
 | 필드 | 왜 필요한가 |
 | --- | --- |
-| `source` | `curated` / `public_data` / `api`. **스냅샷에 넣어도 되는 출처인지 판단하는 근거** |
+| `source` | `curated` / `public_data`. **스냅샷에 넣어도 되는 출처인지 판단하는 근거.** 판정할 때 받는 TMAP 구간은 `api_runtime`(저장하지 않는다), 테스트가 정한 값은 `synthetic_fixture` |
 | `url` · `checked_at` | 어디서 언제 확인했나 |
 | `valid_until` | **언제까지 쓸 수 있나.** 이게 없으면 작년 시간표로 올해를 판정한다 |
 | `rule_text` | 공식 안내 문구 원문. 페이지가 바뀌었을 때 비교 기준 |
@@ -743,7 +752,7 @@ itinerary-verifier/
 | `buffer_minutes.rail_boarding` | 15 | 열차 탑승 전 권장 도착 여유 |
 | `require_user_dwell_for_completion_check` | true | 체류시간을 안 말했으면 체류 검사를 하지 않는다 |
 
-첫 줄과 마지막 줄이 "우리가 정한 값으로 사용자 일정의 오류를 만들어내지 않는다"를 구현한 것이다. 비교 실험에서 LLM은 이 정책을 **문서로 받고도** 적용하지 않았다.
+첫 줄과 마지막 줄이 "우리가 정한 값으로 사용자 일정의 오류를 만들어내지 않는다"를 구현한 것이다. 9월 22일 비교 실험에서 LLM은 이 정책을 **문서로 받고도** 적용하지 않았다(T08).
 
 ---
 
@@ -768,7 +777,7 @@ itinerary-verifier/
 
 **셋 구분** — `dev`는 개발 중 확인용, `holdout`은 최종 성능 확인용으로 구현을 맞추지 않는다.
 
-**`labeled_against_snapshot`** — 이 라벨을 어느 데이터 스냅샷 기준으로 검토했는지. 현재 `facts.json`의 `snapshot_id`와 다르면 그 라벨은 미검토로 취급된다.
+**`labeled_against_snapshot`** — 이 라벨을 어느 데이터 스냅샷 기준으로 검토했는지. 케이스마다 `labeled_against`로 덮어쓸 수 있다. 현재 `facts.json`의 `snapshot_id`와 다르다고 바로 무효로 보지 않는다. 가장 최근 데이터 변경(`snapshot_history`의 마지막 `changed_keys`)이 그 케이스가 쓰는 장소나 구간을 건드렸을 때만 미검토로 취급한다.
 
 **`reference_date`** — 입력의 '오늘'. 연도가 빠진 날짜(`"10월 8일"`)는 이 날 기준 가장 가까운 미래로 푼다. 기대 추출값(`date`)이 이 날을 오늘로 보고 만들어졌다. `run_extract.py`와 `compare.py`가 읽고, 실행할 때 `--reference-date`로 바꿀 수 있다.
 
@@ -819,11 +828,11 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | --- | --- |
 | **역할** | 특일 정보 API를 12개월 호출해 스냅샷을 만든다 |
 | **실행** | `python core/fetch_holidays.py [연도]` — 공공데이터포털 키 필요 |
-| **출력** | `holidays-2026.json` |
+| **출력** | `holidays-2026.json` · `facts.json`의 `holidays` |
 
 | 함수 | 하는 일 |
 | --- | --- |
-| `ask_key` | 환경변수에 없으면 물어본다. 화면에 안 찍힌다 |
+| `ask_key` | `--key=`가 없으면 물어본다. 환경변수는 읽지 않는다. 화면에 안 찍힌다 |
 | `build_url` | **Encoding 키와 Decoding 키를 구분한다.** 잘못 고르면 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR`가 난다 |
 | `fetch` | 호출. 키가 안 풀리면 JSON 요청이어도 XML 에러가 돌아오는 것을 처리 |
 | `items_of` | 응답 파싱. 1건일 때 배열이 아니라 객체로 오는 것을 처리 |
@@ -914,7 +923,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | | |
 | --- | --- |
 | **역할** | 자연어 → 추출 → 판정을 끝까지 돌리고 **추출과 판정을 따로 채점**한다 |
-| **실행** | `python core/run_extract.py [--case T05] [--extract-only] [--model ...] [--reference-date ...]` — 키 필요 |
+| **실행** | `python core/run_extract.py [--case T05] [--extract-only] [--model ...] [--effort ...] [--reference-date ...]` — 키 필요 |
 | **출력** | 화면 + `last-extract-run.json` |
 
 두 단계를 따로 채점하는 이유 — 전체가 틀렸을 때 **추출 문제인지 판정 문제인지** 구분해야 고칠 곳을 알 수 있다.
@@ -924,7 +933,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | 함수 | 하는 일 |
 | --- | --- |
 | `grade_extraction` | `tests.json`의 `date`·`stops`·`hard_constraints`를 기대 추출값으로 놓고 대조 |
-| `ask_key` | 환경변수 → `--key=` → 물어보기 순서 |
+| `ask_key` | `--key=` → 환경변수 → 물어보기 순서 |
 
 비용 계산에 **캐시 토큰을 포함한다.** 이걸 빼면 실제보다 싸게 나온다. 캐시 단가는 모델마다 `core/model_info.py`에 값으로 적어 두었다 — 대부분 읽기가 입력의 0.1배지만 Opus 5.5는 0.05배다. 모델이 응답을 거부하면(refusal) 그 케이스는 오류로 남기고 계속 돈다. 거부된 호출은 청구되는 경우에만 비용에 넣는다(`core/model_info.py`).
 
@@ -937,7 +946,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | | |
 | --- | --- |
 | **역할** | 판정 방식 4종을 같은 케이스로 돌려 비교한다 |
-| **실행** | `python core/compare.py [--dry-run] [--arms ...] [--case T05] [--model ...] [--reference-date ...]` |
+| **실행** | `python core/compare.py [--dry-run] [--arms ...] [--case T05] [--model ...] [--effort ...] [--reference-date ...] [--key=...]` |
 | **출력** | 화면 + `last-compare.json` |
 
 **arm 구성**
@@ -1073,7 +1082,10 @@ SDK의 `messages.parse()`를 쓰지 않는다. `parse()`는 `stop_reason`을 보
 사정으로 코드가 멀쩡해도 실패하며, 시간 초과 같은 상황은 일부러 만들 수 없다. 가짜 응답은 2026-10-02에
 실제로 받은 모양과 공식 문서를 따랐고, TMAP이 정말 그렇게 답하는지는 `check-tmap-api.mjs`로 따로 확인한다.
 
-**⭐ 주석이 표시한 결정** — 429는 기다렸다 다시 물음 · 이름이 같은 장소만 씀 · HTTP 200이어도 경로가 없으면 걷기로 다시 물음
+**⭐ 주석이 표시한 결정** — 429는 기다렸다 다시 물음 · 이름이 같은 장소만 씀 · HTTP 200이어도 경로가 없으면 걷기로 다시 물음 · 타임머신은 `predictionType` `arrival`(출발 시각을 넣는다)
+
+**한계** — 출발 시각은 계획한 시작 시각에 체류를 더한 것이다. 개장 전에 도착해 기다리는 일정은 판정 코어가 개장 시각부터
+세는데, 길찾기는 계획한 시각으로 묻는다. 판정 함수를 나눌 때 판정 코어의 일정 계산을 같이 쓰도록 고친다(남은 작업).
 
 ---
 
@@ -1136,7 +1148,7 @@ SDK의 `messages.parse()`를 쓰지 않는다. `parse()`는 `stop_reason`을 보
 **HTTP 200인데 결과가 비어 있다.** 이 상태를 "조회했다"로 처리하면 실패가 정상으로 바뀐다. 조회 계층에서 `시간 초과 / 응답 없음 / 필수 필드 누락`을 구분해야 하는 이유가 이것이다.
 
 조회 스크립트는 실패를 `TIMEOUT`, `NETWORK_ERROR`, `HTTP_ERROR`,
-`UNPARSEABLE_RESPONSE`, `NO_RESULT`로 기록한다. 이 값은 API에서 관찰한
+`UNPARSEABLE_RESPONSE`로, 결과가 없으면 경로 스크립트는 `NO_ROUTE`, 장소·이동시간 조회 스크립트는 `NO_RESULT`로 기록한다. 이 값은 API에서 관찰한
 상태이며, 판정 코어의 `pass`·`fail`·`unknown` 해석과 섞지 않는다.
 
 도보 구간을 Routes API로 해결할 수 없다는 것이 여기서 확인됐다.
@@ -1209,8 +1221,8 @@ Google과 달리 대중교통 · 걷기 · 자동차가 모두 왔다. 다만 �
 
 | 파일 | 역할 | 들어가는 것 |
 | --- | --- | --- |
-| [`core/last-run.json`](core/last-run.json) (판정 기록) | `run.py`가 덮어쓴다 | 케이스별 추출값 · 적용한 기본값 · 검사별 상태와 근거 · 라벨 일치 여부 · 소요 시간 · 실행 조건 |
-| [`core/last-extract-run.json`](core/last-extract-run.json) (추출 기록) | `run_extract.py`가 덮어쓴다 | 추출값 · 기대값과의 차이 · 모델 · 토큰 · 비용 · 지연 · 실행 조건 |
+| [`core/last-run.json`](core/last-run.json) (판정 기록) | `run.py`가 전체를 돌렸을 때 덮어쓴다. `--case`면 `last-run-subset.json` | 케이스별 추출값 · 적용한 기본값 · 검사별 상태와 근거 · 라벨 일치 여부 · 소요 시간 · 실행 조건 |
+| [`core/last-extract-run.json`](core/last-extract-run.json) (추출 기록) | `run_extract.py`가 전체를 돌렸을 때 덮어쓴다. `--case` · `--extract-only`면 `last-extract-run-subset.json` | 추출값 · 기대값과의 차이 · 모델 · 토큰 · 비용 · 지연 · 실행 조건 |
 | [`core/last-compare.json`](core/last-compare.json) (비교 기록) | `compare.py`가 모든 arm · 케이스를 돌렸을 때만 덮어쓴다 | arm별 판정과 검사 · 지표 · 비용 · 지연 · 실행 조건 |
 
 **스크립트가 덮어쓰는 파일이다.** 의미 있는 실행 결과는 그때그때 커밋해두는 것이 안전하다 — 실제로 한 번 잃었고 git 커밋에서 복원했다.
@@ -1316,7 +1328,7 @@ Google은 한국에서 대중교통 경로만 줘서(걷기 · 자동차는 빈 
 
 | 테스트 | 이동시간 | 확인하는 것 |
 | --- | --- | --- |
-| 판정 규칙 (pytest) | 우리가 정한 값 | 장소 3~4곳 일정의 `feasible`까지 규칙대로 나오나 |
+| 판정 규칙 (pytest) | 우리가 정한 값 | 장소 2~3곳 일정의 `feasible`까지 규칙대로 나오나 |
 | 골든 테스트 15건 · 비교 실험 | 저장해 둔 지하철 하한선 | 지금처럼. 장소 3~6곳짜리 새 평가셋에는 정한 값을 쓸 수 있다 |
 | 길찾기 호출 | TMAP 응답을 흉내 낸 가짜 응답 | 시간을 제대로 읽나, 빈 결과 · 시간 초과를 '확인 못 함'으로 두나 |
 
@@ -1426,6 +1438,8 @@ Google은 한국에서 대중교통 경로만 줘서(걷기 · 자동차는 빈 
 
 | | 왜 |
 | --- | --- |
+| 라벨 노후화를 모든 데이터 변경에서 보기 | 지금은 가장 최근 변경만 본다. 그 전 변경이 건드린 라벨을 놓칠 수 있다. 새 평가셋을 넣기 전에 고친다 |
+| 길찾기 출발 시각에 개장 대기 반영 | 개장 전에 도착하면 판정은 개장 시각부터 세는데 길찾기는 계획한 시각으로 묻는다 |
 | 종묘 회차 입장 검사 | 정보는 확보했고 검사가 없다 (`UNSUPPORTED_ADMISSION_TYPE`) |
 | 수정안 생성 + 재검사 | `core/recheck.py`에서 수정 전·후 전체 일정을 다시 검사한다. 수정안 자체의 자동 생성은 아직 범위 밖이다 |
 | 결과를 보지 않은 새 holdout | 현재 15건은 전부 결과를 본 상태다 |
