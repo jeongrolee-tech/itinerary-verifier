@@ -25,7 +25,7 @@ def case(prefix):
 
 @pytest.mark.parametrize("c", CASES, ids=[c["id"] for c in CASES])
 def test_every_check_lands_in_its_status_group_once(c, facts, policy):
-    """골든 15건 전부 — 검사와 필수 조건이 빠짐없이, 한 번씩, 자기 상태의 묶음에 들어간다."""
+    """골든 케이스 전부 — 검사와 필수 조건이 빠짐없이, 한 번씩, 자기 상태의 묶음에 들어간다."""
     result = judge(c, facts, policy)
     rep = report(result)
     expected = sorted([(x["id"], x["status"]) for x in result["checks"]]
