@@ -159,6 +159,33 @@ def input_checks(itinerary: dict) -> list[dict]:
     return missing
 
 
+# ── 지원 범위 ───────────────────────────────────────────────────────
+def support_scope(stop: dict, facts: dict) -> str:
+    """장소가 지원 범위의 어디에 드는지 — supported(정보가 있는 장소) · unsupported(지원 목록 밖) · area(구역).
+
+    구역인지는 추출(LLM)이 문장을 읽고 정하고, 목록에 있는지는 코드가 이름으로 비교한다(README 'LLM과 코드의 경계').
+    facts 가 구역으로 아는 곳(북촌한옥마을)도 구역이다. 추출 채점(run_extract.py)이 같은 함수로 분류가 맞았는지 본다
+    (2차 피드백 3번 '지원 범위 분류까지 채점').
+    """
+    known = facts["places"].get(stop.get("place"))
+    if stop.get("scope") == "area" or (known or {}).get("scope") == "area":
+        return "area"
+    return "supported" if known else "unsupported"
+
+
+def place_not_checked(type_: str, name: str, support: str) -> dict:
+    """확인할 대상이 없는 장소의 검사. 구역이면 어디로 가는지 묻고, 지원 목록 밖이면 확인하지 않았다고 알린다."""
+    # ⭐ 둘 다 unknown 이지만 푸는 쪽이 다르다. 구역은 사용자가 갈 곳을 알려 주면 풀리고, 지원 목록 밖 장소는
+    #    우리가 데이터를 확보해야 풀린다. 국립중앙박물관에 "어디로 가시나요?" 를 물으면 답할 수 없는 질문이 된다.
+    if support == "area":
+        return check(type_, name, UNKNOWN, unknown_reason="PLACE_NOT_RESOLVED",
+                     detail="구역만 정해져 있어 방문할 시설이나 점포를 특정하지 못했다",
+                     how_to_resolve={"user": f"{name}에서 정확히 어디로 가시나요?"})
+    return check(type_, name, UNKNOWN, unknown_reason="UNSUPPORTED_PLACE",
+                 detail="지원하는 장소 목록에 없는 곳이라 휴무일과 운영시간을 확인하지 않았다",
+                 how_to_resolve={"system": f"{name}의 휴무일과 운영시간을 공식 출처에서 확보"})
+
+
 # ── 휴무일 ──────────────────────────────────────────────────────────
 def closed_date_for(visit_date: str, cd: dict, holidays: dict) -> str | None:
     """
@@ -188,11 +215,9 @@ def closed_date_for(visit_date: str, cd: dict, holidays: dict) -> str | None:
     return d
 
 
-def check_closed_day(name: str, place: dict | None, visit_date: str, facts: dict) -> dict:
+def check_closed_day(name: str, place: dict | None, visit_date: str, facts: dict, support: str) -> dict:
     if place is None:
-        return check("CLOSED_DAY", name, UNKNOWN,
-                     unknown_reason="PLACE_NOT_RESOLVED",
-                     detail="장소를 특정하지 못했다")
+        return place_not_checked("CLOSED_DAY", name, support)
 
     cd = place.get("closed_days")
     if not cd:
@@ -279,7 +304,7 @@ def hours_for(place: dict | None, visit_date: str, holidays: dict) -> dict | Non
     return None
 
 
-def check_admission(name, place, visit_date, start, closed_status, holidays) -> dict:
+def check_admission(name, place, visit_date, start, closed_status, holidays, support) -> dict:
     if closed_status == FAIL:
         return check("ADMISSION_NOT_POSSIBLE", name, NA,
                      reason="휴무일로 확정되어 운영시간 검사가 성립하지 않는다")
@@ -289,10 +314,7 @@ def check_admission(name, place, visit_date, start, closed_status, holidays) -> 
     # 장소를 알려줘야 하는지, 시스템이 운영시간 데이터를 더 가져와야 하는지
     # 정확히 안내할 수 있다.
     if place is None:
-        return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
-                     unknown_reason="PLACE_NOT_RESOLVED",
-                     detail="구역만 입력되어 방문할 시설이나 점포를 특정하지 못했다",
-                     how_to_resolve={"user": "방문할 시설이나 점포를 알려주세요"})
+        return place_not_checked("ADMISSION_NOT_POSSIBLE", name, support)
 
     adm = (place or {}).get("admission") or {}
 
@@ -980,8 +1002,9 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
         # ⭐ area 일정은 대표 좌표나 비슷한 이름의 시설로 바꿔 판정하지 않는다.
         #    "북촌에서 점심"을 임의의 식당 운영시간으로 검사하면 다른 장소를
         #    검증한 셈이 된다. 사용자가 장소를 특정하기 전까지는 unknown 이다.
-        scope = s.get("scope", "place")
-        place = None if scope == "area" else facts["places"].get(s["place"])
+        support = support_scope(s, facts)
+        scope = "area" if support == "area" else "place"
+        place = facts["places"][s["place"]] if support == "supported" else None
 
         start_source = s.get("start_source", "explicit")
         start_dep = []
@@ -1012,7 +1035,7 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
             })
             dwell = {"value": value, "source": "system_default", "assumption_id": aid}
         stops.append({"name": s["place"], "place": place, "start": s["start"], "entry": s["start"],
-                      "start_source": start_source, "start_dep": start_dep, "scope": scope,
+                      "start_source": start_source, "start_dep": start_dep, "scope": scope, "support": support,
                       "scope_note": s.get("scope_note"), "dwell": dwell})
 
     checks: list[dict] = []
@@ -1021,10 +1044,10 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     # 추정 입력 처리는 검사 하나가 끝날 때마다 바로 한다. 휴무 결과를 입장 검사가,
     # 입장 결과를 체류 검사가 이어받기 때문에, 다 끝낸 뒤에 고치면 앞뒤가 어긋난다.
     for st in stops:
-        c = unconfirmed(check_closed_day(st["name"], st["place"], visit_date, facts), date_dep)
+        c = unconfirmed(check_closed_day(st["name"], st["place"], visit_date, facts, st["support"]), date_dep)
         closed_statuses[st["name"]] = c["status"]
         a = unconfirmed(check_admission(st["name"], st["place"], visit_date, st["start"],
-                                        c["status"], facts["holidays"]),
+                                        c["status"], facts["holidays"], st["support"]),
                         date_dep + st["start_dep"])
         # 개장 전에 도착하면 개장 시각에 들어간다. 체류와 다음 이동은 거기서부터 센다.
         st["entry"] = (a.get("evidence") or a.get("reference") or {}).get("entry_at", st["start"])
