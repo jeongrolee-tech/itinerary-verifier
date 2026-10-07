@@ -2,7 +2,7 @@
 TMAP 길찾기 — 판정할 때 일정의 구간마다 예상 이동시간을 받는다.
 
     from routes import live_legs
-    legs, misses = live_legs(itinerary, key)   # 판정 코어에 넘길 구간, 받지 못한 구간과 이유
+    legs, misses = live_legs(itinerary, key, facts, policy)   # 판정 코어에 넘길 구간, 받지 못한 구간과 이유
 
 장소 좌표도 판정할 때 TMAP 장소 검색으로 받는다(시설물 입구 좌표). 받은 값은 TMAP 약관상
 저장 후 24시간 넘게 쓸 수 없어서(docs/data-policy.md) 메모리에만 두고, 파일이나 기록에 남기지 않는다.
@@ -19,6 +19,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
+
+from verdict import judge
 
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
@@ -153,11 +155,12 @@ def taxi(frm: str, frm_at: tuple[float, float], to: str, to_at: tuple[float, flo
     return {**estimate(props["totalTime"], "taxi", "tmap_prediction"), "fare": props.get("taxiFare")}
 
 
-def live_legs(itinerary: dict, key: str) -> tuple[dict, dict]:
+def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dict, dict]:
     """일정의 구간마다 예상 이동시간을 받는다. (판정 코어의 legs 에 덮어쓸 구간, 받지 못한 구간 → Miss)
 
-    출발 시각은 계획한 시작 시각에 사용자가 말한 체류시간을 더한 것이다. 체류를 모르면 바로 나온다고
-    본다 — 판정 코어도 체류를 모르면 0분으로 보고, 0분으로도 늦을 때만 확정한다.
+    출발 시각은 판정 코어가 계산한 입장 시각에 사용자가 말한 체류시간을 더한 것이다. 개장 전에
+    도착하면 개장까지 기다린 뒤 체류를 시작한다. 체류를 모르면 바로 나온다고 본다 — 판정 코어도
+    체류를 모르면 0분으로 보고, 0분으로도 늦을 때만 확정한다.
 
     대중교통 구간에는 같은 출발 시각의 택시를 대안(alternatives)으로 붙인다. 판정 코어가 대중교통으로
     '된다' 가 안 나올 때 본다. 걸어갈 만큼 가까운 구간에는 붙이지 않는다. 택시를 받지 못해도 대중교통
@@ -166,11 +169,22 @@ def live_legs(itinerary: dict, key: str) -> tuple[dict, dict]:
     stops = itinerary["stops"]
     if not itinerary.get("date") or not stops:
         return {}, {}  # 날짜나 장소가 없으면 판정 코어가 입력부터 묻는다. 길을 찾을 출발 시각도 없다
-    pairs = list(zip(stops, stops[1:])) + [
-        (stops[-1], {"place": hc["place"]}) for hc in itinerary.get("hard_constraints", [])]
+    judged = judge(itinerary, facts, policy)
+    admission_checks = [c for c in judged.get("checks", [])
+                        if c.get("type") == "ADMISSION_NOT_POSSIBLE"]
+    entry_times = {}
+    if len(admission_checks) == len(stops):
+        for i, check in enumerate(admission_checks):
+            evidence = check.get("evidence") or check.get("reference") or {}
+            if evidence.get("entry_at"):
+                entry_times[i] = evidence["entry_at"]
+
+    pairs = [(i, a, b) for i, (a, b) in enumerate(zip(stops, stops[1:]))] + [
+        (len(stops) - 1, stops[-1], {"place": hc["place"]})
+        for hc in itinerary.get("hard_constraints", [])]
     day = date.fromisoformat(itinerary["date"])
     at, legs, misses = {}, {}, {}
-    for a, b in pairs:
+    for i, a, b in pairs:
         if not a.get("start"):
             continue  # 시각이 없으면 판정 코어도 이 구간을 판정하지 않는다
         if "area" in (a.get("scope"), b.get("scope")):
@@ -185,7 +199,8 @@ def live_legs(itinerary: dict, key: str) -> tuple[dict, dict]:
                         at[name] = e  # 못 찾은 장소는 다음 구간에서 다시 묻지 않는다
                 if isinstance(at[name], Miss):
                     raise at[name]
-            depart = (datetime.combine(day, datetime.strptime(a["start"], "%H:%M").time())
+            entry_at = entry_times.get(i, a["start"])
+            depart = (datetime.combine(day, datetime.strptime(entry_at, "%H:%M").time())
                       + timedelta(minutes=a.get("dwell_minutes") or 0))
             legs[k] = leg(a["place"], at[a["place"]], b["place"], at[b["place"]], depart, key)
         except Miss as e:

@@ -85,7 +85,7 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
         """TMAP 으로 받은 구간과 받지 못한 이유. 키가 없거나 판정 코어가 구간을 보지 않는 일정이면 둘 다 비어 있다."""
         if not tmap_key or not needs_routes(itinerary):
             return {}, {}
-        legs, misses = live_legs(itinerary, tmap_key)
+        legs, misses = live_legs(itinerary, tmap_key, FACTS, POLICY)
         reasons = {k: m.reason for k, m in misses.items()}
         # 택시를 받지 못한 이유는 구간 안에 예외 객체로 들어 있다. 화면으로 보내려고 이유만 꺼낸다
         for k, leg in legs.items():

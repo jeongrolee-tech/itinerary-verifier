@@ -33,7 +33,7 @@ def verify(text: str, claude, tmap_key: str, facts: dict, policy: dict, today: s
     """자연어 일정 → 화면에 보여 줄 글. 아무것도 저장하지 않는다."""
     ex, _ = extract(text, claude, today=today)
     itinerary = to_itinerary(ex)
-    legs, misses = live_legs(itinerary, tmap_key)
+    legs, misses = live_legs(itinerary, tmap_key, facts, policy)
     # 받은 구간이 저장해 둔 지하철 하한선 구간을 대신한다. 받지 못한 구간은 저장해 둔 것이 있으면 그걸 쓴다.
     out = judge(itinerary, {**facts, "legs": {**facts["legs"], **legs}}, policy)
 
