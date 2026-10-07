@@ -103,7 +103,8 @@ python core/run.py --case T08
   16:30  경복궁  체류 미입력
 
 [적용한 기본값]
-  A1  stops[0].dwell_minutes = 90  (default_dwell.palace)  ← 체류시간 미입력. 장소 유형 기본값 적용
+  A1  date = 2026-10-08  (extract.inferred_date)  ← 입력에 연도가 없어 추출 단계에서 가장 가까운 미래 날짜로 해석했다
+  A2  stops[0].dwell_minutes = 90  (default_dwell.palace)  ← 체류시간 미입력. 장소 유형 기본값 적용
 
 [검사]
   ○ pass            CLOSED_DAY                 경복궁
@@ -157,7 +158,7 @@ python core/run.py --case T15
   18:30  서울시립미술관 서소문본관  체류 60분 (사용자)
 
 [적용한 기본값]
-  없음 — 사용자가 다 말했다
+  A1  date = 2026-10-09  (extract.inferred_date)  ← 입력에 연도가 없어 추출 단계에서 가장 가까운 미래 날짜로 해석했다
 
 [검사]
   ○ pass            CLOSED_DAY                 서울시립미술관 서소문본관
@@ -209,7 +210,7 @@ python core/run.py --case T10
   14:00  창덕궁  체류 90분 (사용자)
 
 [적용한 기본값]
-  없음 — 사용자가 다 말했다
+  A1  date = 2026-10-08  (extract.inferred_date)  ← 입력에 연도가 없어 추출 단계에서 가장 가까운 미래 날짜로 해석했다
 
 [검사]
   ○ pass            CLOSED_DAY                 창덕궁
@@ -244,6 +245,8 @@ python core/run.py --case T10
 `feasible`은 **모든 검사에 근거가 있었을 때만** 나온다. 체류시간을 사용자가 말했고,
 계절 시간표(9~10월 09:00~18:00, 입장마감 17:00)를 공식 페이지에서 확보했기 때문이다.
 셋 중 하나라도 비면 위의 `undetermined`가 된다.
+날짜는 연도를 추측해 채웠지만(`A1`), 말한 요일(목요일)이 그 날짜와 맞아서 확인된 것으로 본다. 추측했다는 기록만 남기고
+판정은 막지 않는다.
 그래도 `[결과]` 끝에는 검사하지 않는 것이 붙는다. `feasible`은 "여행이 반드시 가능하다"가 아니라
 이 목록을 뺀 범위에서 위반을 찾지 못했다는 뜻이기 때문이다.
 
@@ -784,7 +787,7 @@ itinerary-verifier/
 | --- | --- |
 | `id` · `set` | `T08-체류시간미입력` · `dev` 또는 `holdout` |
 | `raw` | 입력 자연어 원문 |
-| `date` · `stops` · `hard_constraints` | **기대 추출값.** `run_extract.py`가 이것과 대조한다 |
+| `date` · `date_source` · `weekday_stated` · `stops` · `hard_constraints` | **기대 추출값.** `run_extract.py`가 이것과 대조한다. `date_source`는 연도를 말했으면 `explicit`, 아니면 `inferred` |
 | `expect_applied` | 적용해야 하는 사실·가정·빠진 정보 |
 | `expect` · `expect_checks` · `expect_hard_constraints` | **기대 판정** |
 | `why` | 왜 그 판정인지. 라벨의 근거 |
@@ -964,11 +967,15 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 
 두 단계를 따로 채점하는 이유 — 전체가 틀렸을 때 **추출 문제인지 판정 문제인지** 구분해야 고칠 곳을 알 수 있다.
 
+**값만이 아니라 출처와 분류도 채점한다** (2차 피드백 3번). 연도를 사용자가 말했는지 추측했는지, 시각을 말했는지
+추측했는지가 틀리면 판정이 물어야 할 것을 확정해 버린다. 지원 범위 분류는 판정 코드와 같은 함수(`verdict.support_scope`)로
+기대값과 추출값을 각각 정보 있는 장소 · 목록 밖 · 구역으로 나눠 비교한다. 요약에 항목별 점수가 따로 나온다.
+
 **기준 날짜는 실행한 날이 아니라 `tests.json`의 `reference_date`다.** 실행한 날을 쓰면 날짜가 지날수록 같은 입력을 다른 연도로 옮겨서, 같은 조건으로 기록을 다시 만들 수 없다.
 
 | 함수 | 하는 일 |
 | --- | --- |
-| `grade_extraction` | `tests.json`의 `date`·`stops`·`hard_constraints`를 기대 추출값으로 놓고 대조 |
+| `grade_extraction` | `tests.json`의 기대 추출값과 항목별로 대조한다 — 날짜·요일 · 연도 출처 · 장소 · 시각 · 시각 출처 · 체류시간 · 지원 범위 분류 · 필수 조건 |
 | `ask_key` | `--key=` → 환경변수 → 물어보기 순서 |
 
 비용 계산에 **캐시 토큰을 포함한다.** 이걸 빼면 실제보다 싸게 나온다. 캐시 단가는 모델마다 `core/model_info.py`에 값으로 적어 두었다 — 대부분 읽기가 입력의 0.1배지만 Opus 5.5는 0.05배다. 모델이 응답을 거부하거나(refusal) 형식에 맞지 않는 응답을 내면 그 케이스는 오류로 남기고 계속 돈다. 거부된 호출은 청구되는 경우에만 비용에 넣는다(`core/model_info.py`).

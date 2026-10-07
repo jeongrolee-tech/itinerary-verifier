@@ -158,7 +158,8 @@ facts 에 없는 운영시간·휴무일·이동시간을 네 지식으로 메�
 하한선으로도 늦어도 다른 수단으로는 갈 수 있으니 fail 이 아니다.
 체류시간이 system_default 면 사용자가 말하지 않은 값이다.
 시각의 start_source 가 inferred 면 사용자가 정확히 말하지 않아 추측한 시각이다(예: 앞에 기댈 시각 없이 "4시" 라고만 했다).
-그 시각에 기대는 검사는 pass 도 fail 도 확정하지 않는다."""
+그 시각에 기대는 검사는 pass 도 fail 도 확정하지 않는다.
+장소의 scope 가 area 면 구역만 정해진 일정이라 확인할 시설이 없다."""
 
 
 def itinerary_for(case: dict) -> dict:

@@ -8,7 +8,8 @@
     python core/run_extract.py --reference-date 2026-10-01   기준 날짜를 바꿔서 (기본은 tests.json)
 
 추출 문제와 판정 문제를 구분해서 재기 위해 두 단계를 따로 채점한다.
-  · 추출 평가 — 날짜·장소·시각·체류시간·필수 조건을 정확히 옮겼는가.
+  · 추출 평가 — 날짜·장소·시각·체류시간·필수 조건을 정확히 옮겼는가. 연도와 시각을 말한 것과 추측한 것으로
+                맞게 나눴는가. 장소를 지원 범위(정보 있는 장소 · 목록 밖 · 구역)에 맞게 나눴는가.
                 입력에 없는 값을 추가했는가. 모호한 것을 미확인으로 남겼는가.
   · 판정 평가 — 사람이 확인한 구조화 일정을 넣었을 때 코드가 기대한 결과를 내는가 (run.py)
 """
@@ -26,7 +27,7 @@ from labels import case_facts, stale_reason  # noqa: E402
 from llm import InvalidOutput, Refusal  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
-from verdict import judge  # noqa: E402
+from verdict import judge, support_scope  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -55,39 +56,55 @@ LINE = "═" * 78
 MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
 
 
-def grade_extraction(case, got: dict) -> list[str]:
-    """tests.json 의 date / stops / hard_constraints 가 기대 추출값이다."""
-    problems = []
+# 추출 채점 항목. 2차 피드백 3번 — "날짜/장소/시각뿐 아니라 추론한 연도의 출처와 지원 범위 분류까지".
+# 시각 출처는 같은 이유로 더했다(2026-10-07 사용자 결정): 출처가 틀리면 판정이 물어야 할 시각을 확정해 버린다
+FIELDS = {"date": "날짜·요일", "date_source": "연도 출처", "place": "장소", "start": "시각",
+          "start_source": "시각 출처", "dwell": "체류시간", "support": "지원 범위 분류", "hard_constraints": "필수 조건"}
+
+
+def grade_extraction(case, got: dict) -> dict[str, list[str]]:
+    """tests.json 의 date / date_source / weekday_stated / stops / hard_constraints 가 기대 추출값이다.
+
+    항목(FIELDS)마다 어긋난 점을 모은다. 지원 범위 분류는 판정 코드와 같은 함수(verdict.support_scope)로
+    기대값과 추출값을 각각 나눠 비교한다 — 장소 이름이나 구역 여부를 틀리면 여기서 드러난다.
+    """
+    p = {k: [] for k in FIELDS}
     if got.get("date") != case["date"]:
-        problems.append(f"date 기대 {case['date']} → 추출 {got.get('date')}")
+        p["date"].append(f"date 기대 {case['date']} → 추출 {got.get('date')}")
+    if got.get("weekday_stated") != case.get("weekday_stated"):
+        p["date"].append(f"weekday_stated 기대 {case.get('weekday_stated')} → 추출 {got.get('weekday_stated')}")
+    if got.get("date_source") != case.get("date_source"):
+        p["date_source"].append(f"date_source 기대 {case.get('date_source')} → 추출 {got.get('date_source')}")
 
     want_stops, got_stops = case["stops"], got.get("stops", [])
     if len(want_stops) != len(got_stops):
-        problems.append(f"스톱 개수 기대 {len(want_stops)} → 추출 {len(got_stops)}")
-    for i, want in enumerate(want_stops):
-        if i >= len(got_stops):
-            break
-        g = got_stops[i]
+        p["place"].append(f"스톱 개수 기대 {len(want_stops)} → 추출 {len(got_stops)}")
+    for i, (want, g) in enumerate(zip(want_stops, got_stops)):
         if want["place"] != g.get("place"):
-            problems.append(f"stops[{i}].place 기대 {want['place']} → 추출 {g.get('place')}")
+            p["place"].append(f"stops[{i}].place 기대 {want['place']} → 추출 {g.get('place')}")
         if want.get("start") != g.get("start"):
-            problems.append(f"stops[{i}].start 기대 {want.get('start')} → 추출 {g.get('start')}")
+            p["start"].append(f"stops[{i}].start 기대 {want.get('start')} → 추출 {g.get('start')}")
+        # 라벨에 출처가 없으면 사용자가 말한 시각이다 (tests.json time_rule)
+        want_src = want.get("start_source", "explicit" if want.get("start") else "missing")
+        if want_src != g.get("start_source"):
+            p["start_source"].append(f"stops[{i}].start_source 기대 {want_src} → 추출 {g.get('start_source')}")
         # 입력에 없던 체류시간을 채워 넣었는지 — 가장 중요한 항목
         if "dwell_minutes" not in want and "dwell_minutes" in g:
-            problems.append(f"stops[{i}] 입력에 없는 체류시간 {g['dwell_minutes']}분을 추가했다")
+            p["dwell"].append(f"stops[{i}] 입력에 없는 체류시간 {g['dwell_minutes']}분을 추가했다")
         elif want.get("dwell_minutes") != g.get("dwell_minutes"):
-            problems.append(f"stops[{i}].dwell_minutes 기대 {want.get('dwell_minutes')} → 추출 {g.get('dwell_minutes')}")
+            p["dwell"].append(f"stops[{i}].dwell_minutes 기대 {want.get('dwell_minutes')} → 추출 {g.get('dwell_minutes')}")
+        want_sup, got_sup = support_scope(want, facts), support_scope(g, facts)
+        if want_sup != got_sup:
+            p["support"].append(f"stops[{i}] 지원 범위 기대 {want_sup} → 추출 {got_sup}")
 
     want_hc, got_hc = case.get("hard_constraints", []), got.get("hard_constraints", [])
     if len(want_hc) != len(got_hc):
-        problems.append(f"필수 조건 개수 기대 {len(want_hc)} → 추출 {len(got_hc)}")
-    for i, want in enumerate(want_hc):
-        if i >= len(got_hc):
-            break
+        p["hard_constraints"].append(f"필수 조건 개수 기대 {len(want_hc)} → 추출 {len(got_hc)}")
+    for i, (want, g) in enumerate(zip(want_hc, got_hc)):
         for k in ("type", "place", "time"):
-            if want[k] != got_hc[i].get(k):
-                problems.append(f"HC[{i}].{k} 기대 {want[k]} → 추출 {got_hc[i].get(k)}")
-    return problems
+            if want[k] != g.get(k):
+                p["hard_constraints"].append(f"HC[{i}].{k} 기대 {want[k]} → 추출 {g.get(k)}")
+    return p
 
 
 def ask_key() -> str:
@@ -147,7 +164,8 @@ for case in cases:
     for n in ex.notes:
         print(f"  note: {n}")
 
-    ex_problems = grade_extraction(case, got)
+    ex_fields = grade_extraction(case, got)
+    ex_problems = [m for msgs in ex_fields.values() for m in msgs]
     print(f"\n[추출 채점]  {'✅ 라벨과 일치' if not ex_problems else '❌'}")
     for p in ex_problems:
         print(f"  ❌ {p}")
@@ -156,7 +174,9 @@ for case in cases:
           f"  {usage['latency_ms']}ms")
 
     row = {"id": case["id"], "set": case["set"], "extraction_ok": not ex_problems,
-           "extraction_problems": ex_problems, "extracted": got, "usage": usage,
+           "extraction_problems": ex_problems,
+           "extraction_fields": {k: not msgs for k, msgs in ex_fields.items()},
+           "extracted": got, "usage": usage,
            "notes": ex.notes}
 
     if not extract_only:
@@ -192,6 +212,9 @@ for r in results:
 
 n_ex = sum(1 for r in results if r.get("extraction_ok"))
 print(f"\n  추출 {n_ex}/{len(results)}")
+graded = [r for r in results if "extraction_fields" in r]  # 거부 · 형식 오류는 항목을 채점하지 못했다
+print("  항목별 " + " · ".join(
+    f"{label} {sum(r['extraction_fields'][k] for r in graded)}/{len(results)}" for k, label in FIELDS.items()))
 if not extract_only:
     scored = [r for r in results if r.get("label_current", True)]
     stale = [r for r in results if not r.get("label_current", True)]
