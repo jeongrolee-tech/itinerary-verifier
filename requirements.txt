@@ -3,5 +3,11 @@
 anthropic>=1.0
 pydantic>=2.0
 
+# 데모(core/app.py)에만 필요하다. httpx 는 데모 테스트(tests/test_app.py)가 쓴다.
+# fastapi 0.110 이하는 지금 httpx 와 테스트 클라이언트가 맞지 않는다(0.111 에서 전체 테스트 통과 확인).
+fastapi>=0.111
+uvicorn
+httpx
+
 # 규칙 테스트(tests/)에만 필요하다.
 pytest>=8.0

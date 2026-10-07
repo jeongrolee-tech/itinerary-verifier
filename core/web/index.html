@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>여행 일정 검증</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f4; --card: #ffffff; --fg: #1d1d1f; --muted: #66645e; --line: #e2e0d9;
+    --fail: #c62828; --unknown: #9a5800; --pass: #2e7d32; --na: #6f6f6f;
+    --accent: #1f5fbf; --on-accent: #ffffff; --ask: #fff3dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141414; --card: #1d1d1d; --fg: #ececec; --muted: #a3a3a3; --line: #363636;
+      --fail: #ef6b67; --unknown: #f0a54a; --pass: #6cc070; --na: #9e9e9e;
+      --accent: #7aa7ff; --on-accent: #0d1a30; --ask: #3a2c14;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.6 system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 0 0 8px; }
+  h3 { font-size: 1rem; margin: 16px 0 6px; }
+  a { color: var(--accent); }
+  .lead, .muted { color: var(--muted); }
+  .small { font-size: .88rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 16px 0; }
+  textarea, input, select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line);
+                            border-radius: 6px; padding: 5px 8px; }
+  textarea { width: 100%; resize: vertical; }
+  button { font: inherit; border: 0; border-radius: 6px; padding: 8px 18px; background: var(--accent);
+           color: var(--on-accent); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); padding: 4px 10px; }
+  button:disabled { opacity: .5; cursor: progress; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .status.error { color: var(--fail); }
+  .verdict { font-size: 1.2rem; font-weight: 700; }
+  .verdict.feasible { color: var(--pass); }
+  .verdict.infeasible { color: var(--fail); }
+  .verdict.undetermined { color: var(--unknown); }
+  .questions { background: var(--ask); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+  .questions h3 { margin: 0 0 4px; }
+  .questions ul { margin: 0 0 4px; padding-left: 20px; }
+  .group h3 .count { color: var(--muted); font-weight: 400; }
+  .group.fail h3 { color: var(--fail); }
+  .group.unknown h3 { color: var(--unknown); }
+  .group.pass h3 { color: var(--pass); }
+  .group.not_applicable h3 { color: var(--na); }
+  .item { border-left: 3px solid var(--line); padding: 2px 10px; margin: 6px 0; }
+  .group.fail .item { border-color: var(--fail); }
+  .group.unknown .item { border-color: var(--unknown); }
+  .item .title { font-weight: 600; }
+  .item .reason, .item .notice, .item .evidence { color: var(--muted); font-size: .92rem; }
+  .confirm { border-left: 3px solid var(--unknown); padding: 2px 10px; margin: 8px 0; }
+  .confirm .ask { font-weight: 600; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-weight: 600; font-size: .9rem; color: var(--muted); }
+  td.center, th.center { text-align: center; }
+  td input[type=text] { width: 100%; min-width: 8em; }
+  td input.num { width: 5.5em; }
+  label.small { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); white-space: nowrap; }
+  ul.plain { margin: 4px 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>여행 일정 검증</h1>
+  <p class="lead">일정을 평소 말하듯 적으면 표로 옮겨 판정합니다. 확인하지 못한 것은 무엇을 알려 주면 되는지 같이
+    보여 주고, 아래 표에서 고친 뒤 다시 검사할 수 있습니다.</p>
+
+  <section class="card">
+    <label for="text"><b>일정</b></label>
+    <textarea id="text" rows="4" placeholder="예: 10월 8일 목요일 오후 4시 반에 경복궁 갈게요."></textarea>
+    <div class="row">
+      <button id="check" type="button">검사</button>
+      <span id="check-status" class="status muted" role="status"></span>
+    </div>
+  </section>
+
+  <section id="recheck-summary" class="card" hidden></section>
+
+  <section id="result" class="card" hidden>
+    <div id="verdict" class="verdict"></div>
+    <div id="message"></div>
+    <div id="judged-date" class="muted small"></div>
+    <div id="questions" class="questions" hidden>
+      <h3>물어볼 것</h3>
+      <ul id="question-list"></ul>
+      <div class="muted small">아래 표에서 알려 주거나 일정을 고친 뒤 다시 검사하세요.</div>
+    </div>
+    <div id="groups"></div>
+    <h3>검사하지 않는 것</h3>
+    <ul id="not-checked" class="plain muted"></ul>
+    <div id="extra" class="muted small"></div>
+  </section>
+
+  <section id="edit" class="card" hidden>
+    <h2>일정 고치기</h2>
+    <p class="muted small">고친 칸은 사용자가 말한 값으로 봅니다. 체류시간을 비워 두면 모르는 것으로 봅니다.</p>
+    <div class="row">
+      <label for="date"><b>날짜</b></label>
+      <input id="date" type="date">
+      <label class="small" id="date-ok-wrap" hidden><input type="checkbox" id="date-ok"><span id="date-ok-text"></span></label>
+    </div>
+    <h3>장소</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>장소</th><th>시작</th><th>체류(분)</th>
+          <th class="center" title="명동 · 북촌처럼 여러 골목에 걸친 동네만 정한 경우">구역</th><th></th></tr></thead>
+        <tbody id="stops"></tbody>
+      </table>
+    </div>
+    <div class="row"><button class="ghost" id="add-stop" type="button">장소 더하기</button></div>
+    <h3>꼭 지켜야 하는 조건</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>종류</th><th>장소</th><th>시각</th><th></th></tr></thead>
+        <tbody id="hcs"></tbody>
+      </table>
+    </div>
+    <div class="row"><button class="ghost" id="add-hc" type="button">조건 더하기</button></div>
+    <div class="row">
+      <button id="recheck" type="button">다시 검사</button>
+      <span id="recheck-status" class="status muted" role="status"></span>
+    </div>
+    <p class="muted small">고친 일정 전체를 다시 판정합니다. 꼭 지킨다고 했던 조건이나 날짜, 가려던 장소를 바꾸면 따로 확인을 묻습니다.</p>
+  </section>
+</main>
+
+<script>
+// 화면은 서버(core/app.py)가 준 것을 보여 주고, 표에서 고친 일정을 돌려보낼 뿐이다. 판정은 서버가 한다.
+// 서버가 준 글은 전부 textContent 로 넣는다 — 장소 이름 같은 입력이 HTML 로 읽히지 않게 한다.
+const $ = (id) => document.getElementById(id);
+const VERDICT = { feasible: "실행 가능", infeasible: "실행할 수 없는 부분이 있음", undetermined: "판정 보류" };
+const HC_TYPES = { TRAIN_DEPARTURE: "열차 출발", FLIGHT_DEPARTURE: "항공편 출발", ARRIVE_BY: "도착 기한", OTHER: "기타" };
+const MODES = { metro: "지하철", transit: "대중교통", walk: "도보", taxi: "택시" };
+const LEG_SOURCES = { api_runtime: "TMAP 예상", public_data: "주행시간 하한선 · 공공데이터" };
+const WEEKDAYS = { MON: "월", TUE: "화", WED: "수", THU: "목", FRI: "금", SAT: "토", SUN: "일" };
+const FIELDS = { date: "날짜", date_source: "날짜 출처", weekday_stated: "말한 요일", place: "장소", start: "시작 시각",
+                 start_source: "시각 출처", dwell_minutes: "체류시간", scope: "구역 여부", scope_note: "구역 메모",
+                 type: "종류", time: "시각", raw: "원문" };
+
+let original = null;  // 처음 옮긴 일정. 다시 검사할 때마다 이것과 비교한다 — 무엇을 바꿨나, 꼭 지킨다던 것을 바꿨나
+let firstLegs = {};   // 처음 검사에서 받은 TMAP 이동시간. 원래 일정을 같은 조건으로 다시 판정하라고 돌려보낸다. 저장하지 않는다
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v;
+    else if (k === "text") node.textContent = v;
+    else node.setAttribute(k, v);
+  }
+  node.append(...children.filter((c) => c != null));
+  return node;
+}
+
+async function post(url, body) {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+                                 body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : `서버 오류 (${res.status})`);
+  return data;
+}
+
+// ── 결과 ───────────────────────────────────────────────────────────
+function evidenceOf(result, id) {
+  // 묶음의 항목 id 로 판정 결과의 근거를 찾는다 — 장소 · 구간 검사는 chk-001, 필수 조건은 HC1
+  const c = result.checks.find((x) => x.id === id);
+  if (c) return c.evidence || c.reference || null;
+  const h = result.hard_constraints.find((x) => x.id === id);
+  return h ? h.policy : null;
+}
+
+function evidenceLine(ev) {
+  // 무엇을 보고 그렇게 판정했는지 한 줄로. 운영시간 · 휴무 규칙에는 공식 안내 링크와 확인한 날을 붙인다
+  if (!ev) return null;
+  const parts = [];
+  if (ev.weekly) {
+    parts.push(`정기휴일 ${ev.weekly.map((w) => WEEKDAYS[w] || w).join("·")}요일`
+               + (ev.effective_closed_date ? ` (그 주는 ${ev.effective_closed_date})` : ""));
+  }
+  if (ev.open) parts.push(`운영 ${ev.open}~${ev.close}` + (ev.last_admission ? `, 입장마감 ${ev.last_admission}` : ""));
+  if (ev.end_time) parts.push(`${ev.dwell_minutes}분 머물면 ${ev.end_time}에 끝남, 폐장 ${ev.closing_time}`);
+  if (ev.travel_minutes) {  // 0분(바로 이어도 늦는 경우)은 판정 이유에 이미 적혀 있다
+    const source = ev.travel_source || ev.source;
+    parts.push(`이동 ${[MODES[ev.mode], `${ev.travel_minutes}분`].filter(Boolean).join(" ")}`
+               + (source ? ` (${LEG_SOURCES[source] || source})` : ""));
+    if (ev.depart_at && ev.arrival) parts.push(`${ev.depart_at} 출발 → ${ev.arrival} 도착`);
+    if (ev.estimated_arrival) {
+      parts.push(`${ev.estimated_arrival} 도착 예상` + (ev.required_arrival ? `, 권장 도착 ${ev.required_arrival}` : ""));
+    }
+  }
+  const link = /^https?:\/\//.test(ev.url || "")
+    ? el("a", { href: ev.url, target: "_blank", rel: "noopener noreferrer",
+                text: "공식 안내" + (ev.checked_at ? ` (${ev.checked_at} 확인)` : "") })
+    : null;
+  if (!parts.length && !link) return null;
+  return el("div", { class: "evidence", text: "근거 · " + parts.join(" · ") + (parts.length && link ? " · " : "") }, link);
+}
+
+function extraLines(data) {
+  const lines = (data.notes || []).map((t) => "옮길 때 메모 · " + t);
+  for (const [k, leg] of Object.entries(data.legs || {})) {
+    let line = `TMAP 예상 · ${k.replace("|", " → ")} ${MODES[leg.mode] || leg.mode} ${leg.minutes}분`;
+    for (const t of leg.alternatives || []) {
+      line += ` · 택시 ${t.minutes}분` + (t.fare ? ` (약 ${t.fare.toLocaleString("ko-KR")}원)` : "");
+    }
+    lines.push(line);
+  }
+  for (const [k, why] of Object.entries(data.leg_misses || {})) {
+    lines.push(`TMAP 받지 못함 · ${k.replace("|", " → ")} [${why}]`);
+  }
+  lines.push(data.tmap ? "TMAP 이동시간은 이 판정에만 쓰고 저장하지 않습니다"
+                       : "TMAP 키가 없어 이동시간은 저장해 둔 지하철 주행시간 하한선으로만 판정했습니다");
+  return lines;
+}
+
+function showResult(data) {
+  const rep = data.report, result = data.result;
+  $("result").hidden = false;
+  $("verdict").className = "verdict " + rep.verdict;
+  $("verdict").textContent = VERDICT[rep.verdict] || rep.verdict;
+  $("message").textContent = rep.message;
+  $("judged-date").textContent = result.weekday
+    ? `판정한 날짜 · ${result.date} ${WEEKDAYS[result.weekday]}요일` + (result.is_holiday ? " · 공휴일" : "")
+    : "";
+  // 같은 것을 여러 검사가 물어도 한 번만 묻는다 (report.questions)
+  const qs = data.questions || [];
+  $("questions").hidden = !qs.length;
+  $("question-list").replaceChildren(...qs.map((q) => el("li", { text: q })));
+  $("groups").replaceChildren(...rep.groups.filter((g) => g.items.length).map((g) =>
+    el("div", { class: "group " + g.status },
+       el("h3", {}, `${g.title} `, el("span", { class: "count", text: `(${g.items.length})` })),
+       ...g.items.map((it) => el("div", { class: "item" },
+         el("div", { class: "title", text: it.title }),
+         it.reason ? el("div", { class: "reason", text: it.reason }) : null,
+         it.notice ? el("div", { class: "notice", text: "안내 · " + it.notice }) : null,
+         evidenceLine(evidenceOf(result, it.id)))))));
+  $("not-checked").replaceChildren(...rep.not_checked.map((t) => el("li", { text: t })));
+  $("extra").replaceChildren(...extraLines(data).map((t) => el("div", { text: t })));
+}
+
+// ── 일정 표 ─────────────────────────────────────────────────────────
+function stopRow(s = {}, index = null) {
+  const tr = el("tr");
+  // 처음 옮긴 일정의 몇 번째 장소인가 — 추측한 시각을 그대로 두었는지 보려고 남긴다. 새로 더한 줄은 비어 있다
+  tr.dataset.index = index === null ? "" : String(index);
+  const place = el("input", { type: "text", value: s.place || "", "aria-label": "장소" });
+  const start = el("input", { type: "time", value: s.start || "", "aria-label": "시작 시각" });
+  const dwell = el("input", { type: "number", class: "num", min: "1", max: "1440", step: "1", placeholder: "모름",
+                              value: s.dwell_minutes ?? "", "aria-label": "체류시간(분)" });
+  const area = el("input", { type: "checkbox", "aria-label": "구역" });
+  area.checked = s.scope === "area";
+  const startCell = el("td", {}, start);
+  if (s.start_source === "inferred") {
+    startCell.append(" ", el("label", { class: "small" }, el("input", { type: "checkbox", class: "start-ok" }),
+                             "추측한 시각이 맞아요"));
+  }
+  const remove = el("button", { type: "button", class: "ghost", text: "빼기" });
+  remove.onclick = () => tr.remove();
+  tr.append(el("td", {}, place), startCell, el("td", {}, dwell), el("td", { class: "center" }, area), el("td", {}, remove));
+  return tr;
+}
+
+function hcRow(h = {}) {
+  const tr = el("tr");
+  tr.dataset.id = h.id || "";  // 처음 일정의 조건 번호 — 바뀌었는지 빠졌는지 이 번호로 짝을 맞춘다
+  tr.dataset.raw = h.raw || "";
+  const type = el("select", { "aria-label": "종류" },
+                  ...Object.entries(HC_TYPES).map(([k, v]) => el("option", { value: k, text: v })));
+  type.value = h.type || "TRAIN_DEPARTURE";
+  const place = el("input", { type: "text", value: h.place || "", "aria-label": "장소" });
+  const time = el("input", { type: "time", value: h.time || "", "aria-label": "시각" });
+  const remove = el("button", { type: "button", class: "ghost", text: "빼기" });
+  remove.onclick = () => tr.remove();
+  tr.append(el("td", {}, type), el("td", {}, place), el("td", {}, time), el("td", {}, remove));
+  return tr;
+}
+
+function fillTable(it, result) {
+  $("edit").hidden = false;
+  $("date").value = it.date || "";
+  // 연도를 추측했는데 요일로 확인되지 않았거나, 말한 요일과 날짜가 어긋나면 날짜를 그대로 두고도 맞다고 할 수 있게 한다
+  const conflict = result.checks.some((c) => c.unknown_reason === "MISMATCHED_WEEKDAY");
+  const guessed = it.date_source === "inferred" && !it.weekday_stated;
+  $("date-ok").checked = false;
+  $("date-ok-wrap").hidden = !(conflict || guessed);
+  $("date-ok-text").textContent = conflict
+    ? `말한 요일(${WEEKDAYS[it.weekday_stated] || it.weekday_stated}요일)이 아니라 이 날짜가 맞아요`
+    : "추측한 날짜가 맞아요";
+  $("stops").replaceChildren(...it.stops.map((s, i) => stopRow(s, i)));
+  $("hcs").replaceChildren(...(it.hard_constraints || []).map((h) => hcRow(h)));
+}
+
+function freshId(used) {
+  // 새로 더한 조건에는 처음 일정에 없던 번호를 준다. 겹치면 원래 조건이 '바뀐' 것으로 잘못 비교된다
+  let n = 1;
+  while (used.has(`HC${n}`)) n += 1;
+  used.add(`HC${n}`);
+  return `HC${n}`;
+}
+
+function readTable() {
+  // 표에서 고친 칸은 사용자가 말한 값이다. 날짜를 바꾸거나 맞다고 체크하면 말한 날짜가 되고, 시각도 같다
+  const date = $("date").value || null;
+  const settled = date !== original.date || $("date-ok").checked;
+  const revised = {
+    date,
+    date_source: !date ? "missing" : settled ? "explicit" : original.date_source,
+    weekday_stated: settled ? null : original.weekday_stated,
+    stops: [],
+    hard_constraints: [],
+  };
+  for (const tr of $("stops").rows) {
+    const [place, start, dwell, area] = tr.querySelectorAll("td > input");
+    if (!dwell.checkValidity()) throw new Error("체류시간은 1분에서 1440분 사이 정수로 적어 주세요");
+    const before = tr.dataset.index === "" ? null : original.stops[Number(tr.dataset.index)];
+    const guessKept = before?.start_source === "inferred" && start.value === before.start
+                      && !tr.querySelector(".start-ok")?.checked;
+    // 값이 없는 칸은 키를 빼고 보낸다 — 처음 옮긴 일정(extract.to_itinerary)과 모양이 같아야 바뀐 칸을 바르게 센다
+    const s = { place: place.value.trim() || null };
+    if (start.value) s.start = start.value;
+    s.start_source = !start.value ? "missing" : guessKept ? "inferred" : "explicit";
+    if (dwell.value) s.dwell_minutes = Number(dwell.value);
+    s.scope = area.checked ? "area" : "place";
+    if (before?.scope_note && before.place === s.place && s.scope === "area") s.scope_note = before.scope_note;
+    revised.stops.push(s);
+  }
+  const rows = [...$("hcs").rows];
+  const used = new Set([...(original.hard_constraints || []).map((h) => h.id),
+                        ...rows.map((tr) => tr.dataset.id).filter(Boolean)]);
+  for (const tr of rows) {
+    const [place, time] = tr.querySelectorAll("td > input");
+    revised.hard_constraints.push({ id: tr.dataset.id || freshId(used), type: tr.querySelector("select").value,
+                                    place: place.value.trim() || null, time: time.value || null,
+                                    raw: tr.dataset.raw || "화면에서 더함" });
+  }
+  return revised;
+}
+
+// ── 다시 검사 ───────────────────────────────────────────────────────
+function fieldName(path) {
+  // stops[0].dwell_minutes → 장소 1 체류시간
+  const m = path.match(/^(stops|hard_constraints)\[(\d+)\](?:\.(\w+))?$/);
+  if (!m) return FIELDS[path] || path;
+  const what = `${m[1] === "stops" ? "장소" : "필수 조건"} ${Number(m[2]) + 1}`;
+  return m[3] ? `${what} ${FIELDS[m[3]] || m[3]}` : `${what} 더하거나 뺌`;
+}
+
+function showRecheck(data) {
+  const before = VERDICT[data.verdict_before] || data.verdict_before;
+  const after = VERDICT[data.verdict_after] || data.verdict_after;
+  const parts = [
+    el("h2", { text: before === after ? `다시 검사 — 판정은 그대로 ${after}` : `다시 검사 — ${before} → ${after}` }),
+    el("div", { class: "muted", text: data.changed_fields.length
+      ? "처음 일정에서 바뀐 칸 · " + data.changed_fields.map(fieldName).join(", ")
+      : "처음 일정에서 바뀐 칸이 없습니다" }),
+  ];
+  for (const c of data.needs_confirmation) {
+    parts.push(el("div", { class: "confirm" }, el("div", { text: c.detail }), el("div", { class: "ask", text: c.ask_user })));
+  }
+  $("recheck-summary").replaceChildren(...parts);
+  $("recheck-summary").hidden = false;
+}
+
+async function run(button, status, work) {
+  button.disabled = true;
+  status.className = "status muted";
+  status.textContent = "판정 중…";
+  try {
+    await work();
+    status.textContent = "";
+  } catch (e) {
+    status.className = "status error";
+    status.textContent = e.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+$("check").onclick = () => run($("check"), $("check-status"), async () => {
+  const text = $("text").value.trim();
+  if (!text) throw new Error("일정을 적어 주세요");
+  const data = await post("/api/check", { text });
+  original = data.itinerary;
+  firstLegs = data.legs || {};
+  $("recheck-summary").hidden = true;
+  showResult(data);
+  fillTable(original, data.result);
+});
+
+$("recheck").onclick = () => run($("recheck"), $("recheck-status"), async () => {
+  const data = await post("/api/recheck", { original, revised: readTable(), legs: firstLegs });
+  showRecheck(data);
+  showResult(data);
+  $("recheck-summary").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+$("text").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) $("check").click();
+});
+$("add-stop").onclick = () => $("stops").append(stopRow());
+$("add-hc").onclick = () => $("hcs").append(hcRow());
+</script>
+</body>
+</html>
