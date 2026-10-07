@@ -1329,9 +1329,140 @@
           "여유가 5분 모자라도 괜찮은지 — 사용자 판단"
         ]
       }
+    },
+    {
+      "id": "T28-구역삼청동",
+      "set": "holdout",
+      "expect": "undetermined",
+      "labeled_against": "facts-2026-09-29",
+      "why": "삼청동은 여러 골목에 걸친 동네라 점심을 먹을 가게가 정해지지 않았다(구역 — tests 의 scope area). 구역은 대표 지점이나 아무 식당으로 바꿔 판정하지 않고 어디로 가는지 묻는다. 위치가 정해지지 않아 삼청동 → 경복궁 이동도 판정하지 않는다. 경복궁은 목요일 개방, 14:00 입장(입장마감 17:00), 16:00 종료(폐장 18:00)로 확인된다. 아무 식당이나 골라 판정하거나 확인할 것이 없다고 feasible 을 내는 구현, 지원 목록 밖 장소처럼 '확인하지 않았다' 로만 넘기는 구현을 잡는다",
+      "raw": "10월 15일 목요일 낮 12시에 삼청동에서 점심 먹고, 오후 2시에 경복궁 가서 두 시간 볼게요.",
+      "date": "2026-10-15",
+      "date_source": "inferred",
+      "weekday_stated": "THU",
+      "stops": [
+        {
+          "place": "삼청동",
+          "start": "12:00",
+          "scope": "area"
+        },
+        {
+          "place": "경복궁",
+          "start": "14:00",
+          "dwell_minutes": 120
+        }
+      ],
+      "expect_checks": [
+        {
+          "type": "CLOSED_DAY",
+          "target": "삼청동",
+          "status": "unknown"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "삼청동",
+          "status": "unknown"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "삼청동 → 경복궁",
+          "status": "unknown"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "경복궁",
+          "status": "pass"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "경복궁",
+          "status": "pass"
+        }
+      ],
+      "expect_applied": {
+        "facts": [
+          "places.경복궁.closed_days.weekly [TUE]",
+          "places.경복궁.hours (3·4·5·9·10월) 09:00~18:00, last_admission 17:00"
+        ],
+        "assumptions": [],
+        "missing": [
+          "삼청동에서 갈 가게 — 사용자에게 묻는다"
+        ]
+      }
+    },
+    {
+      "id": "T29-지원목록밖장소",
+      "set": "holdout",
+      "expect": "undetermined",
+      "labeled_against": "facts-2026-09-29",
+      "why": "국립중앙박물관은 facts.json 의 places 에 없는 지원 목록 밖 장소라 휴무일과 운영시간을 확인하지 않는다. 사용자에게 물을 것이 아니라 우리가 정보를 확보해야 풀린다. 다만 위치가 정해진 장소라 이동은 판정한다 — 12:00 에 나와 테스트용 이동 25분에 권장 여유 10분을 더해도 12:35 라 13:30 덕수궁에 닿는다. 덕수궁은 목요일 개방, 13:30 입장(입장마감 20:00), 14:30 종료다. 일반 지식으로 박물관 운영시간을 메워 feasible 을 내는 구현, 구역처럼 이동까지 보류하는 구현을 잡는다",
+      "raw": "10월 15일 목요일 오전 10시에 국립중앙박물관 두 시간 보고, 오후 1시 반에 덕수궁 가서 한 시간 볼게요.",
+      "date": "2026-10-15",
+      "date_source": "inferred",
+      "weekday_stated": "THU",
+      "stops": [
+        {
+          "place": "국립중앙박물관",
+          "start": "10:00",
+          "dwell_minutes": 120
+        },
+        {
+          "place": "덕수궁",
+          "start": "13:30",
+          "dwell_minutes": 60
+        }
+      ],
+      "legs": {
+        "국립중앙박물관|덕수궁": {
+          "minutes": 25,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        }
+      },
+      "expect_checks": [
+        {
+          "type": "CLOSED_DAY",
+          "target": "국립중앙박물관",
+          "status": "unknown"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "국립중앙박물관",
+          "status": "unknown"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "국립중앙박물관 → 덕수궁",
+          "status": "pass"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "덕수궁",
+          "status": "pass"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "덕수궁",
+          "status": "pass"
+        }
+      ],
+      "expect_applied": {
+        "facts": [
+          "places.덕수궁.closed_days.weekly [MON]",
+          "places.덕수궁.hours (1~12월) 09:00~21:00, last_admission 20:00 — rule_text '09:00~21:00 (입장마감 20:00) 야간상시'",
+          "policy.buffer_minutes.transit_leg 10",
+          "legs 국립중앙박물관|덕수궁 25분 — 케이스에 적은 테스트용 값"
+        ],
+        "assumptions": [],
+        "missing": [
+          "국립중앙박물관 휴무일 · 운영시간 — 지원 목록 밖"
+        ]
+      }
     }
   ],
-  "label_note": "라벨은 공식 페이지 문구에서 만들었고 기대 추출값은 입력 원문에 적힌 것만 넣는다. 2026-09-22 재검토 — 이동시간 출처를 공공누리 지하철 하한선으로 바꾸고 장소 4곳을 추가하자 8건의 전제가 달라졌다. T01·T04 는 하한선으로 확정이 불가능해져 내렸고, T10·T13 은 전제가 사라져 케이스 목적을 옮겼다. T04 는 이전 라벨이 약관상 쓸 수 없는 값(Google 실측값)에 기대어 위반을 확정하고 있었다. 2026-10-06 — 결과를 보지 않은 holdout 12건(T16~T27)을 2차 피드백 3번의 여섯 범주(3~6곳 일정 · 공휴일과 운영시간 경계 · 같은 이름의 장소 · 애매한 시간 표현 · 확정 오류와 정보 부족 · 열차 조건만)마다 2건씩 더했다. Claude 가 판정 코드를 돌리지 않고 초안을 쓰고 사용자가 확인했으며, 처음 돌리기 전에 커밋했다. 다만 초안을 쓴 Claude 는 판정 코드를 함께 고쳐 온 작성자라 코드를 본 적이 없는 상태가 아니다(초안 직전에도 이동 검사 부분을 읽었다). 그래서 정답은 코드가 아니라 README 판정 규칙과 facts.json 의 공식 근거로 정했고, 새 12건은 라벨을 커밋하기 전에 코드로 돌리거나 결과를 본 적이 없다. 오전·오후 기준(time_rule)은 2026-10-06 에 '시각에 직접 붙은 말만' 으로 정했다가, 첫 실행 전인 10-07 에 '앞 시각 이어받기' 로 고쳤다. '오후 1시 … 3시' 의 3시를 묻는 것은 답이 뻔한 질문이기 때문이다. 그래서 T23 정답이 undetermined 에서 feasible 로 바뀌었고, T01 · T03 · T12 는 처음 라벨 그대로다.",
+  "label_note": "라벨은 공식 페이지 문구에서 만들었고 기대 추출값은 입력 원문에 적힌 것만 넣는다. 2026-09-22 재검토 — 이동시간 출처를 공공누리 지하철 하한선으로 바꾸고 장소 4곳을 추가하자 8건의 전제가 달라졌다. T01·T04 는 하한선으로 확정이 불가능해져 내렸고, T10·T13 은 전제가 사라져 케이스 목적을 옮겼다. T04 는 이전 라벨이 약관상 쓸 수 없는 값(Google 실측값)에 기대어 위반을 확정하고 있었다. 2026-10-06 — 결과를 보지 않은 holdout 12건(T16~T27)을 2차 피드백 3번의 여섯 범주(3~6곳 일정 · 공휴일과 운영시간 경계 · 같은 이름의 장소 · 애매한 시간 표현 · 확정 오류와 정보 부족 · 열차 조건만)마다 2건씩 더했다. Claude 가 판정 코드를 돌리지 않고 초안을 쓰고 사용자가 확인했으며, 처음 돌리기 전에 커밋했다. 다만 초안을 쓴 Claude 는 판정 코드를 함께 고쳐 온 작성자라 코드를 본 적이 없는 상태가 아니다(초안 직전에도 이동 검사 부분을 읽었다). 그래서 정답은 코드가 아니라 README 판정 규칙과 facts.json 의 공식 근거로 정했고, 새 12건은 라벨을 커밋하기 전에 코드로 돌리거나 결과를 본 적이 없다. 오전·오후 기준(time_rule)은 2026-10-06 에 '시각에 직접 붙은 말만' 으로 정했다가, 첫 실행 전인 10-07 에 '앞 시각 이어받기' 로 고쳤다. '오후 1시 … 3시' 의 3시를 묻는 것은 답이 뻔한 질문이기 때문이다. 그래서 T23 정답이 undetermined 에서 feasible 로 바뀌었고, T01 · T03 · T12 는 처음 라벨 그대로다. 2026-10-07 — 3-5 지원 범위 분류를 채점하려고 holdout 2건(T28 구역 · T29 지원 목록 밖 장소)을 더했다. 판정 코드(support_scope)를 고친 뒤에 썼지만 코드로 돌리지 않았고, 처음 돌리기 전에 커밋했다.",
   "label_fields": {
     "raw": "입력 (자연어)",
     "date / date_source / weekday_stated / stops / hard_constraints": "기대 추출값 — run_extract.py 가 이것과 대조한다. date_source 는 연도를 말했으면 explicit, 아니면 inferred",
