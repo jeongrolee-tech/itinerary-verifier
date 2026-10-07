@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic  # noqa: E402
 from extract import SYSTEM, Extraction, extract, to_itinerary  # noqa: E402
-from labels import case_facts, stale_reason  # noqa: E402
+from labels import EXTRACTION_FIELDS, case_facts, stale_reason  # noqa: E402
 from llm import InvalidOutput, Refusal  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
@@ -56,19 +56,13 @@ LINE = "═" * 78
 MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
 
 
-# 추출 채점 항목. 2차 피드백 3번 — "날짜/장소/시각뿐 아니라 추론한 연도의 출처와 지원 범위 분류까지".
-# 시각 출처는 같은 이유로 더했다(2026-10-07 사용자 결정): 출처가 틀리면 판정이 물어야 할 시각을 확정해 버린다
-FIELDS = {"date": "날짜·요일", "date_source": "연도 출처", "place": "장소", "start": "시각",
-          "start_source": "시각 출처", "dwell": "체류시간", "support": "지원 범위 분류", "hard_constraints": "필수 조건"}
-
-
 def grade_extraction(case, got: dict) -> dict[str, list[str]]:
     """tests.json 의 date / date_source / weekday_stated / stops / hard_constraints 가 기대 추출값이다.
 
-    항목(FIELDS)마다 어긋난 점을 모은다. 지원 범위 분류는 판정 코드와 같은 함수(verdict.support_scope)로
+    항목(labels.EXTRACTION_FIELDS)마다 어긋난 점을 모은다. 지원 범위 분류는 판정 코드와 같은 함수(verdict.support_scope)로
     기대값과 추출값을 각각 나눠 비교한다 — 장소 이름이나 구역 여부를 틀리면 여기서 드러난다.
     """
-    p = {k: [] for k in FIELDS}
+    p = {k: [] for k in EXTRACTION_FIELDS}
     if got.get("date") != case["date"]:
         p["date"].append(f"date 기대 {case['date']} → 추출 {got.get('date')}")
     if got.get("weekday_stated") != case.get("weekday_stated"):
@@ -214,7 +208,7 @@ n_ex = sum(1 for r in results if r.get("extraction_ok"))
 print(f"\n  추출 {n_ex}/{len(results)}")
 graded = [r for r in results if "extraction_fields" in r]  # 거부 · 형식 오류는 항목을 채점하지 못했다
 print("  항목별 " + " · ".join(
-    f"{label} {sum(r['extraction_fields'][k] for r in graded)}/{len(results)}" for k, label in FIELDS.items()))
+    f"{label} {sum(r['extraction_fields'][k] for r in graded)}/{len(results)}" for k, label in EXTRACTION_FIELDS.items()))
 if not extract_only:
     scored = [r for r in results if r.get("label_current", True)]
     stale = [r for r in results if not r.get("label_current", True)]

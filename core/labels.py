@@ -1,5 +1,5 @@
 """
-평가셋 케이스가 기대는 데이터 — 라벨 노후화와 케이스별 테스트용 이동시간.
+평가셋 케이스가 기대는 데이터 — 라벨 노후화, 케이스별 테스트용 이동시간, 기대 추출값의 채점 항목.
 
 라벨 노후화: 라벨을 검토한 뒤 데이터가 바뀌어, 그 라벨을 더는 정답으로 믿을 수 없는지 본다.
 
@@ -9,6 +9,13 @@ facts.json 버전에 따라 달라지기 때문이다 — T10 이 그 증거다.
 """
 
 from __future__ import annotations
+
+# 기대 추출값을 채점하는 항목 — run_extract.py 가 채점하고 eval_report.py 가 보고한다.
+# 2차 피드백 3번 "날짜/장소/시각뿐 아니라 추론한 연도의 출처와 지원 범위 분류까지". 시각 출처는 같은 이유로
+# 더했다(2026-10-07 사용자 결정): 출처가 틀리면 판정이 물어야 할 시각을 확정해 버린다
+EXTRACTION_FIELDS = {"date": "날짜·요일", "date_source": "연도 출처", "place": "장소", "start": "시각",
+                     "start_source": "시각 출처", "dwell": "체류시간", "support": "지원 범위 분류",
+                     "hard_constraints": "필수 조건"}
 
 
 def stale_reason(case: dict, suite: dict, facts: dict) -> str | None:
