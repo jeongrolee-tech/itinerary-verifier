@@ -1,29 +1,34 @@
 {
   "_역할": "추출 실행 기록. 자연어에서 무엇을 뽑았는지, 기대 추출값과 어디가 달랐는지, 모델·비용·지연을 남긴다. run_extract.py 가 덮어쓴다.",
-  "run_id": "extract-20261001-204311",
-  "ran_at": "2026-10-01T11:43:11.617256+00:00",
+  "run_id": "extract-20261007-112138",
+  "ran_at": "2026-10-07T02:21:38.567646+00:00",
   "model": "claude-opus-5-5",
   "effort": "low",
   "facts_snapshot": "facts-2026-09-29",
   "conditions": {
-    "code_commit": "f6c50c101030a76464a7dc4d2059b8e14f9eb723",
+    "code_commit": "6c6aa3049d786ba93e9dab3dc374eeb752fcf74e",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "tests.json": "9f4541c7b253",
-      "facts.json": "e2485c1a1b5e",
-      "policy.json": "d62d67a26f9e"
+      "tests.json": "0a51a451bd4e",
+      "facts.json": "e7500f29c6c7",
+      "policy.json": "1e3605504d71"
     },
-    "reference_date": "2026-10-01",
+    "reference_date": "2026-09-22",
+    "libraries": {
+      "anthropic": "1.7.0",
+      "pydantic": "2.13.5"
+    },
     "prompts": {
-      "extract": "27ac206c4d1c"
+      "extract": "b1f4ec2fa0d7",
+      "extract_schema": "3e00fcaaa7d9"
     }
   },
   "tokens": {
-    "in": 1073,
-    "out": 3820,
-    "cache_read": 50064,
-    "cache_write": 3576
+    "in": 2379,
+    "out": 8181,
+    "cache_read": 124180,
+    "cache_write": 4435
   },
   "pricing_per_mtok": {
     "input": 4.0,
@@ -31,14 +36,24 @@
     "cache_write": 5.0,
     "cache_read": 0.2
   },
-  "estimated_cost_usd": 0.1086,
-  "estimated_cost_per_case_usd": 0.0072,
+  "estimated_cost_usd": 0.2201,
+  "estimated_cost_per_case_usd": 0.0076,
   "results": [
     {
       "id": "T01-정상",
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -64,19 +79,21 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 7472,
+        "latency_ms": 4452,
         "input_tokens": 103,
-        "output_tokens": 348,
+        "output_tokens": 337,
         "cache_read": 0,
-        "cache_write": 3576,
+        "cache_write": 4435,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-08로 추정함.",
-        "'3시'는 오전/오후 표기가 없으나 앞 일정(오후 1시 + 1시간) 문맥상 15:00으로 해석함."
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음",
+        "'3시'는 앞의 오후 1시 뒤로 처음 오는 시각으로 읽어 15:00으로 적음"
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "undetermined",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -86,6 +103,16 @@
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -104,20 +131,22 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4444,
+        "latency_ms": 4435,
         "input_tokens": 66,
-        "output_tokens": 281,
-        "cache_read": 3576,
+        "output_tokens": 364,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-08로 적음",
-        "'오후에'와 '17시 30분'이 함께 적혀 있음. 17:30은 오후이므로 서로 충돌하지 않는다고 보고 17:30으로 옮김",
-        "체류시간 '한 시간 정도'를 60분으로 옮김"
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적었다.",
+        "'한 시간 정도'를 60분으로 적었다.",
+        "'오후에'와 '17시 30분'이 함께 적혀 있으며, 두 표현은 서로 맞는다."
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "infeasible",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -127,6 +156,16 @@
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -142,9 +181,8 @@
           {
             "place": "광장시장",
             "start": "18:00",
-            "start_source": "inferred",
-            "scope": "area",
-            "scope_note": "광장시장 내 어느 점포에서 저녁을 먹을지 특정되지 않음"
+            "start_source": "explicit",
+            "scope": "place"
           }
         ],
         "hard_constraints": []
@@ -152,21 +190,22 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 6435,
+        "latency_ms": 3614,
         "input_tokens": 78,
-        "output_tokens": 424,
-        "cache_read": 3576,
+        "output_tokens": 317,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 없어 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-08로 적음",
-        "'6시'는 오전/오후 표기가 없으나 앞 일정(15:00~17:00)과 '저녁'이라는 문맥으로 18:00으로 추정함",
-        "광장시장은 시장 전체를 지목한 것으로 보아 area로 분류함. 시장 자체를 하나의 장소로 볼 수도 있음",
-        "광장시장 체류시간은 입력에 없어 null로 둠"
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음",
+        "6시는 앞의 오후 3시 뒤로 처음 오는 시각으로 읽어 18:00으로 적음",
+        "광장시장 저녁 체류시간은 입력에 없어 null"
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "undetermined",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -176,6 +215,16 @@
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -192,8 +241,7 @@
             "place": "광장시장",
             "start": "19:00",
             "start_source": "explicit",
-            "scope": "area",
-            "scope_note": "광장시장 내 어느 점포(식당·노점)에서 저녁을 먹을지 특정되지 않음"
+            "scope": "place"
           }
         ],
         "hard_constraints": [
@@ -211,20 +259,21 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4384,
+        "latency_ms": 5017,
         "input_tokens": 133,
-        "output_tokens": 437,
-        "cache_read": 3576,
+        "output_tokens": 395,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 없어 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-08로 추정함",
-        "광장시장 저녁 체류시간은 입력에 없어 null로 둠",
-        "광장시장은 시장 전체를 지목한 것으로 보아 area로 분류함"
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적었다.",
+        "광장시장 저녁의 체류시간은 입력에 없어 null로 두었다. 어느 가게인지도 특정되지 않았다."
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "infeasible",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -234,6 +283,16 @@
       "set": "holdout",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-06",
         "date_source": "explicit",
@@ -257,16 +316,18 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3024,
+        "latency_ms": 2647,
         "input_tokens": 78,
         "output_tokens": 189,
-        "cache_read": 3576,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "infeasible",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -276,6 +337,16 @@
       "set": "holdout",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-06",
         "date_source": "inferred",
@@ -294,18 +365,20 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3926,
+        "latency_ms": 2941,
         "input_tokens": 64,
-        "output_tokens": 204,
-        "cache_read": 3576,
+        "output_tokens": 203,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-06으로 추정함"
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-06으로 적음"
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "feasible",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -315,6 +388,16 @@
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -333,18 +416,20 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3977,
+        "latency_ms": 3929,
         "input_tokens": 63,
-        "output_tokens": 193,
-        "cache_read": 3576,
+        "output_tokens": 192,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-08로 추정함"
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음"
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "infeasible",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -354,6 +439,16 @@
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -371,19 +466,18 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4026,
+        "latency_ms": 1915,
         "input_tokens": 51,
-        "output_tokens": 201,
-        "cache_read": 3576,
+        "output_tokens": 129,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
-      "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-08로 추정함",
-        "체류시간이 언급되지 않아 null로 둠"
-      ],
+      "notes": [],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "undetermined",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -393,6 +487,16 @@
       "set": "holdout",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-11-05",
         "date_source": "inferred",
@@ -411,18 +515,20 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3196,
+        "latency_ms": 3013,
         "input_tokens": 61,
         "output_tokens": 191,
-        "cache_read": 3576,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-11-05로 추정함"
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-11-05로 적었다."
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "infeasible",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -432,6 +538,16 @@
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -450,18 +566,20 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4847,
+        "latency_ms": 2936,
         "input_tokens": 57,
-        "output_tokens": 181,
-        "cache_read": 3576,
+        "output_tokens": 187,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 없어 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-08로 추정함"
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음"
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "feasible",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -471,6 +589,16 @@
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -480,8 +608,7 @@
             "place": "광장시장",
             "start": "11:00",
             "start_source": "explicit",
-            "scope": "area",
-            "scope_note": "광장시장 내 어느 점포에서 식사할지 특정되지 않음"
+            "scope": "place"
           },
           {
             "place": "경복궁",
@@ -495,20 +622,20 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4222,
+        "latency_ms": 3096,
         "input_tokens": 70,
-        "output_tokens": 329,
-        "cache_read": 3576,
+        "output_tokens": 231,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-08로 추정함",
-        "광장시장은 여러 점포가 있는 시장이라 area로 분류함",
-        "체류시간은 입력에 없어 null로 둠"
+        "광장시장 내 어느 가게에서 식사할지는 특정되지 않음"
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "undetermined",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -518,6 +645,16 @@
       "set": "holdout",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -532,7 +669,7 @@
           {
             "place": "광장시장",
             "start": "15:15",
-            "start_source": "inferred",
+            "start_source": "explicit",
             "scope": "place"
           }
         ],
@@ -541,20 +678,21 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4605,
+        "latency_ms": 3836,
         "input_tokens": 64,
-        "output_tokens": 305,
-        "cache_read": 3576,
+        "output_tokens": 283,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 없어 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-08로 적음",
-        "'3시 15분'에 오전/오후 표기가 없으나 앞 일정이 오후 1시라 15:15로 추정함",
-        "체류시간은 입력에 없어 null로 둠"
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음",
+        "'3시 15분'은 앞의 오후 1시 뒤로 처음 오는 시각인 15:15로 읽음"
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "undetermined",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -564,6 +702,16 @@
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-08",
         "date_source": "inferred",
@@ -582,18 +730,20 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 5158,
+        "latency_ms": 2514,
         "input_tokens": 53,
-        "output_tokens": 189,
-        "cache_read": 3576,
+        "output_tokens": 181,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-10-01) 기준 가장 가까운 미래의 10월 8일인 2026-10-08로 추정함"
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음"
       ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "undetermined",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -603,6 +753,16 @@
       "set": "holdout",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2027-03-05",
         "date_source": "explicit",
@@ -621,16 +781,18 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4326,
+        "latency_ms": 2301,
         "input_tokens": 58,
         "output_tokens": 133,
-        "cache_read": 3576,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "undetermined",
       "verdict_ok": true,
       "end_to_end_ok": true
@@ -640,6 +802,16 @@
       "set": "holdout",
       "extraction_ok": true,
       "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
       "extracted": {
         "date": "2026-10-09",
         "date_source": "inferred",
@@ -658,19 +830,862 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 8337,
+        "latency_ms": 2579,
         "input_tokens": 74,
-        "output_tokens": 215,
-        "cache_read": 3576,
+        "output_tokens": 163,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T16-다섯곳정상",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-17",
+        "date_source": "inferred",
+        "weekday_stated": "SAT",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "09:30",
+            "start_source": "explicit",
+            "dwell_minutes": 120,
+            "scope": "place"
+          },
+          {
+            "place": "창덕궁",
+            "start": "13:00",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place"
+          },
+          {
+            "place": "종묘",
+            "start": "15:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          },
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "16:30",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          },
+          {
+            "place": "덕수궁",
+            "start": "18:00",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 5161,
+        "input_tokens": 173,
+        "output_tokens": 501,
+        "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
         "refusal_category": null,
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-10-01) 기준 가장 가까운 미래인 2026-10-09로 추정함"
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-17로 적음"
       ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "feasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T17-여섯곳중간겹침",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-18",
+        "date_source": "inferred",
+        "weekday_stated": "SUN",
+        "stops": [
+          {
+            "place": "덕수궁",
+            "start": "09:30",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          },
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "11:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          },
+          {
+            "place": "경복궁",
+            "start": "13:00",
+            "start_source": "explicit",
+            "dwell_minutes": 120,
+            "scope": "place"
+          },
+          {
+            "place": "창덕궁",
+            "start": "14:30",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place"
+          },
+          {
+            "place": "종묘",
+            "start": "16:30",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          },
+          {
+            "place": "청계천",
+            "start": "18:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 7007,
+        "input_tokens": 178,
+        "output_tokens": 662,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "경복궁 13:00 시작 + 120분 체류(15:00 종료)가 창덕궁 14:30 시작과 겹침. 입력 그대로 옮김.",
+        "청계천은 긴 하천이라 걷기 시작 지점이 특정되지 않음. 위치가 하나로 정해지는 시설로 보아 place로 적음.",
+        "연도 미기재로 2026년으로 추정함."
+      ],
+      "label_current": true,
+      "stale_reason": null,
       "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T18-한글날종묘일반관람",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-09",
+        "date_source": "inferred",
+        "weekday_stated": "FRI",
+        "stops": [
+          {
+            "place": "종묘",
+            "start": "14:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 3361,
+        "input_tokens": 61,
+        "output_tokens": 223,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-09로 적음",
+        "사용자가 '한글날'이라고 언급함. 요일·공휴일 여부는 판정 단계에서 확인 필요"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "feasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T19-입장마감정각",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-14",
+        "date_source": "inferred",
+        "weekday_stated": "WED",
+        "stops": [
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "19:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 2829,
+        "input_tokens": 69,
+        "output_tokens": 208,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-14로 적었다."
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "feasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T20-분관미지정",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-08",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "서울시립미술관",
+            "start": "14:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 2347,
+        "input_tokens": 60,
+        "output_tokens": 192,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T21-덕수궁돌담길월요일",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-12",
+        "date_source": "inferred",
+        "weekday_stated": "MON",
+        "stops": [
+          {
+            "place": "덕수궁 돌담길",
+            "start": "15:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 6386,
+        "input_tokens": 72,
+        "output_tokens": 400,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-12로 적음",
+        "'한 시간 정도'를 체류시간 60분으로 옮김",
+        "덕수궁 돌담길은 길 형태의 산책로이나 이름으로 위치가 특정되는 곳이라 place로 분류함. 시작·종료 지점은 입력에 없음"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T22-오전오후없음",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-08",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "17:30",
+            "start_source": "inferred",
+            "dwell_minutes": 60,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 4225,
+        "input_tokens": 58,
+        "output_tokens": 333,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "'5시 반'에는 오전·오후 표시가 없고 앞에 기댈 시각도 없어, 관람 일정으로 더 그럴듯한 17:30으로 추정했다.",
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적었다."
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T23-앞시각만오후",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-15",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "13:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          },
+          {
+            "place": "덕수궁",
+            "start": "15:00",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 7152,
+        "input_tokens": 89,
+        "output_tokens": 319,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적음",
+        "'3시'는 앞의 오후 1시 뒤로 처음 오는 시각으로 읽어 15:00으로 적음"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "feasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T24-성탄절입장마감과정보부족",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-12-25",
+        "date_source": "inferred",
+        "weekday_stated": "FRI",
+        "stops": [
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "17:30",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          },
+          {
+            "place": "광장시장",
+            "start": "19:00",
+            "start_source": "explicit",
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 3944,
+        "input_tokens": 101,
+        "output_tokens": 335,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-12-25로 적음",
+        "광장시장 내 어느 가게에서 먹을지는 특정되지 않음",
+        "광장시장 저녁 식사 체류시간은 입력에 없어 null"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T25-월요일휴궁과체류미입력",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-12",
+        "date_source": "inferred",
+        "weekday_stated": "MON",
+        "stops": [
+          {
+            "place": "덕수궁",
+            "start": "10:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          },
+          {
+            "place": "경복궁",
+            "start": "13:00",
+            "start_source": "explicit",
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 3502,
+        "input_tokens": 71,
+        "output_tokens": 267,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-12로 적음",
+        "경복궁 체류시간은 입력에 없어 null"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T26-열차이동0분",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-15",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "덕수궁",
+            "start": "19:00",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": [
+          {
+            "id": "HC1",
+            "type": "TRAIN_DEPARTURE",
+            "place": "서울역",
+            "time": "20:15",
+            "buffer_rule": "rail_boarding",
+            "source": "user_stated",
+            "raw": "밤 8시 15분에 서울역에서 KTX를 타는데, 이 기차는 꼭 타야 해요"
+          }
+        ]
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 3917,
+        "input_tokens": 108,
+        "output_tokens": 333,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적음",
+        "덕수궁 19:00 입장 후 90분 체류 시 20:30 종료로, 20:15 KTX 출발보다 늦음 — 판정 단계에서 확인 필요"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T27-열차여유부족",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-15",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "덕수궁",
+            "start": "18:00",
+            "start_source": "explicit",
+            "dwell_minutes": 120,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": [
+          {
+            "id": "HC1",
+            "type": "TRAIN_DEPARTURE",
+            "place": "서울역",
+            "time": "20:30",
+            "buffer_rule": "rail_boarding",
+            "source": "user_stated",
+            "raw": "저녁 8시 반에 서울역에서 KTX 탈 거예요. 꼭 타야 하는 기차예요."
+          }
+        ]
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 4156,
+        "input_tokens": 102,
+        "output_tokens": 303,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적음",
+        "덕수궁 관람 종료 예정 20:00, KTX 출발 20:30 사이 여유는 30분"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T28-구역삼청동",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-15",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "삼청동",
+            "start": "12:00",
+            "start_source": "explicit",
+            "scope": "area",
+            "scope_note": "삼청동 동네만 지목됨. 점심을 먹을 특정 식당이 정해지지 않음"
+          },
+          {
+            "place": "경복궁",
+            "start": "14:00",
+            "start_source": "explicit",
+            "dwell_minutes": 120,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 3471,
+        "input_tokens": 79,
+        "output_tokens": 320,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적음",
+        "삼청동 점심의 체류시간은 입력에 없어 null로 둠"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "T29-지원목록밖장소",
+      "set": "holdout",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true
+      },
+      "extracted": {
+        "date": "2026-10-15",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "국립중앙박물관",
+            "start": "10:00",
+            "start_source": "explicit",
+            "dwell_minutes": 120,
+            "scope": "place"
+          },
+          {
+            "place": "덕수궁",
+            "start": "13:30",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place"
+          }
+        ],
+        "hard_constraints": []
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 3492,
+        "input_tokens": 85,
+        "output_tokens": 290,
+        "cache_read": 4435,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적음. 요일 일치 여부는 판정 단계에서 확인 필요."
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
       "verdict_ok": true,
       "end_to_end_ok": true
     }
