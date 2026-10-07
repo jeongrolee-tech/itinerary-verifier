@@ -128,15 +128,19 @@ def _needs_confirmation(original: dict, revised: dict) -> list[dict]:
     return items
 
 
-def recheck_revision(original: dict, revised: dict, facts: dict, policy: dict) -> dict:
+def recheck_revision(original: dict, revised: dict, facts: dict, policy: dict,
+                     revised_facts: dict | None = None) -> dict:
     """
     수정 전·후 일정을 모두 검사하고 비교 결과를 반환한다.
 
     revised 전체를 judge 에 넘기므로 바뀐 장소뿐 아니라 날짜·체류시간·
     이동시간·필수 조건이 전부 다시 검사된다.
+
+    revised_facts 는 고친 일정을 판정할 사실이다. 없으면 facts 를 같이 쓴다. 데모(app.py)는 고친 일정의
+    출발 시각으로 이동시간을 새로 받아 여기에 넣고, 원래 일정은 처음 검사와 같은 이동시간(facts)으로 다시 본다.
     """
     before = judge(original, facts, policy)
-    after = judge(revised, facts, policy)
+    after = judge(revised, facts if revised_facts is None else revised_facts, policy)
     before_verdict = before["summary"]["verdict"]
     after_verdict = after["summary"]["verdict"]
 

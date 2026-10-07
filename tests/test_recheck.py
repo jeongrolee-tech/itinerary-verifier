@@ -50,6 +50,20 @@ def test_recheck_judges_the_whole_revised_itinerary(facts, policy):
     assert len(result["after"]["hard_constraints"]) == 1
 
 
+def test_revised_facts_judge_only_the_revised_itinerary(facts, policy):
+    """고친 일정만 따로 받은 사실로 판정할 수 있다 — 데모(app.py)는 고친 출발 시각으로 이동시간을 새로 받는다.
+    원래 일정은 처음과 같은 사실로 다시 봐야 '수정 전' 판정이 처음 본 것과 같다."""
+    itinerary = {"date": THURSDAY, "stops": [
+        {"place": "서울시립미술관 서소문본관", "start": "13:00", "dwell_minutes": 60},
+        {"place": PALACE, "start": "15:00", "dwell_minutes": 120}]}
+    later = copy.deepcopy(facts)
+    later["legs"]["서울시립미술관 서소문본관|경복궁"] = {"minutes": 20, "mode": "transit", "is_lower_bound": False,
+                                                   "source": "synthetic_fixture", "method": "synthetic_fixture"}
+    result = recheck_revision(itinerary, copy.deepcopy(itinerary), facts, policy, revised_facts=later)
+    assert result["before"]["summary"]["verdict"] == "undetermined"  # 저장해 둔 지하철 하한선뿐이다
+    assert result["after"]["summary"]["verdict"] == "feasible"
+
+
 def test_moving_date_with_train_needs_confirmation(facts, policy):
     """날짜를 옮기면 KTX 도 새 날짜에 탈 수 있는 것처럼 판정된다. 원래 날짜로 예약했을 수 있다."""
     original = palace_market_ktx()
