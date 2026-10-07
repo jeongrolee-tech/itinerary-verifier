@@ -278,13 +278,13 @@ def _closed_day_unusable(name: str, place: dict, visit_date: str, facts: dict) -
         return check("CLOSED_DAY", name, UNKNOWN,
                      unknown_reason="NO_CLOSED_DAY_DATA",
                      detail=place.get("missing_note", "휴무일 정보를 확보하지 못했다"),
-                     how_to_resolve={"user": "방문할 점포를 알려주세요",
-                                     "system": "시장 단위 휴무일 정의 가능 여부 판단"})
+                     how_to_resolve=_no_data_resolution(place, "휴무일"))
 
     if not evidence_usable_on(cd, visit_date):
         return check("CLOSED_DAY", name, UNKNOWN,
                      unknown_reason="EVIDENCE_EXPIRED",
-                     detail=f"확보한 근거의 적용 기간(~{cd.get('valid_until')})을 벗어난 방문일이다")
+                     detail=f"확보한 근거의 적용 기간(~{cd.get('valid_until')})을 벗어난 방문일이다",
+                     how_to_resolve={"system": "해당 장소의 휴무일 안내를 다시 확인"})
 
     if _holiday_dependent(cd) and not facts["holidays"]["verified"]:
         return check("CLOSED_DAY", name, UNKNOWN,
@@ -297,6 +297,15 @@ def _closed_day_unusable(name: str, place: dict, visit_date: str, facts: dict) -
                      detail=f"공휴일 캘린더의 적용 기간(~{facts['holidays'].get('valid_until')})을 벗어난 방문일이다",
                      how_to_resolve={"system": "방문 연도의 공휴일 캘린더를 다시 조회"})
     return None
+
+
+def _no_data_resolution(place: dict, what: str) -> dict:
+    """휴무일 · 운영시간 정보가 없을 때 누가 무엇을 하면 풀리나. 시장은 점포마다 달라 어느 점포인지 묻는다."""
+    # 광장시장처럼 점포마다 시간이 다른 곳은 갈 점포를 알면 그 점포를 확인할 수 있다. 청계천 같은 길이나
+    # 일반 시설에 "방문할 점포" 를 물으면 사용자가 답할 수 없다 — 그때는 우리가 정보를 확보해야 한다
+    if place.get("type") == "market_meal":
+        return {"user": "방문할 점포를 알려주세요", "system": f"시장 단위 {what} 정의 가능 여부 판단"}
+    return {"system": f"이 장소의 {what}을 공식 출처에서 확보"}
 
 
 def _fixed_date_closure(name: str, visit_date: str, cd: dict, facts: dict, evidence: dict) -> dict:
@@ -432,7 +441,8 @@ def _admission_by_hours(name, place, visit_date, start, holidays) -> dict:
     if h is None:
         return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
                      unknown_reason="NO_OPERATING_HOURS_DATA",
-                     detail=place.get("missing_note", "해당 날짜의 운영시간을 확보하지 못했다"))
+                     detail=place.get("missing_note", "해당 날짜의 운영시간을 확보하지 못했다"),
+                     how_to_resolve=_no_data_resolution(place, "운영시간"))
     if not evidence_usable_on(h, visit_date):
         return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
                      unknown_reason="EVIDENCE_EXPIRED",
@@ -594,7 +604,7 @@ def _late_without_travel(label, frm, to, target, by, stated_dwell) -> dict | Non
 
 
 def _leg_unusable(label, frm, to, leg, visit_date) -> dict | None:
-    """이동시간으로 판정할 수 없는 구간이면 unknown — 구역 · 구간 없음 · 근거 기간 밖 · 근사값. 판정할 수 있으면 None."""
+    """이동시간으로 판정할 수 없는 구간이면 unknown — 구역 · 구간 없음 · 근거 기간 밖. 판정할 수 있으면 None."""
     # ⭐ 구역 일정은 대표 지점으로 판정하지 않는다 (장소 검사와 같은 원칙). "명동에서 쇼핑" 이면
     #    명동역이나 명동 중심점까지의 시간은 실제로 갈 가게까지의 시간이 아니다. 0분으로도 늦는
     #    경우만 위에서 확정하고, 나머지는 어디로 가는지 물어본다.
@@ -616,15 +626,6 @@ def _leg_unusable(label, frm, to, leg, visit_date) -> dict | None:
                      unknown_reason="EVIDENCE_EXPIRED",
                      detail=f"이동시간 근거의 적용 기간(~{leg.get('valid_until')})을 벗어난 방문일이다",
                      how_to_resolve={"system": "해당 구간 이동시간을 다시 조회"})
-
-    # ⭐ 근사값으로 pass 를 내지 않는다.
-    #    직선거리로 "3분이면 가니까 여유 10분은 충분" 은 실제 보행 경로·출입구·
-    #    우회를 반영하지 않은 계산이다. 참고 안내로만 쓰고 판정은 보류한다.
-    if leg.get("method") == "haversine_estimate":
-        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
-                     unknown_reason="ESTIMATE_ONLY",
-                     detail="직선거리 기반 근사값뿐이다. 실제 보행 경로·출입구·우회가 반영되지 않아 판정을 보류한다",
-                     reference={"travel_minutes": leg["minutes"]})
     return None
 
 
@@ -912,7 +913,8 @@ def _hc_by_leg(policy_eval, last, leg, buffer, required, deadline, stated_dwell)
             ),
             confirmed=f"현재 이동시간 기준으로는 {deadline.name} 전 {round(deadline.minutes - est)}분 도착한다",
             not_confirmed=f"역 출입구 이동·탑승 절차를 포함한 {deadline.ok_arrival}",
-            how_to_resolve={"system": "역 출입구 보행 경로·탑승 절차·대기시간 확보"},
+            how_to_resolve={"user": f"{deadline.name} 전 여유가 {round(deadline.minutes - est)}분뿐인데 괜찮으신가요?",
+                            "system": "역 출입구 보행 경로·탑승 절차·대기시간 확보"},
         )
     elif leg.get("is_lower_bound"):
         # 중요한 열차 일정인데 정보가 부족하다면 중요도가 낮은 문제가 아니라
