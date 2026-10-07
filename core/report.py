@@ -77,6 +77,32 @@ def report(result: dict) -> dict:
     }
 
 
+# 장소 검사 — 질문에 장소 이름이 없으면("방문할 점포를 알려주세요") 앞에 붙인다
+PLACE_CHECKS = {"CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE"}
+
+
+def questions(result: dict) -> list[str]:
+    """사용자에게 물을 말을 한 번씩만 모은다. result 는 바꾸지 않는다 (데모 화면 core/app.py 가 쓴다).
+
+    여러 검사가 같은 것을 모를 때가 많다. T12 는 경복궁 체류시간을 몰라 체류 검사가 "얼마나 머무르실",
+    다음 구간이 "몇 시에 나오실" 로 묻고, 광장시장 휴무일과 입장이 똑같이 점포를 묻는다 — 질문 넷, 답할 것 둘.
+    판정이 기댄 가정(체류시간 기본값 · 추정한 날짜와 시각)이 있으면 그 가정의 질문으로 묻고, 같은 말은 한 번만 적는다.
+    """
+    asks = {a["id"]: a["ask_user"] for a in result.get("assumptions", [])}
+    rows = [(c, c["target"] if c["type"] in PLACE_CHECKS else None) for c in result["checks"]]
+    rows += [(h["policy"], None) for h in result["hard_constraints"]]
+    out: list[str] = []
+    for r, place in rows:
+        ask = (r.get("how_to_resolve") or {}).get("user")
+        if not ask:
+            continue
+        found = [asks[a] for a in r.get("depends_on_assumptions") or [] if a in asks]
+        for q in found or [f"{place} — {ask}" if place and place not in ask else ask]:
+            if q not in out:
+                out.append(q)
+    return out
+
+
 def render(rep: dict) -> str:
     """report() 결과를 화면용 글로 만든다. 빈 묶음은 적지 않는다."""
     marks = {status: mark for status, _, mark in GROUPS}

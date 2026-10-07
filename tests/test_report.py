@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from report import NOT_CHECKED, render, report
+from report import NOT_CHECKED, questions, render, report
 from verdict import judge
 
 ROOT = Path(__file__).parent.parent
@@ -39,6 +39,7 @@ def test_report_does_not_change_result(facts, policy):
     result = judge(case("T04"), facts, policy)
     before = copy.deepcopy(result)
     report(result)
+    questions(result)
     assert result == before
 
 
@@ -55,6 +56,28 @@ def test_unknown_keeps_question_for_user(facts, policy):
     rep = report(judge(case("T08"), facts, policy))
     unknown = next(g for g in rep["groups"] if g["status"] == "unknown")
     assert [it["ask_user"] for it in unknown["items"]] == ["경복궁에서 얼마나 머무르실 예정인가요?"]
+
+
+@pytest.mark.parametrize("prefix, expected", [
+    # 체류시간을 체류 검사는 "얼마나 머무르실", 다음 구간은 "몇 시에 나오실" 로 묻는다. 점포는 휴무일과 입장이 똑같이 묻는다
+    ("T12", ["경복궁에서 얼마나 머무르실 예정인가요?", "광장시장 — 방문할 점포를 알려주세요"]),
+    # 열차 조건도 광장시장 체류시간을 "몇 시에 나오실" 로 묻는다 — 같은 가정이라 한 번만 묻는다
+    ("T04", ["광장시장 — 방문할 점포를 알려주세요", "광장시장에서 얼마나 머무르실 예정인가요?"]),
+    # 구역은 휴무일 · 입장 · 이동이 같은 말로 묻는다
+    ("T28", ["삼청동에서 정확히 어디로 가시나요?"]),
+])
+def test_questions_ask_each_thing_once(prefix, expected, facts, policy):
+    """같은 것을 여러 검사가 물어도 한 번만 묻는다. 장소 이름이 없는 질문에는 장소를 붙인다 (데모 화면)."""
+    assert questions(judge(case(prefix), facts, policy)) == expected
+
+
+@pytest.mark.parametrize("c", CASES, ids=[c["id"] for c in CASES])
+def test_questions_keep_something_to_ask(c, facts, policy):
+    """골든 케이스 전부 — 묻는 항목이 있으면 모은 질문도 있고, 같은 질문은 두 번 나오지 않는다."""
+    result = judge(c, facts, policy)
+    asked = [it["ask_user"] for g in report(result)["groups"] for it in g["items"] if it["ask_user"]]
+    qs = questions(result)
+    assert len(qs) == len(set(qs)) and bool(qs) == bool(asked)
 
 
 def test_render_shows_violations_first(facts, policy):
