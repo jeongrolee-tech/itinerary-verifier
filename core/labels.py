@@ -1,5 +1,5 @@
 """
-평가셋 케이스가 기대는 데이터 — 라벨 노후화, 케이스별 테스트용 이동시간, 기대 추출값의 채점 항목.
+평가셋 케이스와 라벨 — 라벨 노후화, 케이스별 테스트용 이동시간, 라벨과 판정 결과 대조, 기대 추출값의 채점 항목.
 
 라벨 노후화: 라벨을 검토한 뒤 데이터가 바뀌어, 그 라벨을 더는 정답으로 믿을 수 없는지 본다.
 
@@ -9,6 +9,8 @@ facts.json 버전에 따라 달라지기 때문이다 — T10 이 그 증거다.
 """
 
 from __future__ import annotations
+
+from verdict import UNKNOWN
 
 # 기대 추출값을 채점하는 항목 — run_extract.py 가 채점하고 eval_report.py 가 보고한다.
 # 2차 피드백 3번 "날짜/장소/시각뿐 아니라 추론한 연도의 출처와 지원 범위 분류까지". 시각 출처는 같은 이유로
@@ -74,3 +76,53 @@ def case_facts(case: dict, facts: dict) -> dict:
     if wrong:
         raise ValueError(f"{case.get('id')} 의 legs 는 source 가 synthetic_fixture 여야 한다: {wrong}")
     return {**facts, "legs": {**facts["legs"], **legs}}
+
+
+def grade(case, out):
+    """기대 판정과 기대 검사 결과를 라벨과 대조한다. run.py 와 pytest(tests/test_golden.py)가 같이 쓴다."""
+    problems = []
+    if out["summary"]["verdict"] != case["expect"]:
+        problems.append(f"verdict 기대 {case['expect']} → 실제 {out['summary']['verdict']}")
+    for want in case.get("expect_checks", []):
+        got = next((c for c in out["checks"]
+                    if c["type"] == want["type"] and c["target"] == want["target"]), None)
+        if got is None:
+            problems.append(f"{want['type']} / {want['target']} 검사가 아예 없다")
+        elif got["status"] != want["status"]:
+            problems.append(f"{want['type']} / {want['target']} 기대 {want['status']} → 실제 {got['status']}")
+    for want in case.get("expect_hard_constraints", []):
+        got = next((h for h in out["hard_constraints"] if h["id"] == want["id"]), None)
+        if got is None:
+            problems.append(f"필수 조건 {want['id']} 이 없다")
+            continue
+        for k in ("status", "severity"):
+            if k in want and got["policy"].get(k) != want[k]:
+                problems.append(f"{want['id']}.{k} 기대 {want[k]} → 실제 {got['policy'].get(k)}")
+    return problems
+
+
+def grade_applied(case, out):
+    """
+    기대했던 사실·가정·누락 정보가 결과에 흔적으로 남았는지 확인한다.
+
+    expect_applied 의 문장은 사람이 읽는 설명이라 문자열로 대조할 수 없다.
+    그 설명이 요구하는 최소 구조가 결과에 남아 있는지를 본다.
+    """
+    expected = case.get("expect_applied") or {}
+    problems = []
+    checks = out.get("checks", [])
+    hard = out.get("hard_constraints", [])
+
+    if expected.get("facts") and not any(c.get("evidence") for c in checks):
+        problems.append("expect_applied.facts 는 있지만 검사 근거가 기록되지 않았다")
+
+    if expected.get("assumptions") and not out.get("assumptions"):
+        problems.append("expect_applied.assumptions 는 있지만 assumptions 가 비어 있다")
+
+    has_unknown = any(c.get("status") == UNKNOWN for c in checks) or any(
+        h.get("policy", {}).get("status") == UNKNOWN for h in hard
+    )
+    if expected.get("missing") and not has_unknown:
+        problems.append("expect_applied.missing 은 있지만 unknown 결과가 없다")
+
+    return problems

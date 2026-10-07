@@ -267,7 +267,7 @@ pip install -r requirements.txt     # anthropic, pydantic, pytest
 python core/run.py                          # 골든 테스트 채점 + 실행 기록
 python core/run.py --case T05               # 한 케이스 상세
 python core/run.py --all                    # 전부 상세
-pytest                                      # 규칙 테스트 (확정 fail 반례 · 예상 이동시간 · 길찾기 · 일정 검증 · 추출 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출)
+pytest                                      # 규칙 테스트 (골든 29건 회귀 · 확정 fail 반례 · 예상 이동시간 · 길찾기 · 일정 검증 · 추출 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출)
 python core/compare.py --dry-run            # 비교 실험 배선 확인
 python core/compare.py --arms code          # 비교 실험, 코드 arm만 (일부 실행 → last-compare-subset.json)
 python core/build_transit_legs.py           # 지하철 주행시간 하한선 계산
@@ -535,7 +535,7 @@ itinerary-verifier/
 │   ├── fetch_holidays.py        공휴일 조회
 │   ├── build_transit_legs.py    지하철 → 구간 하한선
 │   ├── run.py                   판정 채점 + 기록
-│   ├── labels.py                라벨 노후화 · 케이스별 테스트용 이동시간 · 추출 채점 항목
+│   ├── labels.py                라벨 노후화 · 라벨 대조 · 케이스별 테스트용 이동시간 · 추출 채점 항목
 │   ├── recheck.py               수정 후 전체 일정 재검사
 │   ├── run_extract.py           추출 채점 + 전체 파이프라인
 │   ├── compare.py               비교 실험
@@ -937,7 +937,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | --- | --- |
 | `label_is_current` | 라벨이 지금 데이터에서도 유효한가. 판단은 `core/labels.py` |
 | `detail` | 케이스 상세 출력 |
-| `grade` | 기대 판정·기대 검사·기대 필수조건을 라벨과 대조 |
+| `grade` · `grade_applied` | 기대 판정 · 기대 검사 · 기대 필수조건을 라벨과 대조한다. `core/labels.py`에 있고 pytest(`tests/test_golden.py`)도 같은 것을 쓴다 |
 
 **표시 구분**
 
@@ -954,11 +954,11 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 
 ---
 
-### `core/labels.py` — 라벨 노후화
+### `core/labels.py` — 라벨 노후화와 라벨 대조
 
 | | |
 | --- | --- |
-| **역할** | 라벨을 검토한 뒤 데이터가 바뀌어, 그 라벨을 더는 정답으로 믿을 수 없는지 본다 |
+| **역할** | 라벨을 검토한 뒤 데이터가 바뀌어, 그 라벨을 더는 정답으로 믿을 수 없는지 본다. 판정 결과를 라벨과 대조한다(`grade`) |
 | **읽는 쪽** | `run.py` · `run_extract.py` · `compare.py` — 미검토 라벨은 셋 다 판정 채점에서 뺀다. 케이스의 `legs`는 셋 다 사실 데이터에 얹어 쓴다(`case_facts`) |
 
 라벨을 검토한 스냅샷(`labeled_against`, 없으면 `tests.json`의 `labeled_against_snapshot`) **뒤의 데이터 변경을 모두** 본다. 그중 하나라도 케이스가 쓰는 장소나 구간(`snapshot_history`의 `changed_keys`)을 건드렸으면 미검토다. 가장 최근 변경 하나만 보면, 그 전 변경이 건드린 라벨이 다음 변경 뒤에 다시 유효해 보인다. 구간은 전체(`"ALL"`) 또는 `"A|B"` 목록으로 적는다.

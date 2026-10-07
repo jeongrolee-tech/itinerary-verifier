@@ -18,10 +18,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from labels import case_facts, stale_reason  # noqa: E402
+from labels import case_facts, grade, grade_applied, stale_reason  # noqa: E402
 from report import render, report  # noqa: E402
 from runmeta import describe, run_meta  # noqa: E402
-from verdict import UNKNOWN, judge  # noqa: E402
+from verdict import judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -119,56 +119,6 @@ def detail(case, out, problems):
             print(f"  ❌ {p}")
     else:
         print("  ✅ 라벨과 일치")
-
-
-def grade(case, out):
-    """기대 판정과 기대 검사 결과를 라벨과 대조한다."""
-    problems = []
-    if out["summary"]["verdict"] != case["expect"]:
-        problems.append(f"verdict 기대 {case['expect']} → 실제 {out['summary']['verdict']}")
-    for want in case.get("expect_checks", []):
-        got = next((c for c in out["checks"]
-                    if c["type"] == want["type"] and c["target"] == want["target"]), None)
-        if got is None:
-            problems.append(f"{want['type']} / {want['target']} 검사가 아예 없다")
-        elif got["status"] != want["status"]:
-            problems.append(f"{want['type']} / {want['target']} 기대 {want['status']} → 실제 {got['status']}")
-    for want in case.get("expect_hard_constraints", []):
-        got = next((h for h in out["hard_constraints"] if h["id"] == want["id"]), None)
-        if got is None:
-            problems.append(f"필수 조건 {want['id']} 이 없다")
-            continue
-        for k in ("status", "severity"):
-            if k in want and got["policy"].get(k) != want[k]:
-                problems.append(f"{want['id']}.{k} 기대 {want[k]} → 실제 {got['policy'].get(k)}")
-    return problems
-
-
-def grade_applied(case, out):
-    """
-    기대했던 사실·가정·누락 정보가 결과에 흔적으로 남았는지 확인한다.
-
-    expect_applied 의 문장은 사람이 읽는 설명이라 문자열로 대조할 수 없다.
-    그 설명이 요구하는 최소 구조가 결과에 남아 있는지를 본다.
-    """
-    expected = case.get("expect_applied") or {}
-    problems = []
-    checks = out.get("checks", [])
-    hard = out.get("hard_constraints", [])
-
-    if expected.get("facts") and not any(c.get("evidence") for c in checks):
-        problems.append("expect_applied.facts 는 있지만 검사 근거가 기록되지 않았다")
-
-    if expected.get("assumptions") and not out.get("assumptions"):
-        problems.append("expect_applied.assumptions 는 있지만 assumptions 가 비어 있다")
-
-    has_unknown = any(c.get("status") == UNKNOWN for c in checks) or any(
-        h.get("policy", {}).get("status") == UNKNOWN for h in hard
-    )
-    if expected.get("missing") and not has_unknown:
-        problems.append("expect_applied.missing 은 있지만 unknown 결과가 없다")
-
-    return problems
 
 
 results, rows = [], []
