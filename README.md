@@ -590,7 +590,8 @@ itinerary-verifier/
 남기는 일이 있는데, 그 값을 시간 계산에 그대로 넘기면 프로그램이 예외로 죽는다.
 **입력이 부족한 것도 검증 결과의 일부**이므로 죽지 않고 `unknown`으로 낸다.
 
-**함수**
+**함수** — `judge()`가 일곱 단계를 차례로 부르고, 큰 검사는 '미리 결론이 나는 경우를 거르는 함수'와 '데이터로 판정하는
+함수'로 나눠 두었다. 함수마다 한글 설명이 붙어 있다. 파일을 위에서부터 읽으면 단계 순서대로 나온다.
 
 | 함수 | 하는 일 |
 | --- | --- |
@@ -601,16 +602,16 @@ itinerary-verifier/
 | `check` | 검사 결과 dict 생성. `fail`일 때만 `severity`를 붙인다 |
 | `input_checks` | **판정 전에 입력이 성립하는지 본다.** 날짜·장소·시각이 비었으면 예외를 내지 않고 `unknown` 검사로 돌려준다 |
 | `closed_date_for` | 그 주의 실제 휴무일 계산. **기관별 예외 규칙을 facts에서 읽어 분기** |
-| `check_closed_day` | 휴무일 검사. 공휴일 캘린더가 미검증이면 `unknown` |
+| `check_closed_day` | 휴무일 검사. 근거를 쓸 수 없으면(`_closed_day_unusable`) `unknown`, 고정 휴관일은 `_fixed_date_closure`가 본다 |
 | `hours_for` | 그 날짜에 적용되는 시간표 선택. **공휴일 시간표가 요일보다 우선** |
-| `check_admission` | 입장 가능 검사. 회차 입장·상시 개방을 각각 다른 `unknown`으로 처리. 개장 전 도착은 안내(`notice`)를 붙이고 입장 시각(`entry_at`)을 개장으로 늦춘다 |
+| `check_admission` | 입장 가능 검사. 시간표 없이 결론이 나는 회차 입장·상시 개방·공휴일 캘린더는 `_admission_without_hours`, 시간표 판정은 `_admission_by_hours`. 개장 전 도착은 안내(`notice`)를 붙이고 입장 시각(`entry_at`)을 개장으로 늦춘다 |
 | `check_dwell` | 체류 완료 검사. 사용자가 체류시간을 안 말했으면 판단하지 않는다 |
 | `leg_between` | `"A\|B"` 키로 구간 조회 |
 | `support_scope` | 장소를 셋으로 나눈다 — 정보가 있는 장소 · 지원 목록 밖 · 구역. 추출 채점도 같은 함수를 쓴다 |
-| `check_travel` | 이동시간 검사. 이동 0분 하한, 근사값 거부, 하한선 비대칭, 체류 하한 0분, 되는 수단이 하나라도 있으면 pass(이동수단은 보지 않음), 예상 이동시간 · 지하철 하한선으로는 fail 확정 안 함, 대중교통으로 안 되면 택시 대안 |
-| `evaluate_hard_constraint` | KTX 같은 필수 조건. `event`(사용자)와 `policy`(우리 기준)를 분리. 권장 여유 기준이 없으면(항공편) `pass`를 내지 않는다 |
+| `check_travel` | 이동시간 검사. 이동 0분 하한(`_late_without_travel`), 판정할 수 없는 구간 — 구역 · 구간 없음 · 근사값(`_leg_unusable`), 이동시간 판정(`_travel_by_leg`) 순서다. 하한선 비대칭, 체류 하한 0분, 되는 수단이 하나라도 있으면 pass(이동수단은 보지 않음), 예상 이동시간 · 지하철 하한선으로는 fail 확정 안 함(`_late_travel`), 대중교통으로 안 되면 택시 대안 |
+| `evaluate_hard_constraint` | KTX 같은 필수 조건. `event`(사용자)와 `policy`(우리 기준)를 분리한다. 우리 기준 평가(`_hc_policy`)는 이동 검사와 같은 순서이고, 시각의 뜻(출발 시각이면 그 시각에 닿아도 놓친 것)은 `_Deadline`이 들고 있다. 권장 여유 기준이 없으면(항공편) `pass`를 내지 않는다 |
 | `unconfirmed` | 추정한 입력에 기대는 `pass`/`fail`을 `unknown`으로 내리고, 계산 결과는 참고로 남긴다 |
-| `judge` | 본체. 기본값을 `assumptions`에 기록하고 검사를 돌려 전체 판정을 낸다 |
+| `judge` | 본체. 입력 확인 → 날짜 · 요일 → 장소 준비(`_prepare_stop`, 추정 시각 · 기본 체류시간을 `assumptions`에 기록) → 장소 검사(`_place_checks`) → 구간 검사(`_travel_checks`) → 필수 조건(`_hard_constraints`) → 전체 판정(`_summary`) |
 
 **`unknown_reason` 종류** — 같은 `unknown`이라도 해결 방법이 다르므로 구분한다
 

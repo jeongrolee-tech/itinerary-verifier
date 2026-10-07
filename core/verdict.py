@@ -5,11 +5,17 @@
 출력: 검사별 상태 + 필수 조건 평가 + 전체 판정
 
 이 파일에 네트워크 호출이 들어가는 순간 고정 입력으로 테스트할 수 없게 된다.
+
+읽는 순서 — 맨 아래 judge() 가 전체 흐름이다.
+  입력 확인 → 날짜 · 요일 → 장소 준비 → 장소 검사(휴무 · 입장 · 체류) → 구간 검사(이동)
+  → 필수 조건(열차 등) → 전체 판정
+위에서부터 그 단계에 쓰는 작은 함수들이 차례로 있다.
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import date as Date, timedelta
 from typing import Any
 
@@ -29,20 +35,24 @@ HHMM = r"([01]\d|2[0-3]):[0-5]\d"
 
 # ── 시간 유틸 (전부 '분' 단위 정수로 다룬다) ──────────────────────────
 def to_min(hhmm: str) -> int:
+    """"14:30" → 870. 시각 계산은 전부 분 단위로 한다."""
     h, m = hhmm.split(":")
     return int(h) * 60 + int(m)
 
 
 def to_hhmm(minutes: float) -> str:
+    """870 → "14:30". 분 아래는 버린다."""
     m = int(minutes)
     return f"{m // 60:02d}:{m % 60:02d}"
 
 
 def weekday_of(iso: str) -> str:
+    """"2026-10-08" → "THU"."""
     return WEEKDAYS[Date.fromisoformat(iso).weekday()]
 
 
 def shift_date(iso: str, days: int) -> str:
+    """날짜를 days 만큼 옮긴다. 휴무일이 공휴일과 겹쳐 밀릴 때 쓴다."""
     return (Date.fromisoformat(iso) + timedelta(days=days)).isoformat()
 
 
@@ -67,6 +77,7 @@ def evidence_usable_on(ev: dict | None, visit_date: str) -> bool:
 
 
 def check(type_: str, target: str, status: str, **extra: Any) -> dict:
+    """검사 결과 하나. severity(심각도)는 fail 일 때만 붙인다."""
     return {
         "type": type_,
         "target": target,
@@ -76,6 +87,7 @@ def check(type_: str, target: str, status: str, **extra: Any) -> dict:
     }
 
 
+# ── 입력 확인 ───────────────────────────────────────────────────────
 def input_checks(itinerary: dict) -> list[dict]:
     """
     판정을 시작하기 전에 반드시 있어야 하는 입력을 확인한다.
@@ -86,28 +98,35 @@ def input_checks(itinerary: dict) -> list[dict]:
     읽을 수 없는 시각도 같다 — tests.json 이나 사용자가 고친 일정(recheck)은 추출의
     형식 검증을 거치지 않고 들어온다.
     """
-    missing: list[dict] = []
+    return (_date_input(itinerary.get("date"))
+            + _stops_input(itinerary.get("stops") or [])
+            + _hard_constraints_input(itinerary.get("hard_constraints") or []))
 
-    visit_date = itinerary.get("date")
+
+def _date_input(visit_date) -> list[dict]:
+    """방문 날짜가 있고 YYYY-MM-DD 로 읽히나."""
     if not visit_date:
-        missing.append(check(
+        return [check(
             "INPUT_REQUIRED", "일정 날짜", UNKNOWN,
             unknown_reason="MISSING_DATE",
             detail="방문 날짜가 없어 운영시간과 휴무일을 확인할 수 없다",
             how_to_resolve={"user": "방문할 날짜를 알려주세요"},
-        ))
-    else:
-        try:
-            Date.fromisoformat(visit_date)
-        except (TypeError, ValueError):
-            missing.append(check(
-                "INPUT_REQUIRED", "일정 날짜", UNKNOWN,
-                unknown_reason="INVALID_DATE",
-                detail=f"방문 날짜({visit_date})를 YYYY-MM-DD 형식으로 해석할 수 없다",
-                how_to_resolve={"user": "방문 날짜를 YYYY-MM-DD 형식으로 알려주세요"},
-            ))
+        )]
+    try:
+        Date.fromisoformat(visit_date)
+    except (TypeError, ValueError):
+        return [check(
+            "INPUT_REQUIRED", "일정 날짜", UNKNOWN,
+            unknown_reason="INVALID_DATE",
+            detail=f"방문 날짜({visit_date})를 YYYY-MM-DD 형식으로 해석할 수 없다",
+            how_to_resolve={"user": "방문 날짜를 YYYY-MM-DD 형식으로 알려주세요"},
+        )]
+    return []
 
-    stops = itinerary.get("stops") or []
+
+def _stops_input(stops: list[dict]) -> list[dict]:
+    """장소가 하나 이상 있고, 장소마다 이름과 HH:MM 시작 시각이 있나."""
+    missing: list[dict] = []
     if not stops:
         missing.append(check(
             "INPUT_REQUIRED", "일정 스톱", UNKNOWN,
@@ -139,8 +158,13 @@ def input_checks(itinerary: dict) -> list[dict]:
                 detail=f"방문 시작 시각({stop['start']})을 HH:MM(24시간)으로 해석할 수 없다",
                 how_to_resolve={"user": f"{name}에 몇 시에 도착할 예정인가요?"},
             ))
+    return missing
 
-    for i, constraint in enumerate(itinerary.get("hard_constraints") or [], 1):
+
+def _hard_constraints_input(constraints: list[dict]) -> list[dict]:
+    """필수 조건마다 장소와 HH:MM 시각이 있나."""
+    missing: list[dict] = []
+    for i, constraint in enumerate(constraints, 1):
         if not constraint.get("place") or not constraint.get("time"):
             missing.append(check(
                 "INPUT_REQUIRED", f"필수 조건 HC{i}", UNKNOWN,
@@ -155,7 +179,6 @@ def input_checks(itinerary: dict) -> list[dict]:
                 detail=f"필수 조건 시각({constraint['time']})을 HH:MM(24시간)으로 해석할 수 없다",
                 how_to_resolve={"user": "필수 조건의 시각을 다시 알려주세요"},
             ))
-
     return missing
 
 
@@ -216,9 +239,40 @@ def closed_date_for(visit_date: str, cd: dict, holidays: dict) -> str | None:
 
 
 def check_closed_day(name: str, place: dict | None, visit_date: str, facts: dict, support: str) -> dict:
+    """방문일이 휴무일인가. 근거를 쓸 수 있는지 먼저 보고, 고정 휴관일과 정기휴일을 차례로 본다."""
     if place is None:
         return place_not_checked("CLOSED_DAY", name, support)
 
+    unusable = _closed_day_unusable(name, place, visit_date, facts)
+    if unusable:
+        return unusable
+
+    cd = place["closed_days"]
+    closed = closed_date_for(visit_date, cd, facts["holidays"])
+    evidence = {
+        "weekly": cd["weekly"],
+        "fixed_dates": cd.get("fixed_dates"),
+        "exception_rule": cd.get("exception_rule"),
+        "effective_closed_date": closed,
+        "source": cd.get("source"), "url": cd.get("url"),
+        "checked_at": cd.get("checked_at"), "valid_until": cd.get("valid_until"),
+    }
+    if visit_date[5:] in (cd.get("fixed_dates") or []):
+        return _fixed_date_closure(name, visit_date, cd, facts, evidence)
+
+    if closed == visit_date:
+        return check("CLOSED_DAY", name, FAIL, evidence=evidence,
+                     detail=f"{visit_date}은 휴무일이다")
+    return check("CLOSED_DAY", name, PASS, evidence=evidence)
+
+
+def _holiday_dependent(cd: dict) -> bool:
+    """휴무 규칙이 공휴일에 따라 달라지나 — 예외 규칙이 있으면 공휴일 캘린더가 필요하다."""
+    return cd.get("exception_rule") not in (None, "none")
+
+
+def _closed_day_unusable(name: str, place: dict, visit_date: str, facts: dict) -> dict | None:
+    """휴무 정보가 없거나, 근거의 적용 기간 밖이거나, 공휴일 캘린더를 믿을 수 없으면 unknown. 쓸 수 있으면 None."""
     cd = place.get("closed_days")
     if not cd:
         return check("CLOSED_DAY", name, UNKNOWN,
@@ -232,53 +286,41 @@ def check_closed_day(name: str, place: dict | None, visit_date: str, facts: dict
                      unknown_reason="EVIDENCE_EXPIRED",
                      detail=f"확보한 근거의 적용 기간(~{cd.get('valid_until')})을 벗어난 방문일이다")
 
-    holiday_dependent = cd.get("exception_rule") not in (None, "none")
-    if holiday_dependent and not facts["holidays"]["verified"]:
+    if _holiday_dependent(cd) and not facts["holidays"]["verified"]:
         return check("CLOSED_DAY", name, UNKNOWN,
                      unknown_reason="HOLIDAY_CALENDAR_UNVERIFIED",
                      detail="휴무일 예외 규칙이 공휴일 캘린더에 의존하는데, 그 값이 아직 검증되지 않았다",
                      how_to_resolve={"system": "공공데이터포털 특일 정보 API 호출"})
-    if holiday_dependent and not evidence_usable_on(facts["holidays"], visit_date):
+    if _holiday_dependent(cd) and not evidence_usable_on(facts["holidays"], visit_date):
         return check("CLOSED_DAY", name, UNKNOWN,
                      unknown_reason="EVIDENCE_EXPIRED",
                      detail=f"공휴일 캘린더의 적용 기간(~{facts['holidays'].get('valid_until')})을 벗어난 방문일이다",
                      how_to_resolve={"system": "방문 연도의 공휴일 캘린더를 다시 조회"})
+    return None
 
-    closed = closed_date_for(visit_date, cd, facts["holidays"])
-    evidence = {
-        "weekly": cd["weekly"],
-        "fixed_dates": cd.get("fixed_dates"),
-        "exception_rule": cd.get("exception_rule"),
-        "effective_closed_date": closed,
-        "source": cd.get("source"), "url": cd.get("url"),
-        "checked_at": cd.get("checked_at"), "valid_until": cd.get("valid_until"),
-    }
 
+def _fixed_date_closure(name: str, visit_date: str, cd: dict, facts: dict, evidence: dict) -> dict:
+    """고정 휴관일(미술관 1월 1일)에 온 경우. 보통은 휴관이지만, 공휴일 정기휴일과 겹치면 규칙끼리 부딪힌다."""
     # ⭐ 고정일 휴관(미술관 1월 1일)은 요일 규칙과 따로 본다.
     #    다만 그날이 정기휴일 요일이면서 공휴일이면 공식 문구 두 개가 반대 결론을 낸다.
     #    2029-01-01(월) — "휴관 1월 1일" 이면 휴관, "월요일이 공휴일인 경우 정상 개관" 이면 개관.
     #    페이지에 우선순위가 없다. 어느 쪽으로 읽든 해석이지 확인한 사실이 아니므로
     #    그날은 확정하지 않는다.
-    if visit_date[5:] in (cd.get("fixed_dates") or []):
-        on_weekly = WEEKDAYS[Date.fromisoformat(visit_date).weekday()] in cd["weekly"]
-        if holiday_dependent and on_weekly and visit_date in facts["holidays"]["dates"]:
-            return check("CLOSED_DAY", name, UNKNOWN,
-                         unknown_reason="RULE_CONFLICT",
-                         detail=f"{visit_date}은 고정 휴관일이면서 공휴일인 정기휴일이다. "
-                                f"공식 문구 두 개가 휴관과 개관으로 결론이 갈린다",
-                         how_to_resolve={"system": "기관에 두 규칙의 우선순위 확인"},
-                         reference=evidence)
-        return check("CLOSED_DAY", name, FAIL, evidence=evidence,
-                     detail=f"{visit_date}은 고정 휴관일({visit_date[5:]})이다")
-
-    if closed == visit_date:
-        return check("CLOSED_DAY", name, FAIL, evidence=evidence,
-                     detail=f"{visit_date}은 휴무일이다")
-    return check("CLOSED_DAY", name, PASS, evidence=evidence)
+    on_weekly = WEEKDAYS[Date.fromisoformat(visit_date).weekday()] in cd["weekly"]
+    if _holiday_dependent(cd) and on_weekly and visit_date in facts["holidays"]["dates"]:
+        return check("CLOSED_DAY", name, UNKNOWN,
+                     unknown_reason="RULE_CONFLICT",
+                     detail=f"{visit_date}은 고정 휴관일이면서 공휴일인 정기휴일이다. "
+                            f"공식 문구 두 개가 휴관과 개관으로 결론이 갈린다",
+                     how_to_resolve={"system": "기관에 두 규칙의 우선순위 확인"},
+                     reference=evidence)
+    return check("CLOSED_DAY", name, FAIL, evidence=evidence,
+                 detail=f"{visit_date}은 고정 휴관일({visit_date[5:]})이다")
 
 
 # ── 운영시간 ────────────────────────────────────────────────────────
 def hours_for(place: dict | None, visit_date: str, holidays: dict) -> dict | None:
+    """그날 적용하는 시간표 한 줄. 공휴일 시간표 → 요일 · 월 시간표 순서로 고른다. 없으면 None."""
     if not place or not place.get("hours"):
         return None
     month = int(visit_date[5:7])
@@ -305,6 +347,7 @@ def hours_for(place: dict | None, visit_date: str, holidays: dict) -> dict | Non
 
 
 def check_admission(name, place, visit_date, start, closed_status, holidays, support) -> dict:
+    """도착 시각에 입장할 수 있나. 시간표 없이 결론이 나는 경우를 먼저 거르고, 그다음 시간표로 본다."""
     if closed_status == FAIL:
         return check("ADMISSION_NOT_POSSIBLE", name, NA,
                      reason="휴무일로 확정되어 운영시간 검사가 성립하지 않는다")
@@ -316,7 +359,15 @@ def check_admission(name, place, visit_date, start, closed_status, holidays, sup
     if place is None:
         return place_not_checked("ADMISSION_NOT_POSSIBLE", name, support)
 
-    adm = (place or {}).get("admission") or {}
+    without_hours = _admission_without_hours(name, place, visit_date, holidays)
+    if without_hours:
+        return without_hours
+    return _admission_by_hours(name, place, visit_date, start, holidays)
+
+
+def _admission_without_hours(name, place, visit_date, holidays) -> dict | None:
+    """입장 방식(상시 개방 · 회차 입장)과 공휴일 캘린더만으로 결론이 나는 경우. 시간표를 봐야 하면 None."""
+    adm = place.get("admission") or {}
 
     if adm and not evidence_usable_on(adm, visit_date):
         return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
@@ -372,12 +423,16 @@ def check_admission(name, place, visit_date, start, closed_status, holidays, sup
                                    "checked_at": adm.get("checked_at")},
                          how_to_resolve={"system": "회차 입장 검사 구현 — 도착 시각이 어느 회차에 "
                                                    "들어가는지와 고정 체류 50분을 함께 본다"})
+    return None
 
+
+def _admission_by_hours(name, place, visit_date, start, holidays) -> dict:
+    """그날 시간표로 본다. 입장마감 뒤 도착이면 fail, 개장 전 도착이면 기다려서 개장 시각에 들어간다."""
     h = hours_for(place, visit_date, holidays)
     if h is None:
         return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
                      unknown_reason="NO_OPERATING_HOURS_DATA",
-                     detail=(place or {}).get("missing_note", "해당 날짜의 운영시간을 확보하지 못했다"))
+                     detail=place.get("missing_note", "해당 날짜의 운영시간을 확보하지 못했다"))
     if not evidence_usable_on(h, visit_date):
         return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
                      unknown_reason="EVIDENCE_EXPIRED",
@@ -445,6 +500,7 @@ def check_dwell(name, place, visit_date, start, dwell, admission_status, policy,
 
 # ── 이동시간 ────────────────────────────────────────────────────────
 def leg_between(facts: dict, a: str, b: str) -> dict | None:
+    """A → B 구간의 이동시간. 방향이 있다 — A|B 가 있어도 B|A 는 따로 있어야 한다."""
     return facts["legs"].get(f"{a}|{b}")
 
 
@@ -460,11 +516,13 @@ WHY_NOT_TRANSIT = {"LATE_BY_ESTIMATE": "늦을 가능성이 높아", "BUFFER_NOT
 
 
 def _taxi_notice(taxi: dict, lead: str) -> str:
+    """택시 안내 문장 — 예상 시간과 요금, 당일 교통에 따라 달라진다는 말."""
     fare = f", 요금 약 {taxi['fare']:,}원" if taxi.get("fare") else ""
     return f"{lead} — 택시 예상 {taxi['minutes']}분{fare}. 당일 교통에 따라 달라질 수 있다"
 
 
 def _add_notice(result: dict, text: str) -> dict:
+    """결과에 안내 문장을 덧붙인다. 이미 있으면 ' / ' 로 잇는다."""
     result["notice"] = f"{result['notice']} / {text}" if result.get("notice") else text
     return result
 
@@ -499,7 +557,10 @@ def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
 
 
 def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
-    """구간 하나를 leg 로 판정한다. 택시 대안은 보지 않는다 — check_travel 이 본다."""
+    """구간 하나를 leg 로 판정한다. 택시 대안은 보지 않는다 — check_travel 이 본다.
+
+    순서: 양 끝이 휴무인가 → 이동 0분으로도 늦나 → 이 구간을 판정할 수 있나 → 이동시간으로 판정.
+    """
     label = f"{frm['name']} → {to['name']}"
     if closed_statuses.get(frm["name"]) == FAIL or closed_statuses.get(to["name"]) == FAIL:
         return check("INSUFFICIENT_TRAVEL_TIME", label, NA,
@@ -511,6 +572,13 @@ def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
     by = to["entry"] if to["entry"] == to["start"] else f"{to['entry']}(개장)"
     stated_dwell = frm["dwell"]["source"] == "user_stated"
 
+    return (_late_without_travel(label, frm, to, target, by, stated_dwell)
+            or _leg_unusable(label, frm, to, leg, visit_date)
+            or _travel_by_leg(label, frm, to, leg, policy, target, by, stated_dwell))
+
+
+def _late_without_travel(label, frm, to, target, by, stated_dwell) -> dict | None:
+    """이동 0분으로도 늦으면 fail. 아니면 None."""
     # ⭐ 이동시간이 0분이어도 늦으면 이동수단·이동시간 데이터와 상관없이 fail 이다.
     #    미술관 13:00 에 한 시간 보고 경복궁 13:50 이면 순간이동을 해도 늦는다.
     #    체류를 모르면 0분을 넣는다 — 다음 일정이 이번 일정보다 먼저 시작하는 경우다.
@@ -522,7 +590,11 @@ def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
                                "travel_minutes": 0},
                      detail=f"{frm['name']}에서 빨라도 {to_hhmm(earliest_departure)}에 나오는데 "
                             f"{to['name']}에는 {by}까지 가야 한다 — 이동시간이 0분이어도 늦는다")
+    return None
 
+
+def _leg_unusable(label, frm, to, leg, visit_date) -> dict | None:
+    """이동시간으로 판정할 수 없는 구간이면 unknown — 구역 · 구간 없음 · 근거 기간 밖 · 근사값. 판정할 수 있으면 None."""
     # ⭐ 구역 일정은 대표 지점으로 판정하지 않는다 (장소 검사와 같은 원칙). "명동에서 쇼핑" 이면
     #    명동역이나 명동 중심점까지의 시간은 실제로 갈 가게까지의 시간이 아니다. 0분으로도 늦는
     #    경우만 위에서 확정하고, 나머지는 어디로 가는지 물어본다.
@@ -553,26 +625,26 @@ def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
                      unknown_reason="ESTIMATE_ONLY",
                      detail="직선거리 기반 근사값뿐이다. 실제 보행 경로·출입구·우회가 반영되지 않아 판정을 보류한다",
                      reference={"travel_minutes": leg["minutes"]})
+    return None
 
-    leg_mode = leg.get("mode")
-    mode_name = MODE_NAMES.get(leg_mode, leg_mode or "이동")
 
+def _mode_name(leg: dict) -> str:
+    """구간의 이동수단을 화면에 쓰는 이름으로 — metro → 지하철."""
+    return MODE_NAMES.get(leg.get("mode"), leg.get("mode") or "이동")
+
+
+def _travel_by_leg(label, frm, to, leg, policy, target, by, stated_dwell) -> dict:
+    """확보한 이동시간(leg)으로 판정한다. 늦음 · 체류시간 모름 · 여유 부족 · 하한선뿐 · 통과 중 하나다."""
+    mode_name = _mode_name(leg)
     buffer = policy["buffer_minutes"]["transit_leg"]
     base = frm["dwell"]["value"]
-
-    def arrival_at(dwell_minutes: int) -> float:
-        return to_min(frm["entry"]) + dwell_minutes + leg["minutes"]
-
-    def ok_at(dwell_minutes: int) -> bool:
-        return arrival_at(dwell_minutes) + buffer <= target
-
-    arrival = arrival_at(base)
+    arrival = to_min(frm["entry"]) + base + leg["minutes"]
     evidence = {
         "depart_at": to_hhmm(to_min(frm["entry"]) + base),
         "travel_minutes": leg["minutes"], "buffer_minutes": buffer,
         "arrival": to_hhmm(arrival),
         "planned_arrival": to["start"], "arrive_by": to["entry"],
-        "mode": leg_mode,
+        "mode": leg.get("mode"),
         "method": leg.get("method"), "source": leg.get("source"),
         "snapshot_id": leg.get("snapshot_id"), "checked_at": leg.get("checked_at"),
         "is_lower_bound": leg.get("is_lower_bound", False),
@@ -586,49 +658,8 @@ def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
     #    갈 수 있을 수도 있다. 항공 최소 환승시간(MCT)도 수단이 정해진 연결에만 "불가능" 을
     #    적용하고, TripIt 은 수단을 모를 때 위험 경고만 한다. 사용자가 고른 수단으로 되는지는
     #    결과의 '검사하지 않는 것' 에 적는다 (report.NOT_CHECKED).
-    #
-    # ⭐ 예상 이동시간으로는 fail 을 확정하지 않는다. 판정할 때 길찾기로 받는 시간은 가장
-    #    그럴듯한 값이지 가장 빠른 값이 아니다 — 걸음이 빠르거나 앞 열차를 타면 더 일찍 닿는다.
-    #    그래서 "늦을 가능성이 높다" 로 알리고 사용자에게 묻는다.
-    def late(detail: str) -> dict:
-        if leg.get("is_lower_bound"):
-            return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
-                         unknown_reason="LATE_BY_LOWER_BOUND",
-                         detail=f"{mode_name}로 가면 {detail}. "
-                                f"택시 등 다른 수단으로 갈 수 있는지는 확인하지 못했다",
-                         how_to_resolve={"user": f"{mode_name}로는 {to['name']}에 늦어요. "
-                                                 f"시작을 늦추거나 더 일찍 출발할 수 있나요?"},
-                         reference=evidence)
-        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
-                     unknown_reason="LATE_BY_ESTIMATE",
-                     detail=f"{detail} — {mode_name} 예상 이동시간({leg['minutes']}분) 기준이라 확정하지 않는다",
-                     how_to_resolve={"user": f"{to['name']}에 늦을 가능성이 높아요. "
-                                             f"시작을 늦추거나 더 일찍 출발할 수 있나요?"},
-                     reference=evidence)
-
-    # ⭐ 사용자가 말하지 않은 체류시간으로는 판정하지 않는다 (T08 과 같은 원칙).
-    #    fail 은 "어떻게 머물든 늦는다" 의 증명이어야 한다. 체류시간은 음수가 될 수
-    #    없으므로 0분이 보장된 하한이다. 들어가자마자 나와도 늦을 때만 fail 이다.
-    #    얼마나 오래 머물지는 모르므로 pass 도 낼 수 없다.
-    #
-    #    전에는 기본값을 ±50% 흔들어 둘 다 늦으면 fail 을 냈다. 하지만 궁궐 90분의
-    #    45~135분은 우리 추측을 중심으로 한 범위일 뿐이다. 20분만 둘러보는 사람도
-    #    있다. 기본값은 사용자에게 물어볼 때 "늦을 수 있다" 는 안내로만 쓴다.
     if not stated_dwell:
-        earliest = arrival_at(0)
-        if earliest > target:
-            evidence.update(depart_at=frm["entry"], arrival=to_hhmm(earliest))
-            return late(f"{frm['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {by}에 늦는다")
-
-        detail = f"{frm['name']} 체류시간을 몰라 확정할 수 없다"
-        if arrival > target:
-            detail += f". 기본값 {base}분으로 보면 {to_hhmm(arrival)} 도착이라 늦을 수 있다"
-        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
-                     unknown_reason="NO_USER_DWELL",
-                     detail=detail,
-                     depends_on_assumptions=[frm["dwell"].get("assumption_id")],
-                     how_to_resolve={"user": f"{frm['name']}에서 몇 시에 나오실 예정인가요?"},
-                     reference=evidence)
+        return _travel_without_dwell(label, frm, to, leg, mode_name, target, by, base, arrival, evidence)
 
     # ⭐ 하한선의 비대칭 — 한 방향으로만 알려 준다.
     #    저장해 둔 이동시간은 지하철 주행시간뿐이고 도보·환승·대기가 빠져 있다.
@@ -650,9 +681,10 @@ def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
     #      닿지만 권장 여유를 못 채운다   → unknown (BUFFER_NOT_MET)  사용자가 판단한다
     #      권장 여유까지 채운다           → pass, 하한선이면 unknown (LOWER_BOUND_ONLY)
     if arrival > target:
-        return late(f"{to_hhmm(arrival)} 도착 예상인데 {by}까지 가야 한다")
+        return _late_travel(label, to, leg, mode_name, f"{to_hhmm(arrival)} 도착 예상인데 {by}까지 가야 한다",
+                            evidence)
 
-    if not ok_at(base):
+    if arrival + buffer > target:
         spare = round(target - arrival)
         detail = (f"{by}보다 {spare}분 먼저 도착하지만, "
                   f"설정한 권장 여유 {buffer}분보다 {round(arrival + buffer - target)}분 부족하다")
@@ -675,7 +707,68 @@ def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
     return check("INSUFFICIENT_TRAVEL_TIME", label, PASS, evidence=evidence)
 
 
+def _travel_without_dwell(label, frm, to, leg, mode_name, target, by, base, arrival, evidence) -> dict:
+    """체류시간을 사용자가 말하지 않은 구간. 바로 나와도 늦으면 늦다고 알리고, 아니면 체류시간을 묻는다."""
+    # ⭐ 사용자가 말하지 않은 체류시간으로는 판정하지 않는다 (T08 과 같은 원칙).
+    #    fail 은 "어떻게 머물든 늦는다" 의 증명이어야 한다. 체류시간은 음수가 될 수
+    #    없으므로 0분이 보장된 하한이다. 들어가자마자 나와도 늦을 때만 fail 이다.
+    #    얼마나 오래 머물지는 모르므로 pass 도 낼 수 없다.
+    #
+    #    전에는 기본값을 ±50% 흔들어 둘 다 늦으면 fail 을 냈다. 하지만 궁궐 90분의
+    #    45~135분은 우리 추측을 중심으로 한 범위일 뿐이다. 20분만 둘러보는 사람도
+    #    있다. 기본값은 사용자에게 물어볼 때 "늦을 수 있다" 는 안내로만 쓴다.
+    earliest = to_min(frm["entry"]) + leg["minutes"]
+    if earliest > target:
+        evidence.update(depart_at=frm["entry"], arrival=to_hhmm(earliest))
+        return _late_travel(label, to, leg, mode_name,
+                            f"{frm['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {by}에 늦는다", evidence)
+
+    detail = f"{frm['name']} 체류시간을 몰라 확정할 수 없다"
+    if arrival > target:
+        detail += f". 기본값 {base}분으로 보면 {to_hhmm(arrival)} 도착이라 늦을 수 있다"
+    return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                 unknown_reason="NO_USER_DWELL",
+                 detail=detail,
+                 depends_on_assumptions=[frm["dwell"].get("assumption_id")],
+                 how_to_resolve={"user": f"{frm['name']}에서 몇 시에 나오실 예정인가요?"},
+                 reference=evidence)
+
+
+def _late_travel(label, to, leg, mode_name, detail, evidence) -> dict:
+    """이동시간으로는 늦는다 — 그래도 unknown 이다. 지하철 하한선인지 길찾기 예상인지에 따라 문장이 다르다."""
+    # ⭐ 예상 이동시간으로는 fail 을 확정하지 않는다. 판정할 때 길찾기로 받는 시간은 가장
+    #    그럴듯한 값이지 가장 빠른 값이 아니다 — 걸음이 빠르거나 앞 열차를 타면 더 일찍 닿는다.
+    #    그래서 "늦을 가능성이 높다" 로 알리고 사용자에게 묻는다.
+    if leg.get("is_lower_bound"):
+        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                     unknown_reason="LATE_BY_LOWER_BOUND",
+                     detail=f"{mode_name}로 가면 {detail}. "
+                            f"택시 등 다른 수단으로 갈 수 있는지는 확인하지 못했다",
+                     how_to_resolve={"user": f"{mode_name}로는 {to['name']}에 늦어요. "
+                                             f"시작을 늦추거나 더 일찍 출발할 수 있나요?"},
+                     reference=evidence)
+    return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
+                 unknown_reason="LATE_BY_ESTIMATE",
+                 detail=f"{detail} — {mode_name} 예상 이동시간({leg['minutes']}분) 기준이라 확정하지 않는다",
+                 how_to_resolve={"user": f"{to['name']}에 늦을 가능성이 높아요. "
+                                         f"시작을 늦추거나 더 일찍 출발할 수 있나요?"},
+                 reference=evidence)
+
+
 # ── 필수 조건 (KTX 등) ──────────────────────────────────────────────
+@dataclass(frozen=True)
+class _Deadline:
+    """필수 조건의 시각과 그 뜻. 열차 · 항공편은 출발 시각이라 그 시각에 닿으면 이미 놓친 것이다."""
+    minutes: int      # 필수 조건 시각(분)
+    departs: bool     # 출발 시각인가 — 열차 · 항공편
+    name: str         # 화면에 쓰는 이름 — "열차 출발(20:30)"
+    ok_arrival: str   # 확정하지 못한 것을 적을 때 쓰는 말
+
+    def misses(self, arrival_min: float) -> bool:
+        """그 시각에 닿으면 놓치는가. 출발 시각은 같은 시각도 놓친 것이고, 도착 기한은 그 시각까지 괜찮다."""
+        return arrival_min >= self.minutes if self.departs else arrival_min > self.minutes
+
+
 def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
     """필수 조건 하나. 대중교통으로 '된다' 가 안 나오면 붙어 있는 택시 대안을 본다(check_travel 과 같다)."""
     leg = leg_between(facts, stops[-1]["name"], hc["place"])
@@ -707,9 +800,11 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
     #    무엇이 사용자 요구였는지 알 수 없게 된다.
     event = {"type": hc["type"], "place": hc["place"], "time": hc["time"],
              "source": hc.get("source", "user_stated"), "raw": hc.get("raw")}
-    result = {"id": hc["id"], "event": event}
+    return {"id": hc["id"], "event": event, "policy": _hc_policy(hc, stops[-1], leg, policy, visit_date)}
 
-    last = stops[-1]
+
+def _hc_policy(hc, last, leg, policy, visit_date) -> dict:
+    """우리 기준(권장 도착 여유)으로 본 필수 조건 평가. 순서는 이동 검사와 같다 — 0분 → 판정 가능 → 이동시간."""
     # 권장 도착 여유. 정책에 기준이 없으면(항공편) None 이고, 그때는 pass 를 내지 않는다(아래 NO_BUFFER_RULE)
     buffer = policy["buffer_minutes"].get(hc.get("buffer_rule", "rail_boarding"))
     required = None if buffer is None else to_min(hc["time"]) - buffer
@@ -727,125 +822,72 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
         "severity": "blocking",
     }
 
-    event_time = to_min(hc["time"])
-    stated_dwell = last["dwell"]["source"] == "user_stated"
-
     # 필수 조건마다 시각의 뜻이 다르다. 열차·항공편은 출발 시각이라 그 시각에 도착하면
     # 이미 놓친 것이다. "20:30 까지 도착" 은 20:30 에 닿으면 제시간이다.
     departs = hc["type"] in ("TRAIN_DEPARTURE", "FLIGHT_DEPARTURE")
-    ev = f"{EVENT_NAMES.get(hc['type'], '필수 조건')}({hc['time']})"
-    ok_arrival = "실제 탑승 가능 여부" if departs else "실제로 제시간에 닿는지"
-
-    def misses(arrival_min: float) -> bool:
-        return arrival_min >= event_time if departs else arrival_min > event_time
+    deadline = _Deadline(minutes=to_min(hc["time"]), departs=departs,
+                         name=f"{EVENT_NAMES.get(hc['type'], '필수 조건')}({hc['time']})",
+                         ok_arrival="실제 탑승 가능 여부" if departs else "실제로 제시간에 닿는지")
+    stated_dwell = last["dwell"]["source"] == "user_stated"
 
     # check_travel 과 같다. 이동시간이 0분이어도 늦으면 수단과 상관없이 fail 이다.
     earliest_departure = to_min(last["entry"]) + (last["dwell"]["value"] if stated_dwell else 0)
-    if misses(earliest_departure):
+    if deadline.misses(earliest_departure):
         policy_eval.update(
             status=FAIL,
             detail=f"{last['name']}에서 빨라도 {to_hhmm(earliest_departure)}에 나오는데 "
-                   f"{ev}에 늦는다 — 이동시간이 0분이어도 늦는다",
+                   f"{deadline.name}에 늦는다 — 이동시간이 0분이어도 늦는다",
         )
-        result["policy"] = policy_eval
-        return result
+        return policy_eval
 
+    unusable = _hc_leg_unusable(hc, last, leg, visit_date)
+    if unusable:
+        policy_eval.update(unusable)
+        return policy_eval
+    return _hc_by_leg(policy_eval, last, leg, buffer, required, deadline, stated_dwell)
+
+
+def _hc_leg_unusable(hc, last, leg, visit_date) -> dict | None:
+    """마지막 장소에서 필수 조건 장소까지 이동시간으로 판정할 수 없으면 그 이유. 판정할 수 있으면 None."""
     # check_travel 과 같다. 마지막 일정이 구역이면 어디서 출발하는지 몰라 판정하지 않는다
     if last.get("scope") == "area":
-        policy_eval.update(
-            status=UNKNOWN, unknown_reason="PLACE_NOT_RESOLVED",
-            detail=f"{last['name']} 일정은 구역만 정해져 있어 {hc['place']}까지 이동시간을 판정하지 않는다",
-            how_to_resolve={"user": f"{last['name']}에서 정확히 어디서 출발하시나요?"},
-        )
-        result["policy"] = policy_eval
-        return result
-
+        return {"status": UNKNOWN, "unknown_reason": "PLACE_NOT_RESOLVED",
+                "detail": f"{last['name']} 일정은 구역만 정해져 있어 {hc['place']}까지 이동시간을 판정하지 않는다",
+                "how_to_resolve": {"user": f"{last['name']}에서 정확히 어디서 출발하시나요?"}}
     if leg is None:
-        policy_eval.update(status=UNKNOWN, unknown_reason="UNVERIFIED_TRAVEL_TIME",
-                           detail=f"{last['name']} → {hc['place']} 이동시간을 확보하지 못했다")
-        result["policy"] = policy_eval
-        return result
-
+        return {"status": UNKNOWN, "unknown_reason": "UNVERIFIED_TRAVEL_TIME",
+                "detail": f"{last['name']} → {hc['place']} 이동시간을 확보하지 못했다"}
     if not evidence_usable_on(leg, visit_date):
-        policy_eval.update(
-            status=UNKNOWN,
-            unknown_reason="EVIDENCE_EXPIRED",
-            detail=f"이동시간 근거의 적용 기간(~{leg.get('valid_until')})을 벗어난 방문일이다",
-            how_to_resolve={"system": "해당 구간 이동시간을 다시 조회"},
-        )
-        result["policy"] = policy_eval
-        return result
+        return {"status": UNKNOWN, "unknown_reason": "EVIDENCE_EXPIRED",
+                "detail": f"이동시간 근거의 적용 기간(~{leg.get('valid_until')})을 벗어난 방문일이다",
+                "how_to_resolve": {"system": "해당 구간 이동시간을 다시 조회"}}
+    return None
 
-    mode_name = MODE_NAMES.get(leg.get("mode"), leg.get("mode") or "이동")
+
+def _hc_by_leg(policy_eval, last, leg, buffer, required, deadline, stated_dwell) -> dict:
+    """이동시간으로 본 필수 조건. 늦음 · 체류시간 모름 · 기준 없음(항공편) · 여유 부족 · 하한선뿐 · 통과 중 하나다."""
+    mode_name = _mode_name(leg)
     base = last["dwell"]["value"]
-
-    def arrival_at(dwell_minutes: int) -> int:
-        return to_min(last["entry"]) + dwell_minutes + leg["minutes"]
-
-    est = arrival_at(base)
+    est = to_min(last["entry"]) + base + leg["minutes"]
     policy_eval.update(
         estimated_arrival=to_hhmm(est),
         travel_minutes=leg["minutes"],
         travel_source=leg.get("source"), travel_snapshot=leg.get("snapshot_id"),
-        margin_vs_event=round(event_time - est),
+        margin_vs_event=round(deadline.minutes - est),
         margin_vs_required=None if required is None else round(required - est),
         is_lower_bound=leg.get("is_lower_bound", False),
     )
 
-    # check_travel 의 late 와 같은 규칙이다. 예상 이동시간으로도, 지하철 하한선으로도 fail 을
-    # 확정하지 않는다. severity 는 blocking 그대로다. 열차를 놓칠 수 있다는 경고가 사라지면 안 된다.
-    def late(detail: str) -> dict:
-        if leg.get("is_lower_bound"):
-            policy_eval.update(
-                status=UNKNOWN,
-                unknown_reason="LATE_BY_LOWER_BOUND",
-                detail=f"{mode_name}로 가면 {detail}. 택시 등 다른 수단으로 갈 수 있는지는 확인하지 못했다",
-                how_to_resolve={"user": f"{mode_name}로는 {ev}에 늦어요. 더 일찍 출발할 수 있나요?"},
-                not_confirmed="다른 이동수단으로 갔을 때의 도착 시각",
-            )
-        else:
-            policy_eval.update(
-                status=UNKNOWN,
-                unknown_reason="LATE_BY_ESTIMATE",
-                detail=f"{detail} — {mode_name} 예상 이동시간({leg['minutes']}분) 기준이라 확정하지 않는다",
-                how_to_resolve={"user": f"{ev}에 늦을 가능성이 높아요. 더 일찍 출발할 수 있나요?"},
-                not_confirmed="실제 이동시간",
-            )
-        result["policy"] = policy_eval
-        return result
-
     # 체류시간을 사용자가 말하지 않았으면 check_travel 과 같은 규칙이다.
     # 0분으로도 늦을 때만 fail 이고, 그 밖에는 확정하지 않는다. 기본값은 안내에만 쓴다.
     if not stated_dwell:
-        earliest = arrival_at(0)
-        if misses(earliest):
-            policy_eval.update(
-                estimated_arrival=to_hhmm(earliest),
-                margin_vs_event=round(event_time - earliest),
-                margin_vs_required=None if required is None else round(required - earliest),
-            )
-            return late(f"{last['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {ev}에 늦는다")
-
-        detail = f"{last['name']} 체류시간을 몰라 확정할 수 없다"
-        if misses(est):
-            detail += f". 기본값 {base}분으로 보면 {to_hhmm(est)} 도착이라 {ev}에 늦을 수 있다"
-        policy_eval.update(
-            status=UNKNOWN,
-            unknown_reason="NO_USER_DWELL",
-            detail=detail,
-            depends_on_assumptions=[last["dwell"].get("assumption_id")],
-            how_to_resolve={"user": f"{last['name']}에서 몇 시에 나오실 예정인가요?"},
-            confirmed=f"바로 나와도 {to_hhmm(earliest)} 이후에 도착한다",
-            not_confirmed=f"{last['name']} 체류시간과 {ok_arrival}",
-        )
-        result["policy"] = policy_eval
-        return result
+        return _hc_without_dwell(policy_eval, last, leg, mode_name, base, est, required, deadline)
 
     # 사용자가 반드시 지켜야 하는 것은 열차 출발 시각이다. 서비스가 정한
     # 15분 전 도착은 안전을 위한 권장 기준이지, 그 자체로 사용자 일정의
     # 확정 위반은 아니다.
-    if misses(est):
-        return late(f"예상 도착({to_hhmm(est)})이 {ev}보다 늦다")
+    if deadline.misses(est):
+        return _hc_late(policy_eval, leg, mode_name, deadline, f"예상 도착({to_hhmm(est)})이 {deadline.name}보다 늦다")
     if required is None:
         # ⭐ 권장 여유 기준이 없는 필수 조건은 pass 를 내지 않는다 (2차 피드백 1번 "가능하다고 단정해서도
         #    안 된다"). 항공편은 탑승 수속 · 보안 검색 마감이 항공사와 공항마다 달라 우리가 정한 값으로
@@ -853,9 +895,9 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
         policy_eval.update(
             status=UNKNOWN,
             unknown_reason="NO_BUFFER_RULE",
-            detail=(f"{ev} 전 {round(event_time - est)}분 도착 예상이지만, 탑승 수속 · 보안 검색에 필요한 "
+            detail=(f"{deadline.name} 전 {round(deadline.minutes - est)}분 도착 예상이지만, 탑승 수속 · 보안 검색에 필요한 "
                     f"시간 기준이 없어 탈 수 있는지 확정하지 않는다"),
-            confirmed=f"현재 이동시간 기준으로는 {ev} 전 {round(event_time - est)}분 도착한다",
+            confirmed=f"현재 이동시간 기준으로는 {deadline.name} 전 {round(deadline.minutes - est)}분 도착한다",
             not_confirmed="탑승 수속 · 보안 검색을 마치고 탈 수 있는지",
             how_to_resolve={"user": "항공사 안내에서 탑승 수속 마감 시각을 확인해 주세요",
                             "system": "공항 · 항공사 공식 안내에서 권장 도착 시각 확보"},
@@ -865,11 +907,11 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
             status=UNKNOWN,
             unknown_reason="BUFFER_NOT_MET",
             detail=(
-                f"{ev} 전 {round(event_time - est)}분 도착 예상이지만, "
+                f"{deadline.name} 전 {round(deadline.minutes - est)}분 도착 예상이지만, "
                 f"설정한 권장 여유 {buffer}분보다 {round(est - required)}분 부족하다"
             ),
-            confirmed=f"현재 이동시간 기준으로는 {ev} 전 {round(event_time - est)}분 도착한다",
-            not_confirmed=f"역 출입구 이동·탑승 절차를 포함한 {ok_arrival}",
+            confirmed=f"현재 이동시간 기준으로는 {deadline.name} 전 {round(deadline.minutes - est)}분 도착한다",
+            not_confirmed=f"역 출입구 이동·탑승 절차를 포함한 {deadline.ok_arrival}",
             how_to_resolve={"system": "역 출입구 보행 경로·탑승 절차·대기시간 확보"},
         )
     elif leg.get("is_lower_bound"):
@@ -882,13 +924,62 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
             detail=f"주행시간 하한선({leg['minutes']}분)으로는 권장 도착 시각에 맞지만 "
                    f"{missing}이 빠져 있다",
             confirmed=f"주행시간만으로는 {round(required - est)}분 여유가 있다",
-            not_confirmed=ok_arrival,
+            not_confirmed=deadline.ok_arrival,
             how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
         )
     else:
         policy_eval["status"] = PASS
-    result["policy"] = policy_eval
-    return result
+    return policy_eval
+
+
+def _hc_without_dwell(policy_eval, last, leg, mode_name, base, est, required, deadline) -> dict:
+    """마지막 장소 체류시간을 모르는 필수 조건. 바로 나와도 늦으면 늦다고 알리고, 아니면 체류시간을 묻는다."""
+    earliest = to_min(last["entry"]) + leg["minutes"]
+    if deadline.misses(earliest):
+        policy_eval.update(
+            estimated_arrival=to_hhmm(earliest),
+            margin_vs_event=round(deadline.minutes - earliest),
+            margin_vs_required=None if required is None else round(required - earliest),
+        )
+        return _hc_late(policy_eval, leg, mode_name, deadline,
+                        f"{last['name']}에서 바로 나와도 {to_hhmm(earliest)} 도착이라 {deadline.name}에 늦는다")
+
+    detail = f"{last['name']} 체류시간을 몰라 확정할 수 없다"
+    if deadline.misses(est):
+        detail += f". 기본값 {base}분으로 보면 {to_hhmm(est)} 도착이라 {deadline.name}에 늦을 수 있다"
+    policy_eval.update(
+        status=UNKNOWN,
+        unknown_reason="NO_USER_DWELL",
+        detail=detail,
+        depends_on_assumptions=[last["dwell"].get("assumption_id")],
+        how_to_resolve={"user": f"{last['name']}에서 몇 시에 나오실 예정인가요?"},
+        confirmed=f"바로 나와도 {to_hhmm(earliest)} 이후에 도착한다",
+        not_confirmed=f"{last['name']} 체류시간과 {deadline.ok_arrival}",
+    )
+    return policy_eval
+
+
+def _hc_late(policy_eval, leg, mode_name, deadline, detail) -> dict:
+    """필수 조건에 늦는다 — check_travel 의 늦음과 같은 규칙이다. fail 을 확정하지 않고 severity 는 blocking 그대로다."""
+    # check_travel 의 late 와 같은 규칙이다. 예상 이동시간으로도, 지하철 하한선으로도 fail 을
+    # 확정하지 않는다. severity 는 blocking 그대로다. 열차를 놓칠 수 있다는 경고가 사라지면 안 된다.
+    if leg.get("is_lower_bound"):
+        policy_eval.update(
+            status=UNKNOWN,
+            unknown_reason="LATE_BY_LOWER_BOUND",
+            detail=f"{mode_name}로 가면 {detail}. 택시 등 다른 수단으로 갈 수 있는지는 확인하지 못했다",
+            how_to_resolve={"user": f"{mode_name}로는 {deadline.name}에 늦어요. 더 일찍 출발할 수 있나요?"},
+            not_confirmed="다른 이동수단으로 갔을 때의 도착 시각",
+        )
+    else:
+        policy_eval.update(
+            status=UNKNOWN,
+            unknown_reason="LATE_BY_ESTIMATE",
+            detail=f"{detail} — {mode_name} 예상 이동시간({leg['minutes']}분) 기준이라 확정하지 않는다",
+            how_to_resolve={"user": f"{deadline.name}에 늦을 가능성이 높아요. 더 일찍 출발할 수 있나요?"},
+            not_confirmed="실제 이동시간",
+        )
+    return policy_eval
 
 
 # ── 본체 ────────────────────────────────────────────────────────────
@@ -919,72 +1010,24 @@ def unconfirmed(result: dict, depends_on: list[dict]) -> dict:
 
 
 def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
-    # ⭐ 입력이 비어 있을 때 시간 계산 예외를 내지 않는다.
+    """일정 하나를 판정한다 — 이 파일의 본체.
+
+    ① 입력이 성립하나 ② 날짜 · 요일 ③ 장소 준비(지원 범위 · 추정 시각 · 체류시간) ④ 장소 검사(휴무 · 입장 · 체류)
+    ⑤ 구간 검사(이동) ⑥ 필수 조건(열차 등) ⑦ 전체 판정. 추정한 입력에 기대는 결과는 검사마다 바로 unknown 으로 내린다.
+    """
+    # ① ⭐ 입력이 비어 있을 때 시간 계산 예외를 내지 않는다.
     #    날짜·시각을 모르는 것은 "검사할 필요가 없다"가 아니라
     #    필요한 검사를 끝내지 못한 상태이므로 unknown 으로 남긴다.
     missing_inputs = input_checks(itinerary)
     if missing_inputs:
-        for n, c in enumerate(missing_inputs, 1):
-            c["id"] = f"chk-{n:03d}"
-        counts = {s: sum(c["status"] == s for c in missing_inputs)
-                  for s in (PASS, FAIL, UNKNOWN, NA)}
-        return {
-            "date": itinerary.get("date"),
-            "weekday": None,
-            "is_holiday": None,
-            "summary": {
-                "verdict": "undetermined",
-                "message": "필수 입력이 없어 판정을 보류했습니다",
-                "counts": counts,
-            },
-            "assumptions": [],
-            "checks": missing_inputs,
-            "hard_constraints": [],
-        }
+        return _missing_input_result(itinerary, missing_inputs)
 
+    # ② 날짜를 추정했으면 기록하고, 말한 요일이 날짜와 다르면 어느 날인지 묻는다
     visit_date = itinerary["date"]
-    assumptions: list[dict] = []
-
-    # 자연어에서 날짜나 시작 시각을 추정한 경우, 사용자 입력과 구분해 기록한다.
-    if itinerary.get("date_source") == "inferred":
-        assumptions.append({
-            "id": "A1",
-            "field": "date",
-            "value": visit_date,
-            "source": "llm_inferred",
-            "rule": "extract.inferred_date",
-            "reason": "입력에 연도가 없어 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
-            "ask_user": "방문 날짜가 맞는지 확인해 주세요",
-        })
-
-    # 날짜와 요일이 맞지 않으면 사용자가 어느 날을 뜻했는지 모른다. "10월 8일 수요일" 은
-    # 7일 수요일일 수도, 8일 목요일일 수도 있고, 어느 날이든 일정 자체는 문제없을 수 있다.
-    # 불가능이 아니라 판정 보류다. 어느 쪽이 맞는지 묻는다.
+    assumptions = _date_assumptions(itinerary)
     stated_weekday = itinerary.get("weekday_stated")
     if stated_weekday and stated_weekday != weekday_of(visit_date):
-        conflict = check(
-            "INPUT_CONFLICT", "날짜와 요일", UNKNOWN,
-            unknown_reason="MISMATCHED_WEEKDAY",
-            detail=f"날짜 {visit_date}의 실제 요일은 {weekday_of(visit_date)}인데 "
-                   f"입력에는 {stated_weekday}로 적혀 있다",
-            how_to_resolve={"user": "날짜와 요일 중 맞는 값을 확인해 주세요"},
-        )
-        conflict["id"] = "chk-001"
-        return {
-            "date": visit_date,
-            "date_source": itinerary.get("date_source", "explicit"),
-            "weekday": weekday_of(visit_date),
-            "weekday_stated": stated_weekday,
-            "is_holiday": visit_date in facts["holidays"]["dates"],
-            "summary": {
-                "verdict": "undetermined",
-                "message": "입력한 날짜와 요일이 서로 맞지 않아 판정을 보류했습니다",
-                "counts": {PASS: 0, FAIL: 0, UNKNOWN: 1, NA: 0},
-            },
-            "assumptions": assumptions,
-            "checks": [conflict],
-            "hard_constraints": [],
-        }
+        return _weekday_conflict_result(itinerary, facts, assumptions)
 
     # ⭐ LLM 이 추정한 입력에 기대는 판정은 pass 든 fail 이든 확정하지 않는다.
     #    "점심 먹고" → 12:00 은 LLM 의 짐작이다. 그 12:00 으로 "입장 불가" 를 내면
@@ -996,48 +1039,142 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     #    채웠을 때만 추정으로 본다.
     date_dep = [] if stated_weekday else [a for a in assumptions if a["field"] == "date"]
 
-    # 체류시간: 사용자가 말했으면 그대로, 아니면 기본값을 쓰되 반드시 기록한다.
+    # ③ 장소마다 지원 범위 · 시작 시각 · 체류시간을 정리한다. 추정 시각과 기본 체류시간은 assumptions 에 남는다
     stops = []
     for i, s in enumerate(itinerary["stops"]):
-        # ⭐ area 일정은 대표 좌표나 비슷한 이름의 시설로 바꿔 판정하지 않는다.
-        #    "북촌에서 점심"을 임의의 식당 운영시간으로 검사하면 다른 장소를
-        #    검증한 셈이 된다. 사용자가 장소를 특정하기 전까지는 unknown 이다.
-        support = support_scope(s, facts)
-        scope = "area" if support == "area" else "place"
-        place = facts["places"][s["place"]] if support == "supported" else None
+        stops.append(_prepare_stop(i, s, facts, policy, assumptions))
 
-        start_source = s.get("start_source", "explicit")
-        start_dep = []
-        if start_source == "inferred":
-            aid = f"A{len(assumptions) + 1}"
-            assumptions.append({
-                "id": aid, "field": f"stops[{i}].start", "value": s["start"],
-                "source": "llm_inferred", "rule": "extract.inferred_start",
-                "reason": "입력의 문맥에서 시작 시각을 추정했다",
-                "ask_user": f"{s['place']}에 {s['start']}에 도착하는 것이 맞나요?",
-            })
-            start_dep = [assumptions[-1]]
-        # ⭐ 기본값을 쓰는 것 자체는 문제가 아니다. 쓴 것을 숨기는 게 문제다.
-        #    source 로 user_stated / system_default 를 구분하고, 기본값을 쓸 때마다
-        #    assumptions 에 '무슨 값을, 어떤 규칙으로, 왜' 넣었는지와 사용자에게
-        #    물어볼 질문까지 남긴다. 그래야 판정 이유를 되짚을 수 있다.
-        if s.get("dwell_minutes") is not None:
-            dwell = {"value": s["dwell_minutes"], "source": "user_stated"}
-        else:
-            type_ = (place or {}).get("type", "street")
-            value = policy["default_dwell_minutes"][type_]
-            aid = f"A{len(assumptions) + 1}"
-            assumptions.append({
-                "id": aid, "field": f"stops[{i}].dwell_minutes", "value": value,
-                "source": "system_default", "rule": f"default_dwell.{type_}",
-                "reason": "체류시간 미입력. 장소 유형 기본값 적용",
-                "ask_user": f"{s['place']}에서 얼마나 머무르실 예정인가요?",
-            })
-            dwell = {"value": value, "source": "system_default", "assumption_id": aid}
-        stops.append({"name": s["place"], "place": place, "start": s["start"], "entry": s["start"],
-                      "start_source": start_source, "start_dep": start_dep, "scope": scope, "support": support,
-                      "scope_note": s.get("scope_note"), "dwell": dwell})
+    # ④ 장소 검사 ⑤ 구간 검사
+    checks, closed_statuses = _place_checks(stops, visit_date, facts, policy, date_dep)
+    checks += _travel_checks(stops, facts, policy, closed_statuses, visit_date)
+    for n, c in enumerate(checks, 1):
+        c["id"] = f"chk-{n:03d}"
 
+    # ⑥ 필수 조건 ⑦ 전체 판정
+    hard = _hard_constraints(itinerary, stops, facts, policy, visit_date)
+    return {
+        "date": visit_date,
+        "date_source": itinerary.get("date_source", "explicit"),
+        "weekday": weekday_of(visit_date),
+        "weekday_stated": stated_weekday,
+        "is_holiday": visit_date in facts["holidays"]["dates"],
+        "summary": _summary(checks, hard),
+        "assumptions": assumptions,
+        "checks": checks,
+        "hard_constraints": hard,
+    }
+
+
+def _missing_input_result(itinerary: dict, missing: list[dict]) -> dict:
+    """필수 입력이 빠졌을 때의 결과. 계산하지 않고 무엇이 빠졌는지만 돌려준다."""
+    for n, c in enumerate(missing, 1):
+        c["id"] = f"chk-{n:03d}"
+    counts = {s: sum(c["status"] == s for c in missing)
+              for s in (PASS, FAIL, UNKNOWN, NA)}
+    return {
+        "date": itinerary.get("date"),
+        "weekday": None,
+        "is_holiday": None,
+        "summary": {
+            "verdict": "undetermined",
+            "message": "필수 입력이 없어 판정을 보류했습니다",
+            "counts": counts,
+        },
+        "assumptions": [],
+        "checks": missing,
+        "hard_constraints": [],
+    }
+
+
+def _date_assumptions(itinerary: dict) -> list[dict]:
+    """자연어에서 연도를 추정해 채운 날짜면 기록한다(A1). 사용자 입력과 구분하기 위해서다."""
+    if itinerary.get("date_source") != "inferred":
+        return []
+    return [{
+        "id": "A1",
+        "field": "date",
+        "value": itinerary["date"],
+        "source": "llm_inferred",
+        "rule": "extract.inferred_date",
+        "reason": "입력에 연도가 없어 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
+        "ask_user": "방문 날짜가 맞는지 확인해 주세요",
+    }]
+
+
+def _weekday_conflict_result(itinerary: dict, facts: dict, assumptions: list[dict]) -> dict:
+    """말한 요일이 날짜와 다를 때의 결과. 불가능이 아니라 판정 보류이고, 어느 쪽이 맞는지 묻는다."""
+    # 날짜와 요일이 맞지 않으면 사용자가 어느 날을 뜻했는지 모른다. "10월 8일 수요일" 은
+    # 7일 수요일일 수도, 8일 목요일일 수도 있고, 어느 날이든 일정 자체는 문제없을 수 있다.
+    visit_date, stated_weekday = itinerary["date"], itinerary["weekday_stated"]
+    conflict = check(
+        "INPUT_CONFLICT", "날짜와 요일", UNKNOWN,
+        unknown_reason="MISMATCHED_WEEKDAY",
+        detail=f"날짜 {visit_date}의 실제 요일은 {weekday_of(visit_date)}인데 "
+               f"입력에는 {stated_weekday}로 적혀 있다",
+        how_to_resolve={"user": "날짜와 요일 중 맞는 값을 확인해 주세요"},
+    )
+    conflict["id"] = "chk-001"
+    return {
+        "date": visit_date,
+        "date_source": itinerary.get("date_source", "explicit"),
+        "weekday": weekday_of(visit_date),
+        "weekday_stated": stated_weekday,
+        "is_holiday": visit_date in facts["holidays"]["dates"],
+        "summary": {
+            "verdict": "undetermined",
+            "message": "입력한 날짜와 요일이 서로 맞지 않아 판정을 보류했습니다",
+            "counts": {PASS: 0, FAIL: 0, UNKNOWN: 1, NA: 0},
+        },
+        "assumptions": assumptions,
+        "checks": [conflict],
+        "hard_constraints": [],
+    }
+
+
+def _prepare_stop(i: int, s: dict, facts: dict, policy: dict, assumptions: list[dict]) -> dict:
+    """장소 하나를 판정용으로 정리한다. 추정한 시작 시각과 기본 체류시간을 쓰면 assumptions 에 덧붙인다."""
+    # ⭐ area 일정은 대표 좌표나 비슷한 이름의 시설로 바꿔 판정하지 않는다.
+    #    "북촌에서 점심"을 임의의 식당 운영시간으로 검사하면 다른 장소를
+    #    검증한 셈이 된다. 사용자가 장소를 특정하기 전까지는 unknown 이다.
+    support = support_scope(s, facts)
+    scope = "area" if support == "area" else "place"
+    place = facts["places"][s["place"]] if support == "supported" else None
+
+    start_source = s.get("start_source", "explicit")
+    start_dep = []
+    if start_source == "inferred":
+        aid = f"A{len(assumptions) + 1}"
+        assumptions.append({
+            "id": aid, "field": f"stops[{i}].start", "value": s["start"],
+            "source": "llm_inferred", "rule": "extract.inferred_start",
+            "reason": "입력의 문맥에서 시작 시각을 추정했다",
+            "ask_user": f"{s['place']}에 {s['start']}에 도착하는 것이 맞나요?",
+        })
+        start_dep = [assumptions[-1]]
+    # ⭐ 기본값을 쓰는 것 자체는 문제가 아니다. 쓴 것을 숨기는 게 문제다.
+    #    source 로 user_stated / system_default 를 구분하고, 기본값을 쓸 때마다
+    #    assumptions 에 '무슨 값을, 어떤 규칙으로, 왜' 넣었는지와 사용자에게
+    #    물어볼 질문까지 남긴다. 그래야 판정 이유를 되짚을 수 있다.
+    if s.get("dwell_minutes") is not None:
+        dwell = {"value": s["dwell_minutes"], "source": "user_stated"}
+    else:
+        type_ = (place or {}).get("type", "street")
+        value = policy["default_dwell_minutes"][type_]
+        aid = f"A{len(assumptions) + 1}"
+        assumptions.append({
+            "id": aid, "field": f"stops[{i}].dwell_minutes", "value": value,
+            "source": "system_default", "rule": f"default_dwell.{type_}",
+            "reason": "체류시간 미입력. 장소 유형 기본값 적용",
+            "ask_user": f"{s['place']}에서 얼마나 머무르실 예정인가요?",
+        })
+        dwell = {"value": value, "source": "system_default", "assumption_id": aid}
+    return {"name": s["place"], "place": place, "start": s["start"], "entry": s["start"],
+            "start_source": start_source, "start_dep": start_dep, "scope": scope, "support": support,
+            "scope_note": s.get("scope_note"), "dwell": dwell}
+
+
+def _place_checks(stops, visit_date, facts, policy, date_dep) -> tuple[list[dict], dict[str, str]]:
+    """장소마다 휴무 → 입장 → 체류를 본다. 개장 전 도착이면 입장 시각(entry)을 개장으로 늦춘다."""
     checks: list[dict] = []
     closed_statuses: dict[str, str] = {}
 
@@ -1055,7 +1192,12 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
                                     a["status"], policy, facts["holidays"]),
                         date_dep + st["start_dep"])
         checks += [c, a, d]
+    return checks, closed_statuses
 
+
+def _travel_checks(stops, facts, policy, closed_statuses, visit_date) -> list[dict]:
+    """이웃한 장소 사이 구간마다 이동 검사. 마지막 장소 뒤는 구간이 없어 not_applicable 이다."""
+    checks = []
     for i, st in enumerate(stops):
         if i == len(stops) - 1:
             checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{st['name']} → (없음)", NA,
@@ -1064,16 +1206,21 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
             checks.append(unconfirmed(
                 check_travel(st, stops[i + 1], facts, policy, closed_statuses, visit_date),
                 st["start_dep"] + stops[i + 1]["start_dep"]))
+    return checks
 
-    for n, c in enumerate(checks, 1):
-        c["id"] = f"chk-{n:03d}"
 
+def _hard_constraints(itinerary, stops, facts, policy, visit_date) -> list[dict]:
+    """필수 조건마다 마지막 장소에서 제때 닿는지. 마지막 장소의 시각이 추정이면 결과를 확정하지 않는다."""
     hard = []
     for hc in itinerary.get("hard_constraints", []):
         h = evaluate_hard_constraint(hc, stops, facts, policy, visit_date)
         h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"])
         hard.append(h)
+    return hard
 
+
+def _summary(checks: list[dict], hard: list[dict]) -> dict:
+    """전체 판정과 사용자에게 보여 줄 문장, 상태별 개수."""
     # ⭐ 전체 판정은 '가장 나쁜 상태' 순서로 정한다. 다수결이 아니다.
     #    fail 이 하나라도 있으면 infeasible, 없어도 unknown 이 하나 있으면
     #    undetermined. 모든 검사가 통과해야만 feasible 이다.
@@ -1092,15 +1239,4 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
         "infeasible": "확인한 정보에서 실행할 수 없는 부분이 발견되었습니다",
         "undetermined": f"위반은 발견되지 않았지만 {counts[UNKNOWN]}개 항목을 확인하지 못했습니다",
     }[verdict]
-
-    return {
-        "date": visit_date,
-        "date_source": itinerary.get("date_source", "explicit"),
-        "weekday": weekday_of(visit_date),
-        "weekday_stated": stated_weekday,
-        "is_holiday": visit_date in facts["holidays"]["dates"],
-        "summary": {"verdict": verdict, "message": message, "counts": counts},
-        "assumptions": assumptions,
-        "checks": checks,
-        "hard_constraints": hard,
-    }
+    return {"verdict": verdict, "message": message, "counts": counts}
