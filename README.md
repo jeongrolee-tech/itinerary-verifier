@@ -1,5 +1,7 @@
 # itinerary-verifier
 
+[![tests](https://github.com/jeongrolee-tech/itinerary-verifier/actions/workflows/tests.yml/badge.svg)](https://github.com/jeongrolee-tech/itinerary-verifier/actions/workflows/tests.yml)
+
 여행 일정이 실제로 실행 가능한지 검증한다. **확인한 것 / 어긋난 것 / 확인하지 못한 것**을 근거와 함께 나눠서 낸다.
 
 > Checks whether a travel itinerary is actually executable — validates opening hours,
@@ -292,6 +294,9 @@ GKEY=... node check-routes-api.mjs
 node check-tmap-api.mjs                     # 수단별로 경로가 오나 — 키를 물어본다
 ```
 
+GitHub에 올릴 때마다 같은 `pytest`가 Python 3.10과 3.13에서 자동으로 돈다(GitHub Actions, `.github/workflows/tests.yml`).
+외부 API를 부르지 않는 테스트라 키가 필요 없다.
+
 Anthropic · TMAP · 공공데이터포털 키는 환경변수에 없으면 **실행할 때 물어본다.** 그렇게 넣으면 화면에 안 찍히고
 셸 히스토리에도 안 남는다(공휴일 스크립트는 환경변수를 읽지 않고 바로 묻는다). Google 확인 스크립트 둘은 `GKEY`
 환경변수로만 받는다. `--key=`로 넘길 수도 있지만 그러면 셸 히스토리에 남는다.
@@ -553,6 +558,7 @@ itinerary-verifier/
 │   ├── eval-report.md           평가 보고 (자동 생성)
 │   └── experiments/             실험 기록
 ├── tests/                       pytest 규칙 테스트
+├── .github/workflows/tests.yml  올릴 때마다 pytest (GitHub Actions · Python 3.10 · 3.13)
 ├── check-places-api.mjs         Places API 능력 확인
 ├── check-routes-api.mjs         Routes API 모드 확인
 ├── check-tmap-api.mjs           TMAP 모드 확인

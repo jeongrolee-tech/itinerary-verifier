@@ -1,0 +1,28 @@
+# 2차 피드백 4번 — "pytest로 위 반례와 3~6개 장소 시나리오를 회귀 테스트하고, GitHub Actions에서 자동 실행".
+# 올릴 때마다 규칙 테스트(골든 회귀 · 확정 fail 반례 · 보류 질문 · 길찾기 가짜 응답 · …)를 돌린다.
+# 외부 API 는 부르지 않는다 — 키가 필요 없다.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # README 가 적은 최소 버전과 최신 버전
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: pip install -r requirements.txt
+      - run: pytest -q
