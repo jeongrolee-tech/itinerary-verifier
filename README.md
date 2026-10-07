@@ -89,6 +89,8 @@ LLM은 자연어를 구조로 옮기는 데만 쓰고, 근거가 충분한지와
 
 키 없이 바로 된다(`python core/run.py --case T08`). 골든 케이스마다 검사별로 무엇을 확인했고 무엇을 못 했는지 나온다.
 자연어 일정을 직접 넣어 보려면 Anthropic · TMAP 키가 필요하다(`core/verify.py`).
+화면으로 보려면 `python core/app.py`를 켜고 http://127.0.0.1:8000 을 연다. 빠진 정보를 묻고, 표에서 고친 일정을
+다시 검사한다. Anthropic 키는 있어야 하고 TMAP 키는 없어도 된다.
 판정 3종이 각각 어떻게 생겼는지 아래 셋으로 보면 된다.
 `[검사]`는 검사 하나하나의 상세이고, `[결과]`는 그것을 사용자에게 보여줄 묶음으로 나눈 것이다 —
 어긋난 것 · 확인하지 못한 것 · 확인한 것 · 해당 없음, 그리고 이 서비스가 **검사하지 않는 것**.
@@ -263,13 +265,13 @@ python core/run.py --case T10
 **필요한 것** — Python 3.10 이상. 조회 스크립트(`.mjs`)를 돌릴 때만 Node 18 이상.
 
 ```bash
-pip install -r requirements.txt     # anthropic, pydantic, pytest
+pip install -r requirements.txt     # anthropic, pydantic, fastapi, uvicorn, httpx, pytest
 
 # 키 없이 (판정 코어는 외부 API를 부르지 않는다)
 python core/run.py                          # 골든 테스트 채점 + 실행 기록
 python core/run.py --case T05               # 한 케이스 상세
 python core/run.py --all                    # 전부 상세
-pytest                                      # 규칙 테스트 (골든 29건 회귀 · 확정 fail 반례 · 예상 이동시간 · 길찾기 · 일정 검증 · 추출 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출)
+pytest                                      # 규칙 테스트 (골든 29건 회귀 · 확정 fail 반례 · 예상 이동시간 · 길찾기 · 일정 검증 · 추출 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출 · 데모 API)
 python core/compare.py --dry-run            # 비교 실험 배선 확인
 python core/compare.py --arms code          # 비교 실험, 코드 arm만 (일부 실행 → last-compare-subset.json)
 python core/build_transit_legs.py           # 지하철 주행시간 하한선 계산
@@ -279,6 +281,7 @@ python core/eval_report.py                  # 평가 보고 — 실행 기록 �
 python core/run_extract.py                  # 자연어 → 추출 → 판정
 python core/compare.py                      # 비교 실험 4종
 python core/compare.py --model claude-sonnet-5-5
+python core/app.py                          # 데모 화면 http://127.0.0.1:8000 — TMAP 키는 있으면 쓴다
 
 # Anthropic API 키 + TMAP 앱 키 필요
 python core/verify.py "10월 8일 목요일 …"   # 일정 하나를 끝까지 검증 — 아무것도 저장하지 않는다
@@ -501,10 +504,11 @@ Routes API로 구간 이동시간을 받아둔 뒤 약관을 확인했다. 소�
      ↓        LLM 이 담당하는 유일한 단계
 [판정 코어]   verdict.py — 순수 함수. 네트워크 호출 없음
      ↓        checks[] + hard_constraints[] + assumptions[]
-[결과 묶기]   report.py — run.py · verify.py 화면용. 상태별로 묶고 검사하지 않는 것을 붙인다. 판정은 바꾸지 않는다
+[결과 묶기]   report.py — run.py · verify.py · app.py 화면용. 상태별로 묶고 검사하지 않는 것을 붙인다. 판정은 바꾸지 않는다
      ↓
 [채점·기록]   run.py · run_extract.py · compare.py → last-*.json (실행 조건 포함 — runmeta.py)
 [일정 하나]   verify.py — 추출 → 길찾기 → 판정 → 결과. 아무것도 저장하지 않는다
+[데모]        app.py — 화면 한 장과 API 둘. 일정 하나 검증에 표로 고쳐 다시 검사하기를 더했다. 저장하지 않는다
 ```
 
 판정 코어를 외부 API에서 분리했다. **API 없이 고정 입력으로 테스트할 수 있어야** 하기 때문이다.
@@ -550,6 +554,8 @@ itinerary-verifier/
 │   ├── llm.py                   Claude 호출 (구조화 출력 · 거부 처리)
 │   ├── routes.py                TMAP 길찾기 (판정할 때만 부르고 저장하지 않는다)
 │   ├── verify.py                일정 하나 검증 (Claude 추출 → TMAP 길찾기 → 판정)
+│   ├── app.py                   데모 API (FastAPI) — 질문 · 판정 · 표에서 고쳐 다시 검사
+│   ├── web/index.html           데모 화면 한 장
 │   └── last-*.json              실행 기록 (자동 생성)
 ├── docs/
 │   ├── 용어.md                  용어 정리 — 처음 읽는 사람은 여기부터
@@ -563,7 +569,7 @@ itinerary-verifier/
 ├── check-routes-api.mjs         Routes API 모드 확인
 ├── check-tmap-api.mjs           TMAP 모드 확인
 ├── fetch-travel-times.mjs       Routes API 이동시간 조회
-├── requirements.txt             추출·비교 실험에만 필요한 패키지
+├── requirements.txt             추출·비교 실험·데모·테스트에만 필요한 패키지
 ├── CLAUDE.md                    Claude Code와 일할 때의 작업 규칙
 └── LICENSE                      권리 보유 + 포함 데이터의 출처·이용 조건
 ```
@@ -675,6 +681,10 @@ itinerary-verifier/
 
 시각 · 체류시간 · 방문 순서는 고쳐도 되는 것이라 적지 않는다. 장소는 순서가 아니라 이름으로 짝을 맞춘다. 순서로 비교하면 방문 순서만 바꿔도 장소가 바뀐 것처럼 보인다.
 
+`revised_facts`를 넘기면 고친 일정만 그 사실로 판정한다. 데모(`core/app.py`)는 고친 출발 시각으로 이동시간을 새로 받아
+여기에 넣고, 원래 일정은 처음 검사에서 받은 이동시간으로 다시 본다. 둘을 섞으면 같은 구간을 다른 시각의 값으로
+판정해서 '수정 전' 판정이 처음 화면에서 본 것과 달라질 수 있다.
+
 **⭐ 주석이 표시한 결정** — 판정이 나아진 것만으로 수정을 받아들이지 않음 · 장소는 이름으로 짝을 맞춤
 
 ---
@@ -685,12 +695,17 @@ itinerary-verifier/
 | --- | --- |
 | **역할** | 판정 결과를 사용자에게 보여줄 묶음으로 나눈다 |
 | **입력** | `report(result)` — `judge()`의 결과. **읽기만 하고 바꾸지 않는다** |
-| **출력** | `groups[]` — 어긋난 것 · 확인하지 못한 것 · 확인한 것 · 해당 없음 / `not_checked[]` — 검사하지 않는 것 |
-| **읽는 쪽** | `run.py` · `verify.py` — `render()`로 `[결과]`를 찍는다 |
+| **출력** | `groups[]` — 어긋난 것 · 확인하지 못한 것 · 확인한 것 · 해당 없음 / `not_checked[]` — 검사하지 않는 것 / `questions(result)` — 물을 말을 한 번씩만 |
+| **읽는 쪽** | `run.py` · `verify.py` — `render()`로 `[결과]`를 찍는다 / `app.py` — 화면에 묶음과 `questions()`를 보낸다 |
 
 멘토 피드백 2번 — 결과 화면에서도 검사한 것과 확인하지 못한 것을 각각 보여줘야 한다. 묶는 방식은 웹 접근성 검사기 axe-core(위반 · 통과 · 판단 못 함 · 해당 없음)와 Lighthouse(도구가 검사하지 않는 항목을 매 보고서에 붙인다)를 따랐다. 고칠 것이 먼저 보이도록 어긋난 것부터 적는다.
 
 **검사하지 않는 것을 결과마다 붙인다.** `feasible`은 "이 목록을 뺀 범위에서 위반을 찾지 못했다"는 뜻이기 때문이다. 목록은 이 파일 한 곳에 있고, [지원 범위](#지원-범위) 표의 '검사하지 않는 것' 칸과 글자까지 같은지 `tests/test_report.py`가 대조한다.
+
+**같은 것을 여러 검사가 물어도 한 번만 묻는다(`questions()`).** T12는 경복궁 체류시간을 몰라 체류 검사는 "얼마나
+머무르실", 다음 구간은 "몇 시에 나오실"로 묻고, 광장시장 휴무일과 입장이 똑같이 점포를 묻는다. 질문은 넷인데 답할
+것은 둘이다. 판정이 기댄 가정(체류시간 기본값, 추정한 날짜와 시각)이 있으면 그 가정의 질문으로 묻고, 장소 이름이 없는
+질문에는 장소를 붙인다. 데모 화면이 쓰고, CLI의 `[결과]`는 항목마다 질문을 그대로 둔다.
 
 **⭐ 주석이 표시한 결정** — 해당 없음도 이유와 함께 보여줌 · 검사하지 않는 것을 결과마다 붙임
 
@@ -1203,6 +1218,44 @@ SDK의 `messages.parse()`를 쓰지 않는다. `parse()`는 `stop_reason`을 보
 
 ---
 
+### `core/app.py` — 데모
+
+| | |
+| --- | --- |
+| **역할** | 2차 피드백 4번의 흐름을 화면으로 보여 준다 — 자연어 입력 → 빠진 정보 질문 → 근거별 판정 → 사용자 수정 → 재검사 |
+| **실행** | `python core/app.py`를 켜고 http://127.0.0.1:8000 을 연다. Anthropic 키는 있어야 하고, TMAP 키가 없으면 저장해 둔 지하철 하한선으로만 판정한다 |
+| **API** | `POST /api/check` — 자연어 일정을 받아 옮긴 일정 · 판정 · 물을 말을 준다 / `POST /api/recheck` — 표에서 고친 일정을 받아 수정 전후 판정 · 바뀐 칸 · 따로 확인할 것을 준다. 설명은 http://127.0.0.1:8000/docs |
+| **화면** | `core/web/index.html` 한 장. 판정은 서버가 하고, 화면은 결과를 보여 주고 고친 표를 돌려보내기만 한다 |
+| **남기는 것** | 없다. TMAP 이동시간은 다시 검사할 때 원래 일정을 같은 조건으로 판정하도록 화면이 잠깐 들고 있는다 |
+
+| API | 요청 본문 | 응답 |
+| --- | --- | --- |
+| `POST /api/check` | `{"text": "10월 8일 목요일 오후 4시 반에 경복궁 갈게요"}` | `itinerary` — 옮긴 일정 / `notes` — 옮길 때 메모 / `legs` — 받은 TMAP 구간 / `leg_misses` — 받지 못한 구간과 이유 / `tmap` — 키 설정 여부 / `result` — 판정 원본 / `report` — 화면용 판정 묶음 / `questions` — 중복을 걷어낸 질문 |
+| `POST /api/recheck` | `original` — `/api/check`가 돌려준 처음 일정 / `revised` — 표에서 고친 일정 / `legs` — 처음 검사에서 받은 구간(생략 가능) | `legs` — 수정 일정용으로 새로 받은 구간 / `leg_misses` — 새 조회에서 받지 못한 구간과 이유 / `tmap` — 키 설정 여부 / `verdict_before` · `verdict_after` — 수정 전후 판정 / `changed_fields` — 바뀐 경로 / `needs_confirmation` — 꼭 지킨다고 한 조건 등의 변경 확인 / `result` · `report` · `questions` — 수정 일정의 재검사 결과 |
+
+요청 본문의 필드와 API 경로는 실행 중인 `/docs`와 `/openapi.json`에서 볼 수 있다. `/api/check`는 Anthropic 키가 없으면 `503`, 빈 입력이나 옮길 수 없는 일정은 `422`, Claude 호출 실패는 `502`를 돌려준다. TMAP 키 없이도 앱은 열리고 저장된 이동시간 하한선으로 판정한다.
+
+멘토는 얇은 API와 화면으로 이 흐름을 실제로 보여 달라고 했고, FastAPI 정도면 충분하다고 했다. 그래서 새 판정 로직은
+없다. 옮기기 · 길찾기 · 판정 · 재검사 · 질문 모으기는 기존 파일(extract · routes · verdict · recheck · report)이 하고,
+여기서는 잇기만 한다.
+
+**표에서 고친 칸은 사용자가 말한 값으로 본다.** 추측한 날짜나 시각을 그대로 두면 추측으로 남고, 고치거나 "맞아요"에
+체크하면 사용자가 말한 값이 된다. 말한 요일과 날짜가 어긋나면 날짜를 그대로 두고 그 날짜가 맞다고 할 수도 있다.
+체류시간을 비워 두면 모르는 것으로 본다.
+
+**원래 일정은 처음과 같은 이동시간으로 다시 판정한다.** 고친 일정은 고친 출발 시각으로 이동시간을 새로 받는다. 둘을
+섞으면 같은 구간을 다른 시각의 값으로 판정해서 '수정 전' 판정이 처음 화면에서 본 것과 달라질 수 있다. 화면이 돌려준
+값은 TMAP에서 오늘 받은 것만 다시 쓴다. TMAP 값은 받은 뒤 24시간 넘게 쓸 수 없기 때문이다([`docs/data-policy.md`](docs/data-policy.md)).
+
+**판정 코어가 먼저 묻는 일정이면 길찾기를 부르지 않는다.** 날짜나 시각이 빠졌거나 말한 요일과 날짜가 어긋나면 판정
+코어는 이동을 보지 않고 그것부터 묻는다. 그때 길찾기를 부르면 쓰지 않을 값에 호출만 쓴다. 표 밖에서 읽을 수 없는
+시각이 들어와도 길찾기에서 멈추지 않는 것도 이 덕분이다.
+
+`tests/test_app.py`가 FastAPI의 TestClient(서버를 띄우지 않고 API를 부르는 테스트 도구)로 두 API를 끝까지 부른다.
+Claude와 TMAP은 `test_verify.py`와 같은 가짜를 쓴다.
+
+---
+
 ### `check-places-api.mjs` — Places API 능력 확인
 
 | | |
@@ -1559,7 +1612,7 @@ Google은 한국에서 대중교통 경로만 줘서(걷기 · 자동차는 빈 
 | --- | --- |
 | 길찾기 출발 시각에 개장 대기 반영 | 개장 전에 도착하면 판정은 개장 시각부터 세는데 길찾기는 계획한 시각으로 묻는다 |
 | 종묘 회차 입장 검사 | 정보는 확보했고 검사가 없다 (`UNSUPPORTED_ADMISSION_TYPE`) |
-| 수정안 생성 + 재검사 | `core/recheck.py`에서 수정 전·후 전체 일정을 다시 검사한다. 수정안 자체의 자동 생성은 아직 범위 밖이다 |
+| 수정안 생성 + 재검사 | `core/recheck.py`에서 수정 전·후 전체 일정을 다시 검사하고, 데모(`core/app.py`)에서 표로 고쳐 볼 수 있다. 수정안 자체의 자동 생성은 아직 범위 밖이다 |
 | 테스트 30~50개로 확장 | 29건이라 정밀도·재현율의 신뢰구간이 넓다. `feasible`이 6건뿐이라 오탐 지표가 아직 약하다 |
 
 ### 더 멀리 — 원래 풀고 싶었던 것
