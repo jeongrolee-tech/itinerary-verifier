@@ -72,6 +72,24 @@ def test_moving_date_with_train_needs_confirmation(facts, policy):
     assert ("DATE_MOVED", "일정 날짜") in confirmations(original, revised, facts, policy)
 
 
+def test_filling_in_a_missing_date_is_not_a_move(facts, policy):
+    """날짜가 없던 일정에 날짜를 처음 채운 것은 옮긴 것이 아니다. 원래 날짜가 없으니 예약을 옮겼는지 물을 근거도 없다."""
+    original = palace_market_ktx()
+    original["date"] = None
+    revised = copy.deepcopy(original)
+    revised["date"] = THURSDAY
+    assert confirmations(original, revised, facts, policy) == []
+
+
+def test_cleared_train_time_reads_as_missing_not_none(facts, policy):
+    """표에서 열차 시각을 비우면 확인 문구에 None 이 아니라 '시각 없음' 이 나온다."""
+    original = palace_market_ktx()
+    revised = copy.deepcopy(original)
+    revised["hard_constraints"][0]["time"] = None
+    [c] = recheck_revision(original, revised, facts, policy)["needs_confirmation"]
+    assert "None" not in c["detail"] and "열차 출발(시각 없음 서울역)" in c["detail"]
+
+
 def test_moving_date_without_constraints_needs_no_confirmation(facts, policy):
     """대조군 — 꼭 지킨다고 한 조건이 없으면 날짜를 옮긴 것은 사용자가 고친 그대로다."""
     original = {"date": THURSDAY, "stops": [{"place": PALACE, "start": "13:00", "dwell_minutes": 60}]}

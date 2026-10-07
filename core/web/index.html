@@ -19,6 +19,8 @@
     }
   }
   * { box-sizing: border-box; }
+  /* hidden 은 display 를 준 요소에도 먹어야 한다. 아니면 label.small 의 inline-flex 가 숨김을 덮어쓴다 */
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--fg);
          font: 15px/1.6 system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
   main { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
@@ -64,8 +66,9 @@
   td.center, th.center { text-align: center; }
   td input[type=text] { width: 100%; min-width: 8em; }
   td input.num { width: 5.5em; }
-  label.small { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); white-space: nowrap; }
+  label.small { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
   ul.plain { margin: 4px 0; padding-left: 20px; }
+  ::placeholder { color: var(--muted); opacity: 1; }
 </style>
 </head>
 <body>
@@ -142,9 +145,10 @@ const HC_TYPES = { TRAIN_DEPARTURE: "열차 출발", FLIGHT_DEPARTURE: "항공�
 const MODES = { metro: "지하철", transit: "대중교통", walk: "도보", taxi: "택시" };
 const LEG_SOURCES = { api_runtime: "TMAP 예상", public_data: "주행시간 하한선 · 공공데이터" };
 const WEEKDAYS = { MON: "월", TUE: "화", WED: "수", THU: "목", FRI: "금", SAT: "토", SUN: "일" };
+const WEEKDAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];  // Date.getDay() 는 일요일이 0
 const FIELDS = { date: "날짜", date_source: "날짜 출처", weekday_stated: "말한 요일", place: "장소", start: "시작 시각",
                  start_source: "시각 출처", dwell_minutes: "체류시간", scope: "구역 여부", scope_note: "구역 메모",
-                 type: "종류", time: "시각", raw: "원문" };
+                 type: "종류", time: "시각", raw: "원문", id: "번호", buffer_rule: "권장 여유 기준" };
 
 let original = null;  // 처음 옮긴 일정. 다시 검사할 때마다 이것과 비교한다 — 무엇을 바꿨나, 꼭 지킨다던 것을 바꿨나
 let firstLegs = {};   // 처음 검사에서 받은 TMAP 이동시간. 원래 일정을 같은 조건으로 다시 판정하라고 돌려보낸다. 저장하지 않는다
@@ -172,27 +176,31 @@ async function post(url, body) {
 function evidenceOf(result, id) {
   // 묶음의 항목 id 로 판정 결과의 근거를 찾는다 — 장소 · 구간 검사는 chk-001, 필수 조건은 HC1
   const c = result.checks.find((x) => x.id === id);
-  if (c) return c.evidence || c.reference || null;
-  const h = result.hard_constraints.find((x) => x.id === id);
-  return h ? h.policy : null;
+  const r = c || result.hard_constraints.find((x) => x.id === id)?.policy;
+  const ev = c ? c.evidence || c.reference : r;
+  if (!ev) return null;
+  // 기본 체류시간이나 추정한 날짜 · 시각에 기댄 결과인가. 그렇다면 그 값으로 계산한 시각은 사실이 아니다
+  return { ev, assumed: (r.depends_on_assumptions || []).some(Boolean) || ev.dwell_source === "system_default" };
 }
 
-function evidenceLine(ev) {
-  // 무엇을 보고 그렇게 판정했는지 한 줄로. 운영시간 · 휴무 규칙에는 공식 안내 링크와 확인한 날을 붙인다
-  if (!ev) return null;
+function evidenceLine(found) {
+  // 무엇을 보고 그렇게 판정했는지 한 줄로. 운영시간 · 휴무 규칙에는 공식 안내 링크와 확인한 날을 붙인다.
+  // 가정에 기댄 결과는 확인한 값(운영시간 · 이동시간)만 적고, 가정으로 계산한 출발 · 도착 · 종료 시각은 적지 않는다
+  if (!found) return null;
+  const { ev, assumed } = found;
   const parts = [];
   if (ev.weekly) {
     parts.push(`정기휴일 ${ev.weekly.map((w) => WEEKDAYS[w] || w).join("·")}요일`
                + (ev.effective_closed_date ? ` (그 주는 ${ev.effective_closed_date})` : ""));
   }
   if (ev.open) parts.push(`운영 ${ev.open}~${ev.close}` + (ev.last_admission ? `, 입장마감 ${ev.last_admission}` : ""));
-  if (ev.end_time) parts.push(`${ev.dwell_minutes}분 머물면 ${ev.end_time}에 끝남, 폐장 ${ev.closing_time}`);
+  if (ev.end_time && !assumed) parts.push(`${ev.dwell_minutes}분 머물면 ${ev.end_time}에 끝남, 폐장 ${ev.closing_time}`);
   if (ev.travel_minutes) {  // 0분(바로 이어도 늦는 경우)은 판정 이유에 이미 적혀 있다
     const source = ev.travel_source || ev.source;
     parts.push(`이동 ${[MODES[ev.mode], `${ev.travel_minutes}분`].filter(Boolean).join(" ")}`
                + (source ? ` (${LEG_SOURCES[source] || source})` : ""));
-    if (ev.depart_at && ev.arrival) parts.push(`${ev.depart_at} 출발 → ${ev.arrival} 도착`);
-    if (ev.estimated_arrival) {
+    if (ev.depart_at && ev.arrival && !assumed) parts.push(`${ev.depart_at} 출발 → ${ev.arrival} 도착`);
+    if (ev.estimated_arrival && !assumed) {
       parts.push(`${ev.estimated_arrival} 도착 예상` + (ev.required_arrival ? `, 권장 도착 ${ev.required_arrival}` : ""));
     }
   }
@@ -283,11 +291,13 @@ function hcRow(h = {}) {
   return tr;
 }
 
-function fillTable(it, result) {
+function fillTable(it) {
   $("edit").hidden = false;
   $("date").value = it.date || "";
-  // 연도를 추측했는데 요일로 확인되지 않았거나, 말한 요일과 날짜가 어긋나면 날짜를 그대로 두고도 맞다고 할 수 있게 한다
-  const conflict = result.checks.some((c) => c.unknown_reason === "MISMATCHED_WEEKDAY");
+  // 연도를 추측했는데 요일로 확인되지 않았거나, 말한 요일과 날짜가 어긋나면 날짜를 그대로 두고도 맞다고 할 수 있게 한다.
+  // 어긋남은 판정 결과가 아니라 일정에서 직접 본다 — 시각 같은 입력이 빠지면 판정 코어가 요일을 보기 전에 멈춘다
+  const weekday = it.date ? WEEKDAY_CODES[new Date(`${it.date}T00:00:00`).getDay()] : null;
+  const conflict = Boolean(it.weekday_stated) && weekday !== null && weekday !== it.weekday_stated;
   const guessed = it.date_source === "inferred" && !it.weekday_stated;
   $("date-ok").checked = false;
   $("date-ok-wrap").hidden = !(conflict || guessed);
@@ -307,7 +317,9 @@ function freshId(used) {
 }
 
 function readTable() {
-  // 표에서 고친 칸은 사용자가 말한 값이다. 날짜를 바꾸거나 맞다고 체크하면 말한 날짜가 되고, 시각도 같다
+  // 표에서 고친 칸은 사용자가 말한 값이다. 날짜를 바꾸거나 맞다고 체크하면 말한 날짜가 되고, 시각도 같다.
+  // 날짜 · 시각 칸을 덜 적으면 브라우저는 빈 값을 준다. 빠진 값으로 보내지 않고 끝까지 적게 한다
+  if (!$("date").checkValidity()) throw new Error("날짜를 끝까지 적어 주세요");
   const date = $("date").value || null;
   const settled = date !== original.date || $("date-ok").checked;
   const revised = {
@@ -319,17 +331,20 @@ function readTable() {
   };
   for (const tr of $("stops").rows) {
     const [place, start, dwell, area] = tr.querySelectorAll("td > input");
+    if (!place.value.trim()) throw new Error("장소 이름을 적어 주세요. 필요 없는 줄은 빼기를 누르세요");
+    if (!start.checkValidity()) throw new Error(`${place.value.trim()} 시작 시각을 끝까지 적어 주세요`);
     if (!dwell.checkValidity()) throw new Error("체류시간은 1분에서 1440분 사이 정수로 적어 주세요");
     const before = tr.dataset.index === "" ? null : original.stops[Number(tr.dataset.index)];
     const guessKept = before?.start_source === "inferred" && start.value === before.start
                       && !tr.querySelector(".start-ok")?.checked;
     // 값이 없는 칸은 키를 빼고 보낸다 — 처음 옮긴 일정(extract.to_itinerary)과 모양이 같아야 바뀐 칸을 바르게 센다
-    const s = { place: place.value.trim() || null };
+    const s = { place: place.value.trim() };
     if (start.value) s.start = start.value;
     s.start_source = !start.value ? "missing" : guessKept ? "inferred" : "explicit";
     if (dwell.value) s.dwell_minutes = Number(dwell.value);
     s.scope = area.checked ? "area" : "place";
-    if (before?.scope_note && before.place === s.place && s.scope === "area") s.scope_note = before.scope_note;
+    // 구역 메모는 장소와 구역 여부를 그대로 둔 동안만 남긴다
+    if (before?.scope_note && before.place === s.place && before.scope === s.scope) s.scope_note = before.scope_note;
     revised.stops.push(s);
   }
   const rows = [...$("hcs").rows];
@@ -337,6 +352,7 @@ function readTable() {
                         ...rows.map((tr) => tr.dataset.id).filter(Boolean)]);
   for (const tr of rows) {
     const [place, time] = tr.querySelectorAll("td > input");
+    if (!time.checkValidity()) throw new Error("꼭 지켜야 하는 조건의 시각을 끝까지 적어 주세요");
     revised.hard_constraints.push({ id: tr.dataset.id || freshId(used), type: tr.querySelector("select").value,
                                     place: place.value.trim() || null, time: time.value || null,
                                     raw: tr.dataset.raw || "화면에서 더함" });
@@ -369,8 +385,10 @@ function showRecheck(data) {
   $("recheck-summary").hidden = false;
 }
 
-async function run(button, status, work) {
-  button.disabled = true;
+async function run(status, work) {
+  // 요청 하나가 끝나기 전에는 검사와 다시 검사를 둘 다 막는다. 늦게 온 다시 검사 응답이 새로 한 검사 결과를 덮지 않게 한다
+  const buttons = [$("check"), $("recheck")];
+  for (const b of buttons) b.disabled = true;
   status.className = "status muted";
   status.textContent = "판정 중…";
   try {
@@ -380,22 +398,23 @@ async function run(button, status, work) {
     status.className = "status error";
     status.textContent = e.message;
   } finally {
-    button.disabled = false;
+    for (const b of buttons) b.disabled = false;
   }
 }
 
-$("check").onclick = () => run($("check"), $("check-status"), async () => {
+$("check").onclick = () => run($("check-status"), async () => {
   const text = $("text").value.trim();
   if (!text) throw new Error("일정을 적어 주세요");
   const data = await post("/api/check", { text });
   original = data.itinerary;
   firstLegs = data.legs || {};
   $("recheck-summary").hidden = true;
+  $("recheck-status").textContent = "";  // 앞 일정을 다시 검사하다 난 오류 문구를 지운다
   showResult(data);
-  fillTable(original, data.result);
+  fillTable(original);
 });
 
-$("recheck").onclick = () => run($("recheck"), $("recheck-status"), async () => {
+$("recheck").onclick = () => run($("recheck-status"), async () => {
   const data = await post("/api/recheck", { original, revised: readTable(), legs: firstLegs });
   showRecheck(data);
   showResult(data);

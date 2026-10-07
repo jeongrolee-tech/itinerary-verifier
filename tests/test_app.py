@@ -17,6 +17,7 @@ from app import create_app, normalized
 from test_verify import T01, TEXT, Claude, tmap
 
 TODAY = "2026-10-01"
+LOCAL = "http://127.0.0.1"  # 앱은 내 PC 주소로 온 요청만 받는다
 LEG = "서울시립미술관 서소문본관|경복궁"
 # T08 과 같은 일정 — 10월 8일 목요일 16:30 경복궁. 얼마나 머물지 말하지 않았다
 PALACE = {"date": "2026-10-08", "date_source": "inferred", "weekday_stated": "THU", "notes": [],
@@ -28,7 +29,7 @@ PALACE_KTX = {**PALACE, "hard_constraints": [
 
 
 def client(extraction=None, tmap_key=None):
-    return TestClient(create_app(Claude(extraction) if extraction else None, tmap_key, today=TODAY))
+    return TestClient(create_app(Claude(extraction) if extraction else None, tmap_key, today=TODAY), base_url=LOCAL)
 
 
 def check(c, text=TEXT):
@@ -47,6 +48,14 @@ def test_page_is_served():
     """첫 화면은 HTML 한 장이다."""
     res = client().get("/")
     assert res.status_code == 200 and "<title>여행 일정 검증</title>" in res.text
+
+
+def test_requests_to_other_hosts_are_refused():
+    """다른 사이트가 자기 도메인을 127.0.0.1 로 돌려 이 서버를 부르는 것(DNS 리바인딩)을 막는다. Host 가 127.0.0.1 이나
+    localhost 가 아니면 거절한다 — 그래야 남의 페이지가 이 키로 Claude 를 부를 수 없다."""
+    app = create_app(Claude(PALACE), today=TODAY)
+    assert TestClient(app, base_url="http://evil.example").post("/api/check", json={"text": TEXT}).status_code == 400
+    assert TestClient(app, base_url="http://localhost:8000").get("/").status_code == 200
 
 
 def test_missing_info_is_asked_then_rechecked():
@@ -178,5 +187,5 @@ class Down:
 
 def test_claude_outage_is_reported():
     """Claude API 에 닿지 못하면 서버 오류로 죽지 않고 무엇이 실패했는지 알린다."""
-    res = TestClient(create_app(Down(), today=TODAY)).post("/api/check", json={"text": TEXT})
+    res = TestClient(create_app(Down(), today=TODAY), base_url=LOCAL).post("/api/check", json={"text": TEXT})
     assert res.status_code == 502 and "APIConnectionError" in res.json()["detail"]

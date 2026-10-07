@@ -78,7 +78,9 @@ def _resolution_hints(result: dict) -> list[dict]:
 
 
 def _event(hc: dict) -> str:
-    return f"{EVENT_NAMES.get(hc.get('type'), '필수 조건')}({hc.get('time')} {hc.get('place')})"
+    """필수 조건을 화면에 쓰는 말로. 표에서 비운 칸은 None 이 아니라 '없음' 으로 적는다."""
+    return (f"{EVENT_NAMES.get(hc.get('type'), '필수 조건')}"
+            f"({hc.get('time') or '시각 없음'} {hc.get('place') or '장소 없음'})")
 
 
 def _needs_confirmation(original: dict, revised: dict) -> list[dict]:
@@ -93,7 +95,8 @@ def _needs_confirmation(original: dict, revised: dict) -> list[dict]:
     items: list[dict] = []
     constraints = original.get("hard_constraints") or []
 
-    if constraints and original.get("date") != revised.get("date"):
+    # 날짜를 처음 채우거나 지운 것은 옮긴 것이 아니다. 지우면 판정 코어가 날짜부터 묻고, 다른 날짜를 넣으면 그때 묻는다
+    if constraints and original.get("date") and revised.get("date") and original["date"] != revised["date"]:
         events = ", ".join(_event(h) for h in constraints)
         items.append({
             "kind": "DATE_MOVED", "target": "일정 날짜",

@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic  # noqa: E402
 from fastapi import FastAPI, HTTPException  # noqa: E402
+from fastapi.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
 from fastapi.responses import FileResponse  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
@@ -80,6 +81,9 @@ class RecheckIn(BaseModel):
 def create_app(claude=None, tmap_key: str | None = None, today: str | None = None) -> FastAPI:
     """앱을 만든다. 실행(main)은 진짜 키를, 테스트는 가짜 Claude 를 넣는다. today 는 연도를 푸는 기준 날짜다."""
     app = FastAPI(title="itinerary-verifier 데모")
+    # 내 PC 주소로 온 요청만 받는다. 다른 사이트가 자기 도메인을 127.0.0.1 로 돌려 놓고(DNS 리바인딩) 이 서버를 부르면
+    # 브라우저는 같은 사이트로 보고 막지 않는다. 그러면 남의 페이지가 이 키로 Claude 와 TMAP 을 부를 수 있다
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
     def judged_legs(itinerary: dict) -> tuple[dict, dict]:
         """TMAP 으로 받은 구간과 받지 못한 이유. 키가 없거나 판정 코어가 구간을 보지 않는 일정이면 둘 다 비어 있다."""
