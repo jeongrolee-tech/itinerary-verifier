@@ -10,6 +10,7 @@ facts.json 버전에 따라 달라지기 때문이다 — T10 이 그 증거다.
 
 from __future__ import annotations
 
+from report import SEVERITY_NAMES, STATUS_NAMES, VERDICT_NAMES
 from verdict import UNKNOWN
 
 # 기대 추출값을 채점하는 항목 — run_extract.py 가 채점하고 eval_report.py 가 보고한다.
@@ -17,7 +18,7 @@ from verdict import UNKNOWN
 # 더했다(2026-10-07 사용자 결정): 출처가 틀리면 판정이 물어야 할 시각을 확정해 버린다
 EXTRACTION_FIELDS = {"date": "날짜·요일", "date_source": "연도 출처", "place": "장소", "start": "시각",
                      "start_source": "시각 출처", "dwell": "체류시간", "support": "지원 범위 분류",
-                     "hard_constraints": "필수 조건"}
+                     "hard_constraints": "필수 일정"}
 
 
 def stale_reason(case: dict, suite: dict, facts: dict) -> str | None:
@@ -38,9 +39,9 @@ def stale_reason(case: dict, suite: dict, facts: dict) -> str | None:
     history = facts.get("snapshot_history") or []
     ids = [h["id"] for h in history]
     if labeled not in ids:
-        return f"라벨 기준 스냅샷 {labeled} 을 데이터 이력에서 찾지 못했다"
+        return f"정답 기준 데이터 버전 {labeled} 을 데이터 이력에서 찾지 못했다"
     if facts["snapshot_id"] not in ids:
-        return f"지금 데이터 스냅샷 {facts['snapshot_id']} 이 데이터 이력에 없어 무엇이 바뀌었는지 모른다"
+        return f"지금 데이터 버전 {facts['snapshot_id']} 이 데이터 이력에 없어 무엇이 바뀌었는지 모른다"
 
     places = [s["place"] for s in case["stops"]]
     legs = [f"{a}|{b}" for a, b in zip(places, places[1:])]
@@ -82,22 +83,25 @@ def grade(case, out):
     """기대 판정과 기대 검사 결과를 라벨과 대조한다. run.py 와 pytest(tests/test_golden.py)가 같이 쓴다."""
     problems = []
     if out["summary"]["verdict"] != case["expect"]:
-        problems.append(f"verdict 기대 {case['expect']} → 실제 {out['summary']['verdict']}")
+        problems.append(f"판정 기대 {VERDICT_NAMES[case['expect']]} → 실제 {VERDICT_NAMES[out['summary']['verdict']]}")
     for want in case.get("expect_checks", []):
         got = next((c for c in out["checks"]
                     if c["type"] == want["type"] and c["target"] == want["target"]), None)
         if got is None:
             problems.append(f"{want['type']} / {want['target']} 검사가 아예 없다")
         elif got["status"] != want["status"]:
-            problems.append(f"{want['type']} / {want['target']} 기대 {want['status']} → 실제 {got['status']}")
+            problems.append(f"{want['type']} / {want['target']} 기대 {STATUS_NAMES[want['status']]} "
+                            f"→ 실제 {STATUS_NAMES[got['status']]}")
     for want in case.get("expect_hard_constraints", []):
         got = next((h for h in out["hard_constraints"] if h["id"] == want["id"]), None)
         if got is None:
-            problems.append(f"필수 조건 {want['id']} 이 없다")
+            problems.append(f"필수 일정 {want['id']} 이 없다")
             continue
         for k in ("status", "severity"):
             if k in want and got["policy"].get(k) != want[k]:
-                problems.append(f"{want['id']}.{k} 기대 {want[k]} → 실제 {got['policy'].get(k)}")
+                names = STATUS_NAMES if k == "status" else SEVERITY_NAMES
+                problems.append(f"{want['id']}.{k} 기대 {names.get(want[k], want[k])} "
+                                f"→ 실제 {names.get(got['policy'].get(k), got['policy'].get(k))}")
     return problems
 
 
@@ -123,6 +127,6 @@ def grade_applied(case, out):
         h.get("policy", {}).get("status") == UNKNOWN for h in hard
     )
     if expected.get("missing") and not has_unknown:
-        problems.append("expect_applied.missing 은 있지만 unknown 결과가 없다")
+        problems.append("expect_applied.missing 은 있지만 미확인 결과가 없다")
 
     return problems

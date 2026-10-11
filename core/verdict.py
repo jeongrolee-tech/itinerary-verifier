@@ -129,7 +129,7 @@ def _stops_input(stops: list[dict]) -> list[dict]:
     missing: list[dict] = []
     if not stops:
         missing.append(check(
-            "INPUT_REQUIRED", "일정 스톱", UNKNOWN,
+            "INPUT_REQUIRED", "일정 장소", UNKNOWN,
             unknown_reason="MISSING_STOPS",
             detail="방문할 장소가 없어 일정의 실행 가능성을 확인할 수 없다",
             how_to_resolve={"user": "방문할 장소와 순서를 알려주세요"},
@@ -167,17 +167,17 @@ def _hard_constraints_input(constraints: list[dict]) -> list[dict]:
     for i, constraint in enumerate(constraints, 1):
         if not constraint.get("place") or not constraint.get("time"):
             missing.append(check(
-                "INPUT_REQUIRED", f"필수 조건 HC{i}", UNKNOWN,
+                "INPUT_REQUIRED", f"필수 일정 HC{i}", UNKNOWN,
                 unknown_reason="INCOMPLETE_HARD_CONSTRAINT",
-                detail="필수 조건에 장소 또는 시각이 없다",
-                how_to_resolve={"user": "필수 이동수단의 장소와 출발 시각을 알려주세요"},
+                detail="필수 일정에 장소 또는 시각이 없다",
+                how_to_resolve={"user": "필수 일정의 장소와 시각을 알려주세요"},
             ))
         elif not re.fullmatch(HHMM, str(constraint["time"])):
             missing.append(check(
-                "INPUT_REQUIRED", f"필수 조건 HC{i}", UNKNOWN,
+                "INPUT_REQUIRED", f"필수 일정 HC{i}", UNKNOWN,
                 unknown_reason="INVALID_TIME",
-                detail=f"필수 조건 시각({constraint['time']})을 HH:MM(24시간)으로 해석할 수 없다",
-                how_to_resolve={"user": "필수 조건의 시각을 다시 알려주세요"},
+                detail=f"필수 일정 시각({constraint['time']})을 HH:MM(24시간)으로 해석할 수 없다",
+                how_to_resolve={"user": "필수 일정의 시각을 다시 알려주세요"},
             ))
     return missing
 
@@ -202,7 +202,7 @@ def place_not_checked(type_: str, name: str, support: str) -> dict:
     #    우리가 데이터를 확보해야 풀린다. 국립중앙박물관에 "어디로 가시나요?" 를 물으면 답할 수 없는 질문이 된다.
     if support == "area":
         return check(type_, name, UNKNOWN, unknown_reason="PLACE_NOT_RESOLVED",
-                     detail="구역만 정해져 있어 방문할 시설이나 점포를 특정하지 못했다",
+                     detail="동네만 정해져 있어 방문할 시설이나 점포를 특정하지 못했다",
                      how_to_resolve={"user": f"{name}에서 정확히 어디로 가시나요?"})
     return check(type_, name, UNKNOWN, unknown_reason="UNSUPPORTED_PLACE",
                  detail="지원하는 장소 목록에 없는 곳이라 휴무일과 운영시간을 확인하지 않았다",
@@ -516,7 +516,7 @@ def leg_between(facts: dict, a: str, b: str) -> dict | None:
 
 MODE_NAMES = {"metro": "지하철", "transit": "대중교통", "walk": "도보", "taxi": "택시"}
 EVENT_NAMES = {"TRAIN_DEPARTURE": "열차 출발", "FLIGHT_DEPARTURE": "항공편 출발",
-               "ARRIVE_BY": "도착 기한", "OTHER": "필수 조건"}
+               "ARRIVE_BY": "도착 기한", "OTHER": "필수 일정"}
 
 
 # ⭐ 대중교통으로 '된다' 가 안 나오면 택시 대안을 본다. pass 는 되는 수단이 하나라도 있으면
@@ -612,7 +612,7 @@ def _leg_unusable(label, frm, to, leg, visit_date) -> dict | None:
     if area:
         return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
                      unknown_reason="PLACE_NOT_RESOLVED",
-                     detail=f"{area} 일정은 구역만 정해져 있어 이동시간을 판정하지 않는다",
+                     detail=f"{area} 일정은 동네만 정해져 있어 이동시간을 판정하지 않는다",
                      how_to_resolve={"user": f"{area}에서 정확히 어디로 가시나요?"})
 
     if leg is None:
@@ -690,7 +690,7 @@ def _travel_by_leg(label, frm, to, leg, policy, target, by, stated_dwell) -> dic
         detail = (f"{by}보다 {spare}분 먼저 도착하지만, "
                   f"설정한 권장 여유 {buffer}분보다 {round(arrival + buffer - target)}분 부족하다")
         if leg.get("is_lower_bound"):
-            detail += ". 주행시간 하한선 기준이라 실제 도착은 이보다 늦다"
+            detail += ". 최소 이동시간 기준이라 실제 도착은 이보다 늦다"
         return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
                      unknown_reason="BUFFER_NOT_MET",
                      detail=detail,
@@ -701,7 +701,7 @@ def _travel_by_leg(label, frm, to, leg, policy, target, by, stated_dwell) -> dic
         missing = ", ".join(leg.get("excluded") or ["미확인 구성요소"])
         return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
                      unknown_reason="LOWER_BOUND_ONLY",
-                     detail=f"{mode_name} 주행시간({leg['minutes']}분)만으로는 "
+                     detail=f"{mode_name} 탑승 시간({leg['minutes']}분)만으로는 "
                             f"도착하지만 {missing}이 빠져 있어 확정할 수 없다",
                      how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
                      reference=evidence)
@@ -827,7 +827,7 @@ def _hc_policy(hc, last, leg, policy, visit_date) -> dict:
     # 이미 놓친 것이다. "20:30 까지 도착" 은 20:30 에 닿으면 제시간이다.
     departs = hc["type"] in ("TRAIN_DEPARTURE", "FLIGHT_DEPARTURE")
     deadline = _Deadline(minutes=to_min(hc["time"]), departs=departs,
-                         name=f"{EVENT_NAMES.get(hc['type'], '필수 조건')}({hc['time']})",
+                         name=f"{EVENT_NAMES.get(hc['type'], '필수 일정')}({hc['time']})",
                          ok_arrival="실제 탑승 가능 여부" if departs else "실제로 제시간에 닿는지")
     stated_dwell = last["dwell"]["source"] == "user_stated"
 
@@ -853,7 +853,7 @@ def _hc_leg_unusable(hc, last, leg, visit_date) -> dict | None:
     # check_travel 과 같다. 마지막 일정이 구역이면 어디서 출발하는지 몰라 판정하지 않는다
     if last.get("scope") == "area":
         return {"status": UNKNOWN, "unknown_reason": "PLACE_NOT_RESOLVED",
-                "detail": f"{last['name']} 일정은 구역만 정해져 있어 {hc['place']}까지 이동시간을 판정하지 않는다",
+                "detail": f"{last['name']} 일정은 동네만 정해져 있어 {hc['place']}까지 이동시간을 판정하지 않는다",
                 "how_to_resolve": {"user": f"{last['name']}에서 정확히 어디서 출발하시나요?"}}
     if leg is None:
         return {"status": UNKNOWN, "unknown_reason": "UNVERIFIED_TRAVEL_TIME",
@@ -923,9 +923,9 @@ def _hc_by_leg(policy_eval, last, leg, buffer, required, deadline, stated_dwell)
         policy_eval.update(
             status=UNKNOWN,
             unknown_reason="LOWER_BOUND_ONLY",
-            detail=f"주행시간 하한선({leg['minutes']}분)으로는 권장 도착 시각에 맞지만 "
+            detail=f"최소 이동시간({leg['minutes']}분)으로는 권장 도착 시각에 맞지만 "
                    f"{missing}이 빠져 있다",
-            confirmed=f"주행시간만으로는 {round(required - est)}분 여유가 있다",
+            confirmed=f"탑승 시간만으로는 {round(required - est)}분 여유가 있다",
             not_confirmed=deadline.ok_arrival,
             how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
         )
@@ -1098,7 +1098,7 @@ def _date_assumptions(itinerary: dict) -> list[dict]:
         "value": itinerary["date"],
         "source": "llm_inferred",
         "rule": "extract.inferred_date",
-        "reason": "입력에 연도가 없어 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
+        "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
         "ask_user": "방문 날짜가 맞는지 확인해 주세요",
     }]
 
@@ -1203,7 +1203,7 @@ def _travel_checks(stops, facts, policy, closed_statuses, visit_date) -> list[di
     for i, st in enumerate(stops):
         if i == len(stops) - 1:
             checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{st['name']} → (없음)", NA,
-                                reason="마지막 스톱이라 다음 구간이 없다"))
+                                reason="마지막 장소라 다음 구간이 없다"))
         else:
             checks.append(unconfirmed(
                 check_travel(st, stops[i + 1], facts, policy, closed_statuses, visit_date),

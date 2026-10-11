@@ -67,14 +67,14 @@ def test_t01_is_feasible_end_to_end(monkeypatch, facts, policy):
     tmap(monkeypatch, 20)
     out = run(T01, facts, policy)
     assert "서울시립미술관 서소문본관 → 경복궁  대중교통 20분" in out
-    assert "[결과]  feasible" in out
+    assert "[결과]  가능" in out
 
 
 def test_late_by_estimate_is_shown_but_not_confirmed(monkeypatch, facts, policy):
     """TMAP 이 65분이라고 하면 늦을 것 같지만, 예상치라 '안 된다' 를 확정하지 않는다."""
     tmap(monkeypatch, 65)
     out = run(T01, facts, policy)
-    assert "[결과]  undetermined" in out
+    assert "[결과]  보류" in out
     assert "예상 이동시간(65분) 기준이라 확정하지 않는다" in out
     assert "택시로도 시간 안에 닿기 어렵다" in out  # 택시 70분이라 택시로도 늦는다
 
@@ -84,7 +84,7 @@ def test_taxi_makes_it_and_says_so(monkeypatch, facts, policy):
     tmap(monkeypatch, 65, taxi_minutes=20)
     out = run(T01, facts, policy)
     assert "대중교통 65분 · 택시 20분(약 10,000원)" in out
-    assert "[결과]  feasible" in out and "택시로 가야 한다" in out
+    assert "[결과]  가능" in out and "택시로 가야 한다" in out
 
 
 def test_miss_falls_back_to_stored_lower_bound(monkeypatch, facts, policy):
@@ -94,7 +94,7 @@ def test_miss_falls_back_to_stored_lower_bound(monkeypatch, facts, policy):
     monkeypatch.setattr(routes, "call", throttled)
     out = run(T01, facts, policy)
     assert "받지 못함 [RATE_LIMITED]" in out
-    assert "[결과]  undetermined" in out
+    assert "[결과]  보류" in out
 
 
 def test_no_date_asks_first_and_calls_no_tmap(monkeypatch, facts, policy):
@@ -102,7 +102,7 @@ def test_no_date_asks_first_and_calls_no_tmap(monkeypatch, facts, policy):
     sent = tmap(monkeypatch, 20)
     out = run({**T01, "date": None, "date_source": "missing", "weekday_stated": None}, facts, policy)
     assert sent == []
-    assert "[결과]  undetermined" in out
+    assert "[결과]  보류" in out
 
 
 def test_malformed_extraction_stops_before_tmap(monkeypatch, facts, policy):

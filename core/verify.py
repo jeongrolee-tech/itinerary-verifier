@@ -24,7 +24,7 @@ from extract import extract, to_itinerary  # noqa: E402
 from llm import InvalidOutput, Refusal  # noqa: E402
 from report import render, report  # noqa: E402
 from routes import live_legs  # noqa: E402
-from verdict import MODE_NAMES, judge  # noqa: E402
+from verdict import EVENT_NAMES, MODE_NAMES, judge  # noqa: E402
 
 HERE = Path(__file__).parent
 
@@ -42,7 +42,7 @@ def verify(text: str, claude, tmap_key: str, facts: dict, policy: dict, today: s
         dwell = f"{s['dwell_minutes']}분" if "dwell_minutes" in s else "체류 미입력"
         lines.append(f"  {s.get('start', '--:--')}  {s['place']}  {dwell}")
     for hc in itinerary["hard_constraints"]:
-        lines.append(f"  [필수] {hc['time']}  {hc['place']}  {hc['type']}")
+        lines.append(f"  [필수 일정] {hc['time']}  {hc['place']}  {EVENT_NAMES.get(hc['type'], hc['type'])}")
     lines += [f"  메모: {n}" for n in ex.notes]
 
     if legs or misses:

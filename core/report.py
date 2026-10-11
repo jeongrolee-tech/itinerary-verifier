@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import unicodedata
+
 from verdict import EVENT_NAMES, FAIL, NA, PASS, UNKNOWN
 
 CHECK_NAMES = {
@@ -19,6 +21,30 @@ CHECK_NAMES = {
     "INPUT_REQUIRED": "입력",
     "INPUT_CONFLICT": "입력",
 }
+
+# 읽는 말 — 코드와 데이터에는 영어 값이 남고, 화면과 문서에는 이 말을 쓴다(docs/용어.md '읽는 말과 코드 값').
+# 화면에 찍는 run.py · run_extract.py · compare.py · eval_report.py · labels.py 가 여기서 가져다 쓴다
+VERDICT_NAMES = {"feasible": "가능", "infeasible": "불가능", "undetermined": "보류"}
+STATUS_NAMES = {PASS: "통과", FAIL: "위반", UNKNOWN: "미확인", NA: "해당 없음"}
+SEVERITY_NAMES = {"blocking": "치명", "warning": "주의"}
+SET_NAMES = {"dev": "연습용", "holdout": "시험용"}
+ARM_NAMES = {"llm_naive": "LLM에 그냥 물음", "llm_only": "LLM에 '모르면 모른다' 지시",
+             "llm_with_facts": "LLM에 사실 데이터 줌", "code": "판정 코드"}
+SOURCE_NAMES = {"curated": "공식 페이지에서 옮김", "public_data": "공공데이터", "api_runtime": "TMAP 실시간 조회",
+                "synthetic_fixture": "테스트용 가상 값", "field_measured": "직접 측정",
+                "user_stated": "사용자", "system_default": "우리 기준"}
+INPUT_SOURCE_NAMES = {"explicit": "말함", "inferred": "추정", "missing": "없음"}
+RESOLVER_NAMES = {"user": "사용자", "system": "시스템"}
+
+
+def width(text) -> int:
+    """터미널에서 차지하는 칸 수. 한글처럼 넓은 글자는 두 칸이다."""
+    return sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in str(text))
+
+
+def pad(text, cols: int) -> str:
+    """칸 수 기준으로 오른쪽을 채운다. len() 으로 채우면 한글이 섞인 표의 열이 어긋난다."""
+    return f"{text}" + " " * max(cols - width(text), 1)
 
 # 고칠 것이 먼저 보이도록 어긋난 것부터 적는다.
 # ⭐ 해당 없음도 보여준다. "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다" 같은
@@ -58,8 +84,8 @@ def _rows(result: dict) -> list[tuple[str, dict]]:
             for c in result["checks"]]
     for h in result["hard_constraints"]:
         e, p = h["event"], h["policy"]
-        kind = EVENT_NAMES.get(e["type"], "필수 조건")
-        name = "필수 조건" if kind == "필수 조건" else f"필수 조건 {kind}"
+        kind = EVENT_NAMES.get(e["type"], "필수 일정")
+        name = "필수 일정" if kind == "필수 일정" else f"필수 일정 {kind}"
         rows.append((p["status"], _item(h.get("id"), f"{name} {e['time']} {e['place']}", p)))
     return rows
 
@@ -106,7 +132,7 @@ def questions(result: dict) -> list[str]:
 def render(rep: dict) -> str:
     """report() 결과를 화면용 글로 만든다. 빈 묶음은 적지 않는다."""
     marks = {status: mark for status, _, mark in GROUPS}
-    lines = [f"[결과]  {rep['verdict']} — {rep['message']}"]
+    lines = [f"[결과]  {VERDICT_NAMES.get(rep['verdict'], rep['verdict'])} — {rep['message']}"]
     for group in rep["groups"]:
         if not group["items"]:
             continue

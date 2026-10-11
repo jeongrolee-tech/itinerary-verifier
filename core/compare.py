@@ -37,8 +37,12 @@ from typing import Literal
 sys.path.insert(0, str(Path(__file__).parent))
 from labels import case_facts, stale_reason  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
+from report import ARM_NAMES, VERDICT_NAMES, pad, width  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
+
+# 비교 방식의 답 — 판정 세 가지 밖에 거부 · 형식 오류가 있다
+ANSWER_NAMES = {**VERDICT_NAMES, "refused": "거부", "invalid": "형식 오류"}
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -378,8 +382,9 @@ for case in cases:
         usage_total.setdefault("llm_with_facts", []).append(u)
 
     rows.append(rec)
-    print(f"  {case['id']:<24}" + "  ".join(
-        f"{a}={rec['arms'][a]['verdict']:<13}" for a in ARMS if a in rec["arms"]))
+    print(f"  {pad(case['id'], 26)}" + "  ".join(
+        f"{ARM_NAMES.get(a, a)} {ANSWER_NAMES.get(rec['arms'][a]['verdict'], rec['arms'][a]['verdict'])}"
+        for a in ARMS if a in rec["arms"]))
 
     # 다음 케이스가 실패하거나 중단돼도 여기까지는 남는다.
     # LLM arm 은 건당 10초 넘고 돈이 드니 한 번의 쓰기 실패로 전체를 잃으면 안 된다.
@@ -393,9 +398,9 @@ for case in cases:
 scorable = [r for r in rows if r["label_current"]]
 stale = [r for r in rows if not r["label_current"]]
 
-print(f"\n{LINE}\n  지표   facts={facts['snapshot_id']}\n{LINE}")
+print(f"\n{LINE}\n  지표   데이터 버전 {facts['snapshot_id']}\n{LINE}")
 print(f"  채점 대상 {len(scorable)}건 / 전체 {len(rows)}건"
-      + (f"  (라벨 미검토 {len(stale)}건 제외)" if stale else ""))
+      + (f"  (정답 재확인 필요 {len(stale)}건 제외)" if stale else ""))
 
 report = {}
 for arm in ARMS:
@@ -406,33 +411,34 @@ for arm in ARMS:
 if scorable:
     LABELS = [
         ("verdict_accuracy", "전체 정확도"),
-        ("precision_on_infeasible", "오류 표시 중 실제 오류"),
-        ("recall_on_infeasible", "실제 오류 중 찾아낸 비율"),
-        ("false_alarm_on_feasible", "정상 일정 오탐 (건)"),
-        ("false_pass_on_infeasible", "잘못된 일정 정상 통과 (건)"),
-        ("leaked_undetermined_as_feasible", "미확인을 통과로 (건)"),
-        ("undetermined_rate", "판정 보류 비율"),
-        ("decisive_rate", "유효 판단 제공 비율"),
+        ("precision_on_infeasible", "정밀도 — 불가능이라고 한 것 중 맞은 비율"),
+        ("recall_on_infeasible", "재현율 — 정답이 불가능인 것 중 찾은 비율"),
+        ("false_alarm_on_feasible", "가능인데 불가능 (건)"),
+        ("false_pass_on_infeasible", "불가능인데 가능 (건)"),
+        ("leaked_undetermined_as_feasible", "보류인데 가능 (건)"),
+        ("undetermined_rate", "보류 비율"),
+        ("decisive_rate", "답을 준 비율"),
         ("refused", "모델 거부 (건)"),
         ("invalid_output", "형식 오류 응답 (건)"),
     ]
-    w = max(len(l) for _, l in LABELS) + 2
-    print(f"\n  {'지표'.ljust(w)}" + "".join(f"{a:<18}" for a in ARMS))
-    print("  " + "-" * (w + 18 * len(ARMS)))
+    w = max(width(l) for _, l in LABELS) + 2
+    print(f"\n  {pad('지표', w)}" + "".join(pad(ARM_NAMES.get(a, a), 28) for a in ARMS))
+    print("  " + "-" * (w + 28 * len(ARMS)))
     for key, label in LABELS:
         cells = []
         for a in ARMS:
             v = report[a].get(key)
-            cells.append(f"{'-' if v is None else v:<18}")
-        print(f"  {label.ljust(w)}" + "".join(cells))
+            cells.append(pad('-' if v is None else v, 28))
+        print(f"  {pad(label, w)}" + "".join(cells))
 
-    print(f"\n  라벨 분포: {report[ARMS[0]]['counts']}")
+    c = report[ARMS[0]]['counts']
+    print(f"\n  정답 분포: 불가능 {c['actual_infeasible']} · 가능 {c['actual_feasible']} · 보류 {c['actual_undetermined']}")
     print(f"\n  ⚠ 표본 {len(scorable)}건이다. 정밀도·재현율은 신뢰구간이 넓다.")
-    print("    '잘못된 일정 정상 통과' 와 '미확인을 통과로' 는 0이냐 아니냐가 의미 있고,")
-    print("    보류 비율과 유효 판단 비율은 비율로 읽을 수 있다.")
+    print("    '불가능인데 가능' 과 '보류인데 가능' 은 0이냐 아니냐가 의미 있고,")
+    print("    보류 비율과 답을 준 비율은 비율로 읽을 수 있다.")
 
 if stale:
-    print(f"\n  라벨 미검토 {len(stale)}건 — 출력은 저장했다. "
+    print(f"\n  정답 재확인 필요 {len(stale)}건 — 출력은 저장했다. "
           f"워크시트를 채우면 재실행 없이 채점된다.")
 
 cost_report = {}
@@ -445,7 +451,7 @@ for arm, us in usage_total.items():
                         "per_case_usd": None if cost is None else round(cost / len(us), 4),
                         "latency_median_ms": lat[len(lat) // 2]}
     money = "단가 모름" if cost is None else f"${cost:.4f}  건당 ${cost / len(us):.4f}"
-    print(f"\n  {arm}: {len(us)}건  {money}  지연 중앙값 {lat[len(lat) // 2]}ms")
+    print(f"\n  {ARM_NAMES.get(arm, arm)}: {len(us)}건  {money}  지연 중앙값 {lat[len(lat) // 2]}ms")
 
 out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·지연을 남긴다. "
                 "compare.py 가 덮어쓴다.",

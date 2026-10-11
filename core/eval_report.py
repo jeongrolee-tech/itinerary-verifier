@@ -19,18 +19,20 @@ from statistics import median
 
 sys.path.insert(0, str(Path(__file__).parent))
 from labels import EXTRACTION_FIELDS  # noqa: E402
+from report import ARM_NAMES  # noqa: E402
 
 HERE = Path(__file__).parent
 OUT = HERE.parent / "docs" / "eval-report.md"
 
-# 정답과 다르게 낸 판정의 갈래. 위에서부터 더 위험하다 — 사용자를 틀린 확신으로 보내는 것부터 적는다
+# 정답과 다르게 낸 판정의 갈래. '정답인데 답' 짝으로 부른다(docs/용어.md). 위에서부터 더 위험하다 — 사용자를
+# 틀린 확신으로 보내는 두 가지에만 이유를 붙인다
 ERROR_TYPES = {
-    ("infeasible", "feasible"): "잘못된 정상 판정 — 위반을 통과로",
-    ("undetermined", "feasible"): "누출 — 미확인을 통과로",
-    ("feasible", "infeasible"): "오탐 — 정상 일정을 불가로",
-    ("undetermined", "infeasible"): "근거 없는 불가 — 미확인을 불가로",
-    ("infeasible", "undetermined"): "놓친 위반 — 위반을 보류로",
-    ("feasible", "undetermined"): "과잉 보류 — 정상 일정을 보류로",
+    ("undetermined", "feasible"): "보류인데 가능 — 확인하지 못한 일정을 괜찮다고 했다",
+    ("infeasible", "feasible"): "불가능인데 가능 — 안 되는 일정을 괜찮다고 했다",
+    ("feasible", "infeasible"): "가능인데 불가능",
+    ("undetermined", "infeasible"): "보류인데 불가능",
+    ("infeasible", "undetermined"): "불가능인데 보류",
+    ("feasible", "undetermined"): "가능인데 보류",
 }
 NO_ANSWER = "답을 받지 못함 — 거부 · 형식 오류"
 
@@ -69,14 +71,17 @@ def no_question(check: dict) -> bool:
 def attribution(row: dict) -> str:
     """추출부터 판정까지 끝까지 돌린 한 건이 틀렸다면 어느 단계 탓인지."""
     if row.get("error"):
-        return "추출 실패 — 거부 · 형식 오류"
+        return "옮겨 적기 실패 — 거부 · 형식 오류"
     if row.get("verdict") is None:
-        return "판정 못 함 — 날짜를 추출하지 못했다"
+        return "판정 못 함 — 날짜를 옮겨 적지 못했다"
     if row.get("end_to_end_ok"):
         return "맞음"
     if row.get("extraction_ok"):
-        return "판정 탓 — 추출은 맞았다"
-    return "추출 탓 — 판정도 틀렸다" if not row.get("verdict_ok") else "추출만 틀림 — 판정은 맞았다"
+        return "판정 탓 — 옮겨 적기는 맞았다"
+    return "옮겨 적기 탓 — 판정도 틀렸다" if not row.get("verdict_ok") else "옮겨 적기만 틀림 — 판정은 맞았다"
+
+
+CONDITION_NAMES = {"code_commit": "코드 커밋", "fingerprints": "입력 지문"}
 
 
 def mismatched_conditions(records: dict[str, dict]) -> list[str]:
@@ -85,7 +90,7 @@ def mismatched_conditions(records: dict[str, dict]) -> list[str]:
     for key in ("code_commit", "fingerprints"):
         values = {name: json.dumps(r["conditions"].get(key), sort_keys=True) for name, r in records.items()}
         if len(set(values.values())) > 1:
-            problems.append(f"{key} 가 기록마다 다르다: " + ", ".join(f"{n} {v[:20]}" for n, v in values.items()))
+            problems.append(f"{CONDITION_NAMES[key]}이 기록마다 다르다: " + ", ".join(f"{n} {v[:20]}" for n, v in values.items()))
     return problems
 
 
@@ -103,10 +108,11 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
     fp = c.get("fingerprints", {})
     md = ["# 평가 보고", "",
           "> `core/eval_report.py`가 실행 기록 세 개를 읽어 만든다. 손으로 고치지 않는다 — 기록을 다시 만들면 이 파일도 다시 만든다.", "",
-          f"조건 — 코드 `{(c.get('code_commit') or '?')[:7]}` · tests `{fp.get('tests.json')}` · facts `{fp.get('facts.json')}` · "
-          f"policy `{fp.get('policy.json')}` · 기준 날짜 {cmp['conditions'].get('reference_date')}", "",
-          f"기록 — 판정 `{run['run_id']}` · 추출 `{ext['run_id']}` · 비교 실험 `{cmp['run_id']}`", ""]
-    for p in mismatched_conditions({"판정": run, "추출": ext, "비교 실험": cmp}):
+          f"조건 — 코드 `{(c.get('code_commit') or '?')[:7]}` · 정답 문제 `{fp.get('tests.json')}` · "
+          f"사실 `{fp.get('facts.json')}` · 우리 기준 `{fp.get('policy.json')}` · "
+          f"기준 날짜 {cmp['conditions'].get('reference_date')}", "",
+          f"기록 — 판정 `{run['run_id']}` · 옮겨 적기 `{ext['run_id']}` · 비교 실험 `{cmp['run_id']}`", ""]
+    for p in mismatched_conditions({"판정": run, "옮겨 적기": ext, "비교 실험": cmp}):
         md += [f"> ⚠ {p}", ""]
 
     # ── 1 · 2. 오류 유형별 결과 · 잘못된 정상 판정 ────────────────────────
@@ -121,19 +127,20 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
                 kinds[arm][kind] += 1
                 cases[arm].setdefault(kind, []).append(short(r["id"]))
     md += ["## 1. 오류 유형별 결과", "",
-           f"비교 실험 {len(rows)}건에서 네 방식이 정답과 다르게 낸 판정을 갈래별로 센다. 위에서부터 더 위험하다.", ""]
-    md += table(["오류 유형", *arms],
+           f"비교 실험 {len(rows)}건에서 네 비교 방식이 정답과 다르게 낸 답을 '정답인데 답' 짝으로 센다. "
+           "위에서부터 더 위험하다.", ""]
+    md += table(["오류 유형", *(ARM_NAMES.get(a, a) for a in arms)],
                 [[k, *(kinds[a][k] for a in arms)] for k in [*ERROR_TYPES.values(), NO_ANSWER]]
                 + [["맞음", *(len(rows) - sum(kinds[a].values()) for a in arms)]])
-    md += ["", "어느 케이스였나", ""]
+    md += ["", "어느 문제였나", ""]
     for arm in arms:
         for kind in [*ERROR_TYPES.values(), NO_ANSWER]:
             if kind in cases[arm]:
-                md.append(f"- `{arm}` {kind.split(' — ')[0]}: " + " · ".join(cases[arm][kind]))
+                md.append(f"- {ARM_NAMES.get(arm, arm)} — {kind.split(' — ')[0]}: " + " · ".join(cases[arm][kind]))
     false_pass = ERROR_TYPES[("infeasible", "feasible")]
-    md += ["", "## 2. 잘못된 정상 판정", "",
-           "위반이 확정된 일정을 통과시킨 건수 — "
-           + " · ".join(f"`{a}` {kinds[a][false_pass]}" for a in arms) + ".", ""]
+    md += ["", "## 2. 불가능인데 가능 — 잘못된 정상 판정", "",
+           "정답이 불가능인데 가능이라고 답한 건수 — "
+           + " · ".join(f"{ARM_NAMES.get(a, a)} {kinds[a][false_pass]}" for a in arms) + ".", ""]
 
     # ── 3. 보류 비율과 원인 (판정 코드) ───────────────────────────────
     res = [r for r in run["results"] if r.get("label_current", True)]
@@ -146,15 +153,15 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
         for u in items:
             by_reason[u.get("unknown_reason")] += 1
             if no_question(u):
-                silent.append(f"{short(r['id'])} {u.get('type', '필수 조건')} {u.get('unknown_reason')}")
+                silent.append(f"{short(r['id'])} {u.get('type', '필수 일정')} {u.get('unknown_reason')}")
         reasons = {u.get("unknown_reason") for u in items}
         for reason in reasons:
             case_count[reason] += 1
         who = sorted({SOLVER.get(x, "?") for x in reasons})
         who_per_case[" + ".join(who)] += 1
     md += ["## 3. 보류 비율과 원인 — 판정 코드", "",
-           f"보류 {len(held)}건 / {len(res)}건 ({len(held) / max(len(res), 1):.3f}). 보류한 케이스에서 확인하지 못한 검사의 이유다.", ""]
-    md += table(["이유", "나온 케이스", "검사 수", "누가 푸나"],
+           f"보류 {len(held)}건 / {len(res)}건 ({len(held) / max(len(res), 1):.3f}). 보류한 문제에서 확인하지 못한 검사의 이유다.", ""]
+    md += table(["이유", "나온 문제", "검사 수", "누가 푸나"],
                 [[f"`{k}`", case_count[k], v, SOLVER.get(k, "?")] for k, v in by_reason.most_common()])
     md += ["", "보류 한 건을 풀려면 누가 움직여야 하나 — "
            + " · ".join(f"{k} {v}건" for k, v in who_per_case.most_common()) + ".", ""]
@@ -164,8 +171,8 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
     # ── 4. 추출 ───────────────────────────────────────────────────────
     ex_rows = ext["results"]
     graded = [r for r in ex_rows if "extraction_fields" in r]
-    md += ["## 4. 추출과 끝까지 돌린 결과", "",
-           f"추출 {sum(bool(r.get('extraction_ok')) for r in ex_rows)}/{len(ex_rows)}. 항목별 —", ""]
+    md += ["## 4. 옮겨 적기와 끝까지 돌린 결과", "",
+           f"옮겨 적기 {sum(bool(r.get('extraction_ok')) for r in ex_rows)}/{len(ex_rows)}. 항목별 —", ""]
     md += table(["항목", "맞음"], [[label, f"{sum(r['extraction_fields'][k] for r in graded)}/{len(ex_rows)}"]
                                   for k, label in EXTRACTION_FIELDS.items()])
     blame = Counter(attribution(r) for r in ex_rows)
@@ -174,8 +181,8 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
     # ── 5. 비용과 지연 ───────────────────────────────────────────────
     lat = [r["usage"]["latency_ms"] for r in ex_rows if r.get("usage")]
     judge_ms = [r["elapsed_ms"] for r in res]
-    cost_rows = [[f"추출 ({ext['model']})", f"${ext['estimated_cost_per_case_usd']}", f"{median(lat) / 1000:.1f}초"]]
-    cost_rows += [[f"`{arm}`", f"${v['per_case_usd']}", f"{v['latency_median_ms'] / 1000:.1f}초"]
+    cost_rows = [[f"옮겨 적기 ({ext['model']})", f"${ext['estimated_cost_per_case_usd']}", f"{median(lat) / 1000:.1f}초"]]
+    cost_rows += [[ARM_NAMES.get(arm, arm), f"${v['per_case_usd']}", f"{v['latency_median_ms'] / 1000:.1f}초"]
                   for arm, v in cmp.get("cost", {}).items()]
     judge = median(judge_ms)  # run.py 가 0.01ms 단위로 반올림해 적는다
     cost_rows.append(["판정 코드", "$0", "1ms 미만" if judge < 1 else f"{judge:.0f}ms"])

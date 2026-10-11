@@ -153,9 +153,9 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     key = os.environ.get("ANTHROPIC_API_KEY") or getpass("Anthropic API 키 입력: ").strip()
     tmap_key = (os.environ.get("TMAP_KEY")
-                or getpass("TMAP 앱 키 입력 (없으면 Enter — 저장해 둔 지하철 하한선으로만 판정): ").strip())
+                or getpass("TMAP 앱 키 입력 (없으면 Enter — 저장해 둔 지하철 최소 이동시간으로만 판정): ").strip())
     print(f"  Anthropic 키 {'있음' if key else '없음 — 자연어 입력이 막힌다'} · "
-          f"TMAP 키 {'있음' if tmap_key else '없음 — 저장해 둔 지하철 하한선으로만 판정한다'}")
+          f"TMAP 키 {'있음' if tmap_key else '없음 — 저장해 둔 지하철 최소 이동시간으로만 판정한다'}")
     app = create_app(anthropic.Anthropic(api_key=key) if key else None, tmap_key or None)
     uvicorn.run(app, host="127.0.0.1", port=8000)  # 내 PC 에서만 열린다
 

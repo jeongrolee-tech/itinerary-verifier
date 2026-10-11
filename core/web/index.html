@@ -115,24 +115,24 @@
     <div class="table-wrap">
       <table>
         <thead><tr><th>장소</th><th>시작</th><th>체류(분)</th>
-          <th class="center" title="명동 · 북촌처럼 여러 골목에 걸친 동네만 정한 경우">구역</th><th></th></tr></thead>
+          <th class="center" title="명동 · 북촌처럼 여러 골목에 걸친 동네만 말한 경우">동네</th><th></th></tr></thead>
         <tbody id="stops"></tbody>
       </table>
     </div>
     <div class="row"><button class="ghost" id="add-stop" type="button">장소 더하기</button></div>
-    <h3>꼭 지켜야 하는 조건</h3>
+    <h3>필수 일정</h3>
     <div class="table-wrap">
       <table>
         <thead><tr><th>종류</th><th>장소</th><th>시각</th><th></th></tr></thead>
         <tbody id="hcs"></tbody>
       </table>
     </div>
-    <div class="row"><button class="ghost" id="add-hc" type="button">조건 더하기</button></div>
+    <div class="row"><button class="ghost" id="add-hc" type="button">필수 일정 더하기</button></div>
     <div class="row">
       <button id="recheck" type="button">다시 검사</button>
       <span id="recheck-status" class="status muted" role="status"></span>
     </div>
-    <p class="muted small">고친 일정 전체를 다시 판정합니다. 꼭 지킨다고 했던 조건이나 날짜, 가려던 장소를 바꾸면 따로 확인을 묻습니다.</p>
+    <p class="muted small">고친 일정 전체를 다시 판정합니다. 필수 일정이나 날짜, 가려던 장소를 바꾸면 따로 확인을 묻습니다.</p>
   </section>
 </main>
 
@@ -140,14 +140,14 @@
 // 화면은 서버(core/app.py)가 준 것을 보여 주고, 표에서 고친 일정을 돌려보낼 뿐이다. 판정은 서버가 한다.
 // 서버가 준 글은 전부 textContent 로 넣는다 — 장소 이름 같은 입력이 HTML 로 읽히지 않게 한다.
 const $ = (id) => document.getElementById(id);
-const VERDICT = { feasible: "실행 가능", infeasible: "실행할 수 없는 부분이 있음", undetermined: "판정 보류" };
+const VERDICT = { feasible: "가능", infeasible: "불가능", undetermined: "보류" };
 const HC_TYPES = { TRAIN_DEPARTURE: "열차 출발", FLIGHT_DEPARTURE: "항공편 출발", ARRIVE_BY: "도착 기한", OTHER: "기타" };
 const MODES = { metro: "지하철", transit: "대중교통", walk: "도보", taxi: "택시" };
-const LEG_SOURCES = { api_runtime: "TMAP 예상", public_data: "주행시간 하한선 · 공공데이터" };
+const LEG_SOURCES = { api_runtime: "TMAP 실시간 조회", public_data: "최소 이동시간 · 공공데이터" };
 const WEEKDAYS = { MON: "월", TUE: "화", WED: "수", THU: "목", FRI: "금", SAT: "토", SUN: "일" };
 const WEEKDAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];  // Date.getDay() 는 일요일이 0
 const FIELDS = { date: "날짜", date_source: "날짜 출처", weekday_stated: "말한 요일", place: "장소", start: "시작 시각",
-                 start_source: "시각 출처", dwell_minutes: "체류시간", scope: "구역 여부", scope_note: "구역 메모",
+                 start_source: "시각 출처", dwell_minutes: "체류시간", scope: "동네 여부", scope_note: "동네 메모",
                  type: "종류", time: "시각", raw: "원문", id: "번호", buffer_rule: "권장 여유 기준" };
 
 let original = null;  // 처음 옮긴 일정. 다시 검사할 때마다 이것과 비교한다 — 무엇을 바꿨나, 꼭 지킨다던 것을 바꿨나
@@ -225,7 +225,7 @@ function extraLines(data) {
     lines.push(`TMAP 받지 못함 · ${k.replace("|", " → ")} [${why}]`);
   }
   lines.push(data.tmap ? "TMAP 이동시간은 이 판정에만 쓰고 저장하지 않습니다"
-                       : "TMAP 키가 없어 이동시간은 저장해 둔 지하철 주행시간 하한선으로만 판정했습니다");
+                       : "TMAP 키가 없어 이동시간은 저장해 둔 지하철 최소 이동시간으로만 판정했습니다");
   return lines;
 }
 
@@ -263,7 +263,7 @@ function stopRow(s = {}, index = null) {
   const start = el("input", { type: "time", value: s.start || "", "aria-label": "시작 시각" });
   const dwell = el("input", { type: "number", class: "num", min: "1", max: "1440", step: "1", placeholder: "모름",
                               value: s.dwell_minutes ?? "", "aria-label": "체류시간(분)" });
-  const area = el("input", { type: "checkbox", "aria-label": "구역" });
+  const area = el("input", { type: "checkbox", "aria-label": "동네" });
   area.checked = s.scope === "area";
   const startCell = el("td", {}, start);
   if (s.start_source === "inferred") {
@@ -352,7 +352,7 @@ function readTable() {
                         ...rows.map((tr) => tr.dataset.id).filter(Boolean)]);
   for (const tr of rows) {
     const [place, time] = tr.querySelectorAll("td > input");
-    if (!time.checkValidity()) throw new Error("꼭 지켜야 하는 조건의 시각을 끝까지 적어 주세요");
+    if (!time.checkValidity()) throw new Error("필수 일정의 시각을 끝까지 적어 주세요");
     revised.hard_constraints.push({ id: tr.dataset.id || freshId(used), type: tr.querySelector("select").value,
                                     place: place.value.trim() || null, time: time.value || null,
                                     raw: tr.dataset.raw || "화면에서 더함" });
@@ -365,7 +365,7 @@ function fieldName(path) {
   // stops[0].dwell_minutes → 장소 1 체류시간
   const m = path.match(/^(stops|hard_constraints)\[(\d+)\](?:\.(\w+))?$/);
   if (!m) return FIELDS[path] || path;
-  const what = `${m[1] === "stops" ? "장소" : "필수 조건"} ${Number(m[2]) + 1}`;
+  const what = `${m[1] === "stops" ? "장소" : "필수 일정"} ${Number(m[2]) + 1}`;
   return m[3] ? `${what} ${FIELDS[m[3]] || m[3]}` : `${what} 더하거나 뺌`;
 }
 

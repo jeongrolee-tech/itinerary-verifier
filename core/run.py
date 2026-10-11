@@ -19,9 +19,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from labels import case_facts, grade, grade_applied, stale_reason  # noqa: E402
-from report import render, report  # noqa: E402
+from report import (RESOLVER_NAMES, SET_NAMES, SEVERITY_NAMES, SOURCE_NAMES, STATUS_NAMES,  # noqa: E402
+                    VERDICT_NAMES, pad, render, report)
 from runmeta import describe, run_meta  # noqa: E402
-from verdict import judge  # noqa: E402
+from verdict import EVENT_NAMES, judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -42,7 +43,7 @@ only = next((args[i + 1] for i, a in enumerate(args) if a == "--case" and i + 1 
 # 특정 케이스를 확인하려는 사용자가 전체 결과와 섞인 출력을 봐야 했다.
 cases = [c for c in suite["cases"] if not only or c["id"].startswith(only)]
 if only and not cases:
-    raise SystemExit(f"케이스를 찾지 못했다: {only}")
+    raise SystemExit(f"문제를 찾지 못했다: {only}")
 
 MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
 LINE = "═" * 78
@@ -57,16 +58,17 @@ def label_is_current(case: dict) -> bool:
 
 
 def detail(case, out, problems):
-    print(f"\n{LINE}\n  {case['id']}  [{case['set']}]  기대 {case['expect']}\n{LINE}")
+    print(f"\n{LINE}\n  {case['id']}  [{SET_NAMES.get(case['set'], case['set'])}]  "
+          f"정답 {VERDICT_NAMES[case['expect']]}\n{LINE}")
     print(f"입력: {case['raw']}")
-    print(f"라벨 이유: {case['why']}\n")
+    print(f"정답 이유: {case['why']}\n")
 
-    print("[추출]")
+    print("[옮겨 적은 일정]")
     for s in case["stops"]:
         d = f"체류 {s['dwell_minutes']}분 (사용자)" if s.get("dwell_minutes") else "체류 미입력"
         print(f"  {s['start']}  {s['place']}  {d}")
     for hc in case.get("hard_constraints", []):
-        print(f"  [필수] {hc['time']}  {hc['place']}  {hc['type']}  (사용자)")
+        print(f"  [필수 일정] {hc['time']}  {hc['place']}  {EVENT_NAMES.get(hc['type'], hc['type'])}  (사용자)")
 
     print("\n[적용한 기본값]")
     print("  없음 — 사용자가 다 말했다" if not out["assumptions"] else "", end="")
@@ -77,7 +79,7 @@ def detail(case, out, problems):
 
     print("\n[검사]")
     for c in out["checks"]:
-        print(f"  {MARK[c['status']]} {c['status']:<15} {c['type']:<26} {c['target']}")
+        print(f"  {MARK[c['status']]} {pad(STATUS_NAMES[c['status']], 10)}{c['type']:<26} {c['target']}")
         if c["status"] == "fail":
             print(f"      → {c['detail']}")
         elif c["status"] == "unknown":
@@ -89,22 +91,25 @@ def detail(case, out, problems):
         ev = c.get("evidence") or {}
         if ev.get("url"):
             span = f", 유효 ~{ev['valid_until']}" if ev.get("valid_until") else ""
-            print(f"      근거 {ev.get('source')} {ev['url']} (확인 {ev.get('checked_at')}{span})")
+            print(f"      근거 {SOURCE_NAMES.get(ev.get('source'), ev.get('source'))} {ev['url']} "
+                  f"(확인 {ev.get('checked_at')}{span})")
         elif ev.get("snapshot_id"):
-            print(f"      근거 {ev['source']} {ev['method']} snapshot={ev['snapshot_id']}")
+            print(f"      근거 {SOURCE_NAMES.get(ev['source'], ev['source'])} {ev['method']} 데이터 버전 {ev['snapshot_id']}")
         for who, what in (c.get("how_to_resolve") or {}).items():
-            print(f"      해결({who}) {what}")
+            print(f"      해결({RESOLVER_NAMES.get(who, who)}) {what}")
 
     for h in out["hard_constraints"]:
         e, p = h["event"], h["policy"]
-        print(f"\n[필수 조건 {h['id']}]  \"{e['raw']}\"")
-        print(f"  사용자가 말한 것   {e['type']} {e['place']} {e['time']}  ({e['source']})")
-        print(f"  서비스 권장 기준   도착 {p['required_arrival']} (여유 {p['buffer_minutes']}분, {p['buffer_source']})")
+        print(f"\n[필수 일정 {h['id']}]  \"{e['raw']}\"")
+        print(f"  사용자가 말한 것   {EVENT_NAMES.get(e['type'], e['type'])} {e['place']} {e['time']}  "
+              f"({SOURCE_NAMES.get(e['source'], e['source'])})")
+        print(f"  서비스 권장 기준   도착 {p['required_arrival']} (여유 {p['buffer_minutes']}분, "
+              f"{SOURCE_NAMES.get(p['buffer_source'], p['buffer_source'])})")
         if p.get("estimated_arrival"):
             basis = "  ← 기본값 체류시간으로 계산한 참고값" if p.get("depends_on_assumptions") else ""
             print(f"  계산한 예상 도착   {p['estimated_arrival']}  "
                   f"({e['time']}까지 {p['margin_vs_event']:+d}분 / 권장까지 {p['margin_vs_required']:+d}분){basis}")
-        print(f"  → {MARK[p['status']]} {p['status']}  severity={p['severity']}")
+        print(f"  → {MARK[p['status']]} {STATUS_NAMES[p['status']]}  심각도 {SEVERITY_NAMES.get(p['severity'], p['severity'])}")
         for k, label in (("detail", ""), ("confirmed", "확인된 것   "), ("not_confirmed", "확인 못 한 것 ")):
             if p.get(k):
                 print(f"     {label}{p[k]}")
@@ -112,13 +117,13 @@ def detail(case, out, problems):
     print("\n" + render(report(out)))
 
     n = out["summary"]["counts"]
-    print(f"\n[판정]  {out['summary']['verdict']}")
-    print(f"  pass {n['pass']} / fail {n['fail']} / unknown {n['unknown']} / n.a. {n['not_applicable']}")
+    print(f"\n[판정]  {VERDICT_NAMES[out['summary']['verdict']]}")
+    print(f"  통과 {n['pass']} / 위반 {n['fail']} / 미확인 {n['unknown']} / 해당 없음 {n['not_applicable']}")
     if problems:
         for p in problems:
             print(f"  ❌ {p}")
     else:
-        print("  ✅ 라벨과 일치")
+        print("  ✅ 정답과 일치")
 
 
 results, rows = [], []
@@ -139,16 +144,16 @@ for case in cases:
 
 # ── 요약 ────────────────────────────────────────────────────────────
 if not json_only:
-    print(f"\n{LINE}\n  요약   facts={FACTS_SNAPSHOT}\n{LINE}")
-    print(f"  {'케이스':<26}{'셋':<10}{'기대':<15}{'실제':<15}판정")
+    print(f"\n{LINE}\n  요약   데이터 버전 {FACTS_SNAPSHOT}\n{LINE}")
+    print(f"  {pad('문제', 26)}{pad('묶음', 10)}{pad('정답', 10)}{pad('답', 10)}결과")
     for case, out, problems in rows:
         # 미검토 라벨과 일치했다고 ✅ 를 주면 안 된다. 검토되지 않은 정답과 맞은 것뿐이다.
         if not label_is_current(case):
-            mark = "⚠ 미검토(일치)" if not problems else "⚠ 미검토(불일치)"
+            mark = "⚠ 재확인 필요(일치)" if not problems else "⚠ 재확인 필요(불일치)"
         else:
             mark = "✅" if not problems else "❌"
-        print(f"  {case['id']:<24}{case['set']:<10}{case['expect']:<15}"
-              f"{out['summary']['verdict']:<15}{mark}")
+        print(f"  {pad(case['id'], 26)}{pad(SET_NAMES.get(case['set'], case['set']), 10)}"
+              f"{pad(VERDICT_NAMES[case['expect']], 10)}{pad(VERDICT_NAMES[out['summary']['verdict']], 10)}{mark}")
 
     scored = [r for r in results if r["label_current"]]
     stale = [r for r in results if not r["label_current"]]
@@ -156,7 +161,8 @@ if not json_only:
     for name in ("dev", "holdout"):
         sub = [r for r in scored if r["set"] == name]
         hit = sum(1 for r in sub if r["match"])
-        print(f"\n  {name:<9} {hit}/{len(sub)} 일치" if sub else f"\n  {name:<9} 채점 대상 없음")
+        label = SET_NAMES[name]
+        print(f"\n  {pad(label, 9)}{hit}/{len(sub)} 일치" if sub else f"\n  {pad(label, 9)}채점 대상 없음")
 
     # ⭐ 이 프로젝트의 게이트 지표. 0 이 아니면 나머지 숫자는 볼 필요가 없다.
     #    정확도가 높아도 "확인 못 한 일정을 통과시켰다" 가 한 건 있으면
@@ -164,15 +170,15 @@ if not json_only:
     #    라벨 미검토 케이스를 분모에 넣으면 거짓 경보가 나므로 제외한다.
     leaked = [r for r in scored
               if r["expect"] == "undetermined" and r["summary"]["verdict"] == "feasible"]
-    print(f"\n  미확인을 통과로 낸 건수: {len(leaked)} / 채점 {len(scored)}건"
+    print(f"\n  보류인데 가능으로 낸 건수: {len(leaked)} / 채점 {len(scored)}건"
           f"  (0이 아니면 다른 지표를 볼 필요가 없다)")
 
     if stale:
-        print(f"\n  ⚠ 라벨 미검토 {len(stale)}건 — 채점에서 제외했다.")
-        print(f"    라벨 기준 스냅샷 {LABEL_SNAPSHOT} ≠ 현재 {FACTS_SNAPSHOT}")
+        print(f"\n  ⚠ 정답 재확인 필요 {len(stale)}건 — 채점에서 뺐다.")
+        print(f"    정답 기준 데이터 버전 {LABEL_SNAPSHOT} ≠ 지금 {FACTS_SNAPSHOT}")
         for r in stale:
-            print(f"    {r['id']:<24}{r.get('stale_reason') or '스냅샷 불일치'}")
-        print("    → 바뀐 데이터를 보고 정답을 다시 확인한 뒤, 케이스에 labeled_against 를 현재 스냅샷으로 적는다")
+            print(f"    {r['id']:<24}{r.get('stale_reason') or '데이터 버전 다름'}")
+        print("    → 바뀐 데이터를 보고 정답을 다시 확인한 뒤, 문제에 labeled_against 를 지금 데이터 버전으로 적는다")
 
 run = {
     "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·"
@@ -198,6 +204,6 @@ else:
     print(f"\n  기록: core/{RECORD}  ({run['run_id']}, {VERSION})")
     print(describe(run["conditions"]))
     if not facts["holidays"]["verified"]:
-        print("  ⚠ 공휴일 캘린더 미검증 — 휴무일 예외 규칙이 걸린 검사는 unknown 으로 나온다.")
+        print("  ⚠ 공휴일 달력을 아직 확인하지 않았다 — 휴무일 예외 규칙이 걸린 검사는 미확인으로 나온다.")
 
 sys.exit(0 if all_match else 1)

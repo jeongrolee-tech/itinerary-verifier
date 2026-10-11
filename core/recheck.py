@@ -79,7 +79,7 @@ def _resolution_hints(result: dict) -> list[dict]:
 
 def _event(hc: dict) -> str:
     """필수 조건을 화면에 쓰는 말로. 표에서 비운 칸은 None 이 아니라 '없음' 으로 적는다."""
-    return (f"{EVENT_NAMES.get(hc.get('type'), '필수 조건')}"
+    return (f"{EVENT_NAMES.get(hc.get('type'), '필수 일정')}"
             f"({hc.get('time') or '시각 없음'} {hc.get('place') or '장소 없음'})")
 
 
@@ -101,7 +101,7 @@ def _needs_confirmation(original: dict, revised: dict) -> list[dict]:
         items.append({
             "kind": "DATE_MOVED", "target": "일정 날짜",
             "detail": f"날짜가 바뀌었다({original.get('date')} → {revised.get('date')}). "
-                      f"필수 조건 {events}은(는) 원래 날짜로 예약했을 수 있다",
+                      f"필수 일정 {events}은(는) 원래 날짜로 예약했을 수 있다",
             "ask_user": f"{events} 예약도 새 날짜({revised.get('date')})에 맞게 옮기셨나요?",
         })
 
@@ -109,13 +109,13 @@ def _needs_confirmation(original: dict, revised: dict) -> list[dict]:
     for h in constraints:
         new = after.get(h.get("id"))
         if new is None:
-            detail = f"꼭 지킨다고 한 조건이 고친 일정에 없다({_event(h)})"
+            detail = f"필수 일정이 고친 일정에 없다({_event(h)})"
         elif any(new.get(k) != h.get(k) for k in ("type", "place", "time")):
-            detail = f"꼭 지킨다고 한 조건이 바뀌었다({_event(h)} → {_event(new)})"
+            detail = f"필수 일정이 바뀌었다({_event(h)} → {_event(new)})"
         else:
             continue
         items.append({"kind": "HARD_CONSTRAINT_CHANGED", "target": h.get("id"), "detail": detail,
-                      "ask_user": f"{_event(h)} 조건을 바꿔도 되나요?"})
+                      "ask_user": f"{_event(h)} 일정을 바꿔도 되나요?"})
 
     # ⭐ 장소는 순서가 아니라 이름으로 짝을 맞춘다. 순서로 비교하면 방문 순서만
     #    바꿔도 모든 칸의 장소가 바뀐 것처럼 보인다.

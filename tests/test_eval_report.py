@@ -17,12 +17,12 @@ CORE = Path(__file__).parent.parent / "core"
 
 
 @pytest.mark.parametrize("expect, got, kind", [
-    ("infeasible", "feasible", "잘못된 정상 판정"),
-    ("undetermined", "feasible", "누출"),
-    ("feasible", "infeasible", "오탐"),
-    ("undetermined", "infeasible", "근거 없는 불가"),
-    ("infeasible", "undetermined", "놓친 위반"),
-    ("feasible", "undetermined", "과잉 보류"),
+    ("infeasible", "feasible", "불가능인데 가능"),
+    ("undetermined", "feasible", "보류인데 가능"),
+    ("feasible", "infeasible", "가능인데 불가능"),
+    ("undetermined", "infeasible", "보류인데 불가능"),
+    ("infeasible", "undetermined", "불가능인데 보류"),
+    ("feasible", "undetermined", "가능인데 보류"),
 ])
 def test_wrong_verdicts_fall_into_six_kinds(expect, got, kind):
     assert error_type(expect, got).startswith(kind)
@@ -50,9 +50,9 @@ def test_question_missing_only_when_the_user_must_answer():
 @pytest.mark.parametrize("row, blame", [
     ({"end_to_end_ok": True, "extraction_ok": True, "verdict_ok": True, "verdict": "feasible"}, "맞음"),
     ({"end_to_end_ok": False, "extraction_ok": True, "verdict_ok": False, "verdict": "feasible"}, "판정 탓"),
-    ({"end_to_end_ok": False, "extraction_ok": False, "verdict_ok": False, "verdict": "feasible"}, "추출 탓"),
-    ({"end_to_end_ok": False, "extraction_ok": False, "verdict_ok": True, "verdict": "feasible"}, "추출만 틀림"),
-    ({"error": "refusal: …", "extraction_ok": False}, "추출 실패"),
+    ({"end_to_end_ok": False, "extraction_ok": False, "verdict_ok": False, "verdict": "feasible"}, "옮겨 적기 탓"),
+    ({"end_to_end_ok": False, "extraction_ok": False, "verdict_ok": True, "verdict": "feasible"}, "옮겨 적기만 틀림"),
+    ({"error": "refusal: …", "extraction_ok": False}, "옮겨 적기 실패"),
 ])
 def test_end_to_end_errors_are_blamed_on_a_stage(row, blame):
     assert attribution(row).startswith(blame)
