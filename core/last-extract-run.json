@@ -1,16 +1,16 @@
 {
   "_역할": "추출 실행 기록. 자연어에서 무엇을 뽑았는지, 기대 추출값과 어디가 달랐는지, 모델·비용·지연을 남긴다. run_extract.py 가 덮어쓴다.",
-  "run_id": "extract-20261007-112138",
-  "ran_at": "2026-10-07T02:21:38.567646+00:00",
+  "run_id": "extract-20261012-185605",
+  "ran_at": "2026-10-12T09:56:05.566756+00:00",
   "model": "claude-opus-5-5",
   "effort": "low",
   "facts_snapshot": "facts-2026-09-29",
   "conditions": {
-    "code_commit": "6c6aa3049d786ba93e9dab3dc374eeb752fcf74e",
+    "code_commit": "bb039df1f2808fa1504450f137a68fe6630e96de",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "tests.json": "0a51a451bd4e",
+      "tests.json": "625b1478d4e7",
       "facts.json": "e7500f29c6c7",
       "policy.json": "1e3605504d71"
     },
@@ -26,7 +26,7 @@
   },
   "tokens": {
     "in": 2379,
-    "out": 8181,
+    "out": 8303,
     "cache_read": 124180,
     "cache_write": 4435
   },
@@ -36,8 +36,8 @@
     "cache_write": 5.0,
     "cache_read": 0.2
   },
-  "estimated_cost_usd": 0.2201,
-  "estimated_cost_per_case_usd": 0.0076,
+  "estimated_cost_usd": 0.2226,
+  "estimated_cost_per_case_usd": 0.0077,
   "results": [
     {
       "id": "T01-정상",
@@ -79,9 +79,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4452,
+        "latency_ms": 4449,
         "input_tokens": 103,
-        "output_tokens": 337,
+        "output_tokens": 330,
         "cache_read": 0,
         "cache_write": 4435,
         "stop_reason": "end_turn",
@@ -89,7 +89,7 @@
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음",
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음",
         "'3시'는 앞의 오후 1시 뒤로 처음 오는 시각으로 읽어 15:00으로 적음"
       ],
       "label_current": true,
@@ -131,9 +131,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4435,
+        "latency_ms": 3879,
         "input_tokens": 66,
-        "output_tokens": 364,
+        "output_tokens": 335,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -141,9 +141,10 @@
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적었다.",
-        "'한 시간 정도'를 60분으로 적었다.",
-        "'오후에'와 '17시 30분'이 함께 적혀 있으며, 두 표현은 서로 맞는다."
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적었다.",
+        "'오후에'와 '17시 30분'이 함께 적혀 있다. 24시간 표기인 17:30으로 읽었다. 두 표현은 서로 어긋나지 않는다.",
+        "'한 시간 정도'를 체류 60분으로 옮겼다.",
+        "날짜와 요일(목요일)이 맞는지는 확인하지 않았다. 판정 단계에서 교차검증한다."
       ],
       "label_current": true,
       "stale_reason": null,
@@ -190,9 +191,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3614,
+        "latency_ms": 3664,
         "input_tokens": 78,
-        "output_tokens": 317,
+        "output_tokens": 339,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -201,8 +202,9 @@
       },
       "notes": [
         "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음",
-        "6시는 앞의 오후 3시 뒤로 처음 오는 시각으로 읽어 18:00으로 적음",
-        "광장시장 저녁 체류시간은 입력에 없어 null"
+        "6시는 앞의 오후 3시 이후 처음 오는 시각으로 보아 18:00으로 읽음",
+        "광장시장 저녁 체류시간은 입력에 없어 null",
+        "광장시장 내 어느 가게인지는 특정되지 않음"
       ],
       "label_current": true,
       "stale_reason": null,
@@ -211,7 +213,7 @@
       "end_to_end_ok": true
     },
     {
-      "id": "T04-필수조건KTX",
+      "id": "T04-필수일정KTX",
       "set": "dev",
       "extraction_ok": true,
       "extraction_problems": [],
@@ -259,9 +261,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 5017,
+        "latency_ms": 4874,
         "input_tokens": 133,
-        "output_tokens": 395,
+        "output_tokens": 390,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -269,8 +271,9 @@
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적었다.",
-        "광장시장 저녁의 체류시간은 입력에 없어 null로 두었다. 어느 가게인지도 특정되지 않았다."
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음",
+        "광장시장 저녁의 체류시간은 입력에 없어 null로 둠",
+        "광장시장 내 어느 가게인지는 특정되지 않음"
       ],
       "label_current": true,
       "stale_reason": null,
@@ -316,7 +319,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 2647,
+        "latency_ms": 3269,
         "input_tokens": 78,
         "output_tokens": 189,
         "cache_read": 4435,
@@ -365,7 +368,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 2941,
+        "latency_ms": 2864,
         "input_tokens": 64,
         "output_tokens": 203,
         "cache_read": 4435,
@@ -416,9 +419,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3929,
+        "latency_ms": 3017,
         "input_tokens": 63,
-        "output_tokens": 192,
+        "output_tokens": 193,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -426,7 +429,7 @@
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음"
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적었다."
       ],
       "label_current": true,
       "stale_reason": null,
@@ -466,7 +469,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 1915,
+        "latency_ms": 4319,
         "input_tokens": 51,
         "output_tokens": 129,
         "cache_read": 4435,
@@ -515,7 +518,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3013,
+        "latency_ms": 2898,
         "input_tokens": 61,
         "output_tokens": 191,
         "cache_read": 4435,
@@ -566,7 +569,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 2936,
+        "latency_ms": 2913,
         "input_tokens": 57,
         "output_tokens": 187,
         "cache_read": 4435,
@@ -622,9 +625,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3096,
+        "latency_ms": 4069,
         "input_tokens": 70,
-        "output_tokens": 231,
+        "output_tokens": 275,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -632,6 +635,7 @@
         "refusal_explanation": null
       },
       "notes": [
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음",
         "광장시장 내 어느 가게에서 식사할지는 특정되지 않음"
       ],
       "label_current": true,
@@ -678,9 +682,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3836,
+        "latency_ms": 3986,
         "input_tokens": 64,
-        "output_tokens": 283,
+        "output_tokens": 306,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -689,7 +693,8 @@
       },
       "notes": [
         "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음",
-        "'3시 15분'은 앞의 오후 1시 뒤로 처음 오는 시각인 15:15로 읽음"
+        "'3시 15분'은 앞의 오후 1시 뒤로 처음 오는 시각으로 읽어 15:15로 적음",
+        "체류시간은 입력에 없어 null로 둠"
       ],
       "label_current": true,
       "stale_reason": null,
@@ -730,7 +735,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 2514,
+        "latency_ms": 2966,
         "input_tokens": 53,
         "output_tokens": 181,
         "cache_read": 4435,
@@ -781,7 +786,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 2301,
+        "latency_ms": 2292,
         "input_tokens": 58,
         "output_tokens": 133,
         "cache_read": 4435,
@@ -830,7 +835,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 2579,
+        "latency_ms": 2420,
         "input_tokens": 74,
         "output_tokens": 163,
         "cache_read": 4435,
@@ -907,7 +912,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 5161,
+        "latency_ms": 4835,
         "input_tokens": 173,
         "output_tokens": 501,
         "cache_read": 4435,
@@ -993,9 +998,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 7007,
+        "latency_ms": 7058,
         "input_tokens": 178,
-        "output_tokens": 662,
+        "output_tokens": 693,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1003,9 +1008,9 @@
         "refusal_explanation": null
       },
       "notes": [
-        "경복궁 13:00 시작 + 120분 체류(15:00 종료)가 창덕궁 14:30 시작과 겹침. 입력 그대로 옮김.",
-        "청계천은 긴 하천이라 걷기 시작 지점이 특정되지 않음. 위치가 하나로 정해지는 시설로 보아 place로 적음.",
-        "연도 미기재로 2026년으로 추정함."
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-18로 적음.",
+        "경복궁 13:00 시작 + 120분 체류(15:00 종료)와 창덕궁 14:30 시작이 겹침. 입력 그대로 옮겼으며 판정 단계에서 확인 필요.",
+        "청계천은 긴 하천 산책로로 구간이 특정되지 않았으나 하나의 명소로 보아 place로 적음."
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1046,9 +1051,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3361,
+        "latency_ms": 3143,
         "input_tokens": 61,
-        "output_tokens": 223,
+        "output_tokens": 239,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1056,8 +1061,8 @@
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-09로 적음",
-        "사용자가 '한글날'이라고 언급함. 요일·공휴일 여부는 판정 단계에서 확인 필요"
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-09로 적었다.",
+        "사용자가 '금요일', '한글날'이라고 말했다. 날짜와 요일이 맞는지는 판정 단계에서 확인한다."
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1098,7 +1103,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 2829,
+        "latency_ms": 2907,
         "input_tokens": 69,
         "output_tokens": 208,
         "cache_read": 4435,
@@ -1149,9 +1154,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 2347,
+        "latency_ms": 2359,
         "input_tokens": 60,
-        "output_tokens": 192,
+        "output_tokens": 185,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1159,7 +1164,7 @@
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음"
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적음"
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1200,9 +1205,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 6386,
+        "latency_ms": 4950,
         "input_tokens": 72,
-        "output_tokens": 400,
+        "output_tokens": 403,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1210,9 +1215,9 @@
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-12로 적음",
-        "'한 시간 정도'를 체류시간 60분으로 옮김",
-        "덕수궁 돌담길은 길 형태의 산책로이나 이름으로 위치가 특정되는 곳이라 place로 분류함. 시작·종료 지점은 입력에 없음"
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-12로 적음.",
+        "덕수궁 돌담길은 하나의 길(산책로)로 보고 place로 분류했으나, 길이가 있는 경로라 시작 지점은 특정되지 않음.",
+        "'한 시간 정도'를 체류시간 60분으로 옮김."
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1253,9 +1258,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4225,
+        "latency_ms": 4337,
         "input_tokens": 58,
-        "output_tokens": 333,
+        "output_tokens": 354,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1263,8 +1268,8 @@
         "refusal_explanation": null
       },
       "notes": [
-        "'5시 반'에는 오전·오후 표시가 없고 앞에 기댈 시각도 없어, 관람 일정으로 더 그럴듯한 17:30으로 추정했다.",
-        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적었다."
+        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-08로 적었다.",
+        "'5시 반'에 오전·오후 표시가 없고 앞에 기댈 시각도 없어, 궁 관람으로 더 그럴듯한 17:30으로 추정했다. 05:30일 가능성은 확인이 필요하다."
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1312,9 +1317,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 7152,
+        "latency_ms": 3891,
         "input_tokens": 89,
-        "output_tokens": 319,
+        "output_tokens": 317,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1323,7 +1328,7 @@
       },
       "notes": [
         "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적음",
-        "'3시'는 앞의 오후 1시 뒤로 처음 오는 시각으로 읽어 15:00으로 적음"
+        "'3시'는 앞의 오후 1시 이후 처음 오는 시각으로 보고 15:00으로 읽음"
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1370,9 +1375,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3944,
+        "latency_ms": 3906,
         "input_tokens": 101,
-        "output_tokens": 335,
+        "output_tokens": 344,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1381,8 +1386,8 @@
       },
       "notes": [
         "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-12-25로 적음",
-        "광장시장 내 어느 가게에서 먹을지는 특정되지 않음",
-        "광장시장 저녁 식사 체류시간은 입력에 없어 null"
+        "광장시장 내 어느 가게에서 저녁을 먹을지는 특정되지 않음",
+        "광장시장 저녁 식사 체류시간은 입력에 없어 null로 둠"
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1429,9 +1434,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3502,
+        "latency_ms": 3768,
         "input_tokens": 71,
-        "output_tokens": 267,
+        "output_tokens": 281,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1439,8 +1444,8 @@
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-12로 적음",
-        "경복궁 체류시간은 입력에 없어 null"
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-12로 적었다.",
+        "경복궁 체류시간은 입력에 없어 null로 두었다."
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1491,7 +1496,7 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3917,
+        "latency_ms": 4183,
         "input_tokens": 108,
         "output_tokens": 333,
         "cache_read": 4435,
@@ -1502,7 +1507,7 @@
       },
       "notes": [
         "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적음",
-        "덕수궁 19:00 입장 후 90분 체류 시 20:30 종료로, 20:15 KTX 출발보다 늦음 — 판정 단계에서 확인 필요"
+        "덕수궁 19:00 입장 후 90분 관람이면 20:30에 끝나 20:15 KTX 출발보다 늦음 — 판정 단계에서 확인 필요"
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1553,9 +1558,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 4156,
+        "latency_ms": 3919,
         "input_tokens": 102,
-        "output_tokens": 303,
+        "output_tokens": 314,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1564,7 +1569,7 @@
       },
       "notes": [
         "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적음",
-        "덕수궁 관람 종료 예정 20:00, KTX 출발 20:30 사이 여유는 30분"
+        "덕수궁 관람 종료 예정 20:00, KTX 출발 20:30 사이 간격은 판정 단계에서 확인 필요"
       ],
       "label_current": true,
       "stale_reason": null,
@@ -1573,7 +1578,7 @@
       "end_to_end_ok": true
     },
     {
-      "id": "T28-구역삼청동",
+      "id": "T28-동네삼청동",
       "set": "holdout",
       "extraction_ok": true,
       "extraction_problems": [],
@@ -1597,7 +1602,7 @@
             "start": "12:00",
             "start_source": "explicit",
             "scope": "area",
-            "scope_note": "삼청동 동네만 지목됨. 점심을 먹을 특정 식당이 정해지지 않음"
+            "scope_note": "삼청동 내 어느 식당에서 점심을 먹을지 특정되지 않음"
           },
           {
             "place": "경복궁",
@@ -1612,9 +1617,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3471,
+        "latency_ms": 3355,
         "input_tokens": 79,
-        "output_tokens": 320,
+        "output_tokens": 314,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1671,9 +1676,9 @@
       "usage": {
         "model": "claude-opus-5-5",
         "effort": "low",
-        "latency_ms": 3492,
+        "latency_ms": 4527,
         "input_tokens": 85,
-        "output_tokens": 290,
+        "output_tokens": 273,
         "cache_read": 4435,
         "cache_write": 0,
         "stop_reason": "end_turn",
@@ -1681,7 +1686,7 @@
         "refusal_explanation": null
       },
       "notes": [
-        "연도가 없어 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적음. 요일 일치 여부는 판정 단계에서 확인 필요."
+        "연도가 적혀 있지 않아 오늘(2026-09-22) 기준 가장 가까운 미래인 2026-10-15로 적었다."
       ],
       "label_current": true,
       "stale_reason": null,
