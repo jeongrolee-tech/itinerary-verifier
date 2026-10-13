@@ -127,10 +127,8 @@ SYSTEM = """너는 여행 일정 텍스트를 구조화하는 추출기다. 판�
 형식이 맞는 것과 의미가 맞는 것은 다르다. 확실하지 않으면 null 과 notes 를 쓴다."""
 
 
-def extract(text: str, client: anthropic.Anthropic | None = None,
-            model: str = DEFAULT_MODEL, *, today: str,
-            effort: str | None = "low") -> tuple[Extraction, dict]:
-    """자연어 → Extraction. (결과, 사용량) 을 돌려준다. 모델이 거부하면 llm.Refusal 이 난다.
+def request(text: str, model: str = DEFAULT_MODEL, *, today: str, effort: str | None = "low") -> dict:
+    """추출 한 번에 llm.ask 가 받는 인자. 평가(run_extract.py)는 이것으로 요청 지문을 만들고 그대로 부른다.
 
     today 는 연도가 빠진 날짜를 푸는 기준이다. 시스템 프롬프트가 아니라
     사용자 메시지에 넣는다 — 시스템 프롬프트를 고정해야 캐시가 붙는다.
@@ -139,8 +137,15 @@ def extract(text: str, client: anthropic.Anthropic | None = None,
     """
     # 추출은 적힌 값을 옮기는 기계적인 작업이다. 깊게 생각할 필요가 없고,
     # 사고 토큰도 출력으로 과금되므로 effort 를 낮춘다.
-    return ask(client or anthropic.Anthropic(), model=model, effort=effort, system=SYSTEM,
-               content=f"오늘은 {today} 이다.\n\n{text}", schema=Extraction)
+    return {"model": model, "effort": effort, "system": SYSTEM,
+            "content": f"오늘은 {today} 이다.\n\n{text}", "schema": Extraction}
+
+
+def extract(text: str, client: anthropic.Anthropic | None = None,
+            model: str = DEFAULT_MODEL, *, today: str,
+            effort: str | None = "low") -> tuple[Extraction, dict]:
+    """자연어 → Extraction. (결과, 사용량) 을 돌려준다. 모델이 거부하면 llm.Refusal 이 난다."""
+    return ask(client or anthropic.Anthropic(), **request(text, model, today=today, effort=effort))
 
 
 # 필수 조건마다 권장 도착 여유 기준(policy.json buffer_minutes). flight_boarding 은 정책에 일부러 두지 않았다 —

@@ -34,9 +34,13 @@ def _git(*args: str) -> str | None:
 
 
 def uncommitted(porcelain: str) -> list[str]:
-    """git status --porcelain 에서 결과에 영향을 주는 변경만 고른다. 실행 기록(last-*.json)은 출력이라 뺀다."""
+    """git status --porcelain 에서 결과에 영향을 주는 변경만 고른다.
+
+    실행 기록(last-*.json)과 응답 캐시(response-cache.json)는 실행이 쓰는 출력이라 뺀다.
+    """
     paths = [line[3:].split(" -> ")[-1] for line in porcelain.splitlines() if line.strip()]
-    return sorted(p for p in paths if not Path(p).name.startswith("last-"))
+    return sorted(p for p in paths
+                  if not Path(p).name.startswith("last-") and Path(p).name != "response-cache.json")
 
 
 def run_meta(**extra) -> dict:

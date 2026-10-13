@@ -3,6 +3,7 @@
 비교 실험 — 판정 방식 4종을 같은 케이스로 돌려 비교한다.
 
     python core/compare.py                  4종 전부        → last-compare.json
+    python core/compare.py --fresh          받아 둔 응답을 쓰지 않고 전부 새로 받는다 (돈이 든다)
     python core/compare.py --dry-run        API 없이 배선만 확인 → last-compare-dryrun.json
     python core/compare.py --arms code      코드만 (API 키 불필요) → last-compare-subset.json
     python core/compare.py --case T05       한 건만         → last-compare-subset.json
@@ -26,6 +27,9 @@ arm 0 이 따로 있는 이유: 1차 실험에서 arm1 이 15건 전부 undeterm
 
 채점은 라벨이 현재 데이터 스냅샷 기준으로 검토된 케이스에만 한다.
 미검토 라벨로 점수를 내면 세 arm 전부 틀린 점수가 나온다.
+
+LLM arm 은 돈이 든다. 모델이 받는 것이 같은 요청은 응답 캐시(response_cache.py)에 받아 둔 응답을 쓰고,
+새로 부를 것이 있으면 몇 건이고 얼마쯤인지 보여 준 뒤 y 를 받아야 부른다.
 """
 
 import json
@@ -36,7 +40,7 @@ from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).parent))
 from labels import case_facts, stale_reason  # noqa: E402
-from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
+from model_info import DEFAULT_MODEL, PRICES, effort_for  # noqa: E402
 from report import ARM_NAMES, VERDICT_NAMES, pad, width  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
 from verdict import judge  # noqa: E402
@@ -186,18 +190,47 @@ def facts_for_llm(f: dict) -> dict:
     return {k: v for k, v in f.items() if k != "snapshot_history"}
 
 
-def run_llm(case, client, Judgment, system: str, payload: str):
+SYSTEMS = {"llm_naive": SYSTEM_LLM_NAIVE, "llm_only": SYSTEM_LLM_ONLY, "llm_with_facts": SYSTEM_LLM_FACTS}
+
+
+def llm_requests(case: dict, case_f: dict) -> dict[str, dict]:
+    """LLM 방식마다 llm.ask 가 받는 인자. 이것으로 요청 지문을 만들고 그대로 부른다."""
+    # arm0 과 arm1 은 입력이 완전히 같다. 시스템 프롬프트만 다르다.
+    raw = f"오늘은 {REFERENCE_DATE} 이다.\n\n[일정]\n{case['raw']}"
+    with_facts = (f"[구조화 일정]\n{json.dumps(itinerary_for(case), ensure_ascii=False, indent=1)}\n\n"
+                  f"[사실 데이터]\n{json.dumps(facts_for_llm(case_f), ensure_ascii=False, indent=1)}\n\n"
+                  f"[정책]\n{json.dumps(policy, ensure_ascii=False, indent=1)}")
+    content = {"llm_naive": raw, "llm_only": raw, "llm_with_facts": with_facts}
+    return {arm: {"model": MODEL, "effort": EFFORT, "system": SYSTEMS[arm], "content": content[arm],
+                  "schema": Judgment} for arm in ARMS if arm in SYSTEMS}
+
+
+def answer(arm: str, req: dict, key: str) -> dict:
+    """LLM 방식 하나의 답. 받아 둔 응답이 있으면 그것을 쓰고, 없으면 불러서 받는 즉시 응답 캐시에 넣는다."""
+    if key in stored:
+        return stored[key]
     try:
-        j, usage = ask(client, model=MODEL, effort=EFFORT, system=system, content=payload, schema=Judgment)
+        j, usage = ask(client, **req)
+        result = j.model_dump()
     except Refusal as e:
         # 거부는 판정이 아니다. 지표가 따로 세도록 verdict 를 "refused" 로 남긴다
-        return {"verdict": "refused", "checks": [], "message": "",
-                "stop_details": {"category": e.usage["refusal_category"],
-                                 "explanation": e.usage["refusal_explanation"]}}, e.usage
+        result, usage = {"verdict": "refused", "checks": [], "message": "",
+                         "stop_details": {"category": e.usage["refusal_category"],
+                                          "explanation": e.usage["refusal_explanation"]}}, e.usage
     except InvalidOutput as e:
         # 형식이 틀린 응답도 판정이 아니다. 따로 세고, 청구된 사용량은 비용에 넣는다
-        return {"verdict": "invalid", "checks": [], "message": str(e)}, e.usage
-    return j.model_dump(), usage
+        result, usage = {"verdict": "invalid", "checks": [], "message": str(e)}, e.usage
+    if DRY:  # 가짜 응답은 응답 캐시에 넣지 않는다
+        return {"label": arm, "run": RUN_ID, "result": result, "usage": usage}
+    return cache.put(key, run=RUN_ID, label=arm, result=result, usage=usage)
+
+
+def last_cost_per_case() -> dict:
+    """지난 공식 기록의 방식별 건당 비용 — 새로 부를 호출의 비용을 어림하는 데 쓴다. 모델이 다르면 견줄 수 없다."""
+    path = HERE / "last-compare.json"
+    last = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    costs = last.get("cost", {}) if last.get("model") == MODEL else {}
+    return {ARM_NAMES[arm]: costs.get(arm, {}).get("per_case_usd") for arm in SYSTEMS}
 
 
 # ── 지표 ────────────────────────────────────────────────────────────
@@ -287,17 +320,45 @@ class StubClient:
 
 DRY = "--dry-run" in args
 need_llm = any(a.startswith("llm") for a in ARMS)
-client = Judgment = JUDGMENT_SCHEMA = None
+RUN_ID = f"cmp-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+# LLM arm 이 연도 없는 날짜를 푸는 기준. 고정해 둬야 언제 돌려도 같은 입력이 된다.
+# 추출 채점과 같은 값을 tests.json 에서 읽는다 (runmeta.reference_date).
+REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
+
+client = cache = Judgment = JUDGMENT_SCHEMA = None
+stored = {}  # 요청 지문 → 받아 둔 응답. 이번 실행에서 다시 쓸 것만 담는다
 if need_llm:
     # anthropic 이 있어야 읽힌다. 코드 arm 만 돌릴 때는 읽지 않는다
-    from anthropic import transform_schema  # noqa: E402
+    from anthropic import APIError, transform_schema  # noqa: E402
     from llm import InvalidOutput, Refusal, ask  # noqa: E402
+    from response_cache import ResponseCache, confirm_spend, cost_summary, request_key  # noqa: E402
     Judgment = build_models()
     JUDGMENT_SCHEMA = fingerprint(json.dumps(transform_schema(Judgment), ensure_ascii=False, sort_keys=True))
-    if DRY:
-        client = StubClient()
-        print("  [--dry-run] API 를 부르지 않는다. 배선만 확인한다.\n")
-    else:
+
+# 문제마다 그 문제의 사실 데이터(테스트용 이동시간이 있으면 얹은 것 — arm 2 와 arm 3 이 같이 쓴다),
+# LLM 방식별 요청, 요청 지문을 먼저 만든다
+plan = []
+for case in cases:
+    case_f = case_facts(case, facts)
+    reqs = llm_requests(case, case_f) if need_llm else {}
+    plan.append((case, case_f, reqs, {arm: request_key(**req) for arm, req in reqs.items()}))
+
+new_calls = 0
+if need_llm and DRY:
+    client = StubClient()
+    print("  [--dry-run] API 를 부르지 않는다. 배선만 확인한다. 응답 캐시도 쓰지 않는다.\n")
+elif need_llm:
+    # ⭐ API 를 부르기 전에 응답 캐시와 맞춰 본다. 모델이 받는 것이 같은 요청은 받아 둔 응답을 쓰고,
+    #    새로 부를 것이 있을 때만 비용을 보여 주고 물은 뒤에 키를 받는다. 받은 응답은 바로 캐시에 들어가므로
+    #    도중에 멈춰도 다시 돌리면 남은 것만 부른다.
+    cache = ResponseCache()
+    if "--fresh" not in args:  # --fresh 면 받아 둔 응답을 쓰지 않고 전부 새로 받아 바꿔 넣는다
+        stored = {key: hit for _, _, _, keys in plan for key in keys.values() if (hit := cache.get(key))}
+    new = {ARM_NAMES[arm]: sum(1 for _, _, _, keys in plan if arm in keys and keys[arm] not in stored)
+           for arm in SYSTEMS}
+    new_calls = sum(new.values())
+    confirm_spend(new, sum(len(keys) for _, _, _, keys in plan) - new_calls, last_cost_per_case())
+    if new_calls:
         import os
         from getpass import getpass
 
@@ -309,50 +370,21 @@ if need_llm:
             raise SystemExit("키가 비어 있다.")
         client = anthropic.Anthropic(api_key=key)
 
-RUN_ID = f"cmp-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-
-
-def save(payload: dict, name: str) -> bool:
-    """
-    LLM arm 은 건당 10초 넘게 걸리고 돈이 든다. 마지막 쓰기 한 번이 실패해서
-    전체 결과가 날아가면 안 된다. 실제로 그렇게 15건 × 2 arm 을 잃었다 —
-    실행 중에 작업 디렉터리가 사라져서 FileNotFoundError 가 났다.
-
-    그래서 케이스마다 중간 저장하고, 실패하면 홈 디렉터리로 떨어진다.
-    """
-    body = json.dumps(payload, ensure_ascii=False, indent=2)
-    for target in (HERE / name, Path.home() / f"itinerary-verifier-{name}"):
-        try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(body, encoding="utf-8")
-            if target.parent != HERE:
-                print(f"  ⚠ {HERE} 에 쓸 수 없어 {target} 에 저장했다")
-            return True
-        except OSError as e:
-            print(f"  ⚠ {target} 저장 실패: {e}")
-    return False
-
-
-# LLM arm 이 연도 없는 날짜를 푸는 기준. 고정해 둬야 언제 돌려도 같은 입력이 된다.
-# 추출 채점과 같은 값을 tests.json 에서 읽는다 (runmeta.reference_date).
-REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
 CONDITIONS = run_meta(reference_date=REFERENCE_DATE, libraries=library_versions(), prompts={
     "llm_naive": fingerprint(SYSTEM_LLM_NAIVE), "llm_only": fingerprint(SYSTEM_LLM_ONLY),
     "llm_with_facts": fingerprint(SYSTEM_LLM_FACTS), "judgment_schema": JUDGMENT_SCHEMA})
 # ⭐ last-compare.json 에는 모든 arm · 모든 케이스를 한 조건에서 돌린 결과만 둔다.
 #    일부만 돌린 결과를 이전 기록에 얹었더니 한 기록 안에 다른 라벨 · 다른 코드로 낸
 #    판정이 섞였다 — 옛 기대값이 남은 행이 멘토 피드백 3번에서 지적됐다. 일부 실행은
-#    따로 적고, 진행 중 저장도 공식 기록을 덮어쓰지 않게 다른 파일에 한다.
+#    따로 적는다.
 FULL_RUN = set(ARMS) == set(ALL_ARMS) and not only
 OUT_NAME = ("last-compare-dryrun.json" if DRY else
             "last-compare.json" if FULL_RUN else "last-compare-subset.json")
-PARTIAL_NAME = "last-compare.partial.json"
 
-rows, usage_total = [], {}
-for case in cases:
+rows, used = [], {}  # used — LLM 방식마다 이번 기록에 쓴 응답
+for case, case_f, reqs, keys in plan:
     rec = {"id": case["id"], "set": case["set"], "expect": case["expect"],
            "label_current": label_is_current(case), "arms": {}}
-    case_f = case_facts(case, facts)  # 테스트용 이동시간이 있으면 얹는다 — arm 2 와 arm 3 이 같이 쓴다
 
     if "code" in ARMS:
         out = judge(itinerary_for(case), case_f, policy)
@@ -360,39 +392,20 @@ for case in cases:
                                "checks": [{"type": c["type"], "target": c["target"],
                                            "status": c["status"]} for c in out["checks"]]}
 
-    # arm0 과 arm1 은 입력이 완전히 같다. 시스템 프롬프트만 다르다.
-    raw_payload = f"오늘은 {REFERENCE_DATE} 이다.\n\n[일정]\n{case['raw']}"
-
-    if "llm_naive" in ARMS:
-        j, u = run_llm(case, client, Judgment, SYSTEM_LLM_NAIVE, raw_payload)
-        rec["arms"]["llm_naive"] = j
-        usage_total.setdefault("llm_naive", []).append(u)
-
-    if "llm_only" in ARMS:
-        j, u = run_llm(case, client, Judgment, SYSTEM_LLM_ONLY, raw_payload)
-        rec["arms"]["llm_only"] = j
-        usage_total.setdefault("llm_only", []).append(u)
-
-    if "llm_with_facts" in ARMS:
-        payload = (f"[구조화 일정]\n{json.dumps(itinerary_for(case), ensure_ascii=False, indent=1)}\n\n"
-                   f"[사실 데이터]\n{json.dumps(facts_for_llm(case_f), ensure_ascii=False, indent=1)}\n\n"
-                   f"[정책]\n{json.dumps(policy, ensure_ascii=False, indent=1)}")
-        j, u = run_llm(case, client, Judgment, SYSTEM_LLM_FACTS, payload)
-        rec["arms"]["llm_with_facts"] = j
-        usage_total.setdefault("llm_with_facts", []).append(u)
+    for arm, req in reqs.items():
+        try:
+            hit = answer(arm, req, keys[arm])
+        except APIError as e:
+            # 잔액 부족 · 네트워크 오류. 남은 문제를 계속 부르지 않고 멈춘다 — 공식 기록은 건드리지 않는다
+            raise SystemExit(f"\n  ❌ API 호출 실패: {type(e).__name__} {e}\n"
+                             "  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.") from e
+        rec["arms"][arm] = hit["result"]
+        used.setdefault(arm, []).append(hit)
 
     rows.append(rec)
     print(f"  {pad(case['id'], 26)}" + "  ".join(
         f"{ARM_NAMES.get(a, a)} {ANSWER_NAMES.get(rec['arms'][a]['verdict'], rec['arms'][a]['verdict'])}"
         for a in ARMS if a in rec["arms"]))
-
-    # 다음 케이스가 실패하거나 중단돼도 여기까지는 남는다.
-    # LLM arm 은 건당 10초 넘고 돈이 드니 한 번의 쓰기 실패로 전체를 잃으면 안 된다.
-    if need_llm and not DRY:
-        save({"run_id": RUN_ID, "status": "in_progress", "model": MODEL,
-              "facts_snapshot": facts["snapshot_id"], "conditions": CONDITIONS, "arms": ARMS,
-              "done": len(rows), "total": len(cases), "rows": rows},
-             PARTIAL_NAME)
 
 # ── 채점 ────────────────────────────────────────────────────────────
 scorable = [r for r in rows if r["label_current"]]
@@ -441,17 +454,20 @@ if stale:
     print(f"\n  정답 재확인 필요 {len(stale)}건 — 출력은 저장했다. "
           f"워크시트를 채우면 재실행 없이 채점된다.")
 
+# 비용과 지연은 응답을 받을 때 잰 값이다. 받아 둔 응답을 다시 쓴 실행에서도 같은 값이 나온다
 cost_report = {}
-for arm, us in usage_total.items():
-    costs = [cost_usd(MODEL, u) for u in us]
-    cost = None if None in costs else sum(costs)  # 단가를 모르는 모델이면 비용을 적지 않는다
-    lat = sorted(u["latency_ms"] for u in us)
-    cost_report[arm] = {"n": len(us),
-                        "total_usd": None if cost is None else round(cost, 4),
-                        "per_case_usd": None if cost is None else round(cost / len(us), 4),
-                        "latency_median_ms": lat[len(lat) // 2]}
-    money = "단가 모름" if cost is None else f"${cost:.4f}  건당 ${cost / len(us):.4f}"
-    print(f"\n  {ARM_NAMES.get(arm, arm)}: {len(us)}건  {money}  지연 중앙값 {lat[len(lat) // 2]}ms")
+for arm, hits in used.items():
+    cost_report[arm] = c = cost_summary(MODEL, hits, cache.totals if cache else {})
+    money = "비용 모름" if c["total_usd"] is None else f"${c['total_usd']:.4f}  건당 ${c['per_case_usd']:.4f}"
+    lat = "지연 모름" if c["latency_median_ms"] is None else f"지연 중앙값 {c['latency_median_ms']}ms"
+    print(f"\n  {ARM_NAMES.get(arm, arm)}: {c['n']}건  {money}  {lat}")
+
+hits = [h for arm_hits in used.values() for h in arm_hits]
+responses = {"new": sum(h["run"] == RUN_ID for h in hits), "reused": sum(h["run"] != RUN_ID for h in hits),
+             "received_in": sorted({h["run"] for h in hits})}
+if need_llm and not DRY:
+    print(f"\n  이번 실행에서 새로 부른 호출 {responses['new']}건 · 받아 둔 응답 {responses['reused']}건"
+          f"  (위 비용은 응답을 받을 때 든 값이다)")
 
 out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·지연을 남긴다. "
                 "compare.py 가 덮어쓴다.",
@@ -459,12 +475,9 @@ out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·
        "facts_snapshot": facts["snapshot_id"], "model": MODEL, "effort": EFFORT,
        "pricing_per_mtok": PRICES.get(MODEL), "conditions": CONDITIONS,
        "arms": ARMS, "scored": len(scorable), "total": len(rows),
+       # LLM 응답을 이번에 새로 받았는지, 받아 둔 것을 썼는지와 그 응답을 받은 실행
+       "responses": responses,
        "metrics": report, "cost": cost_report, "rows": rows}
-if save(out, OUT_NAME):
-    (HERE / PARTIAL_NAME).unlink(missing_ok=True)  # 끝까지 돌았으니 진행 중 기록은 필요 없다
-else:
-    # 여기까지 온 실행은 돈과 시간을 이미 썼다. 화면에라도 남긴다.
-    print("\n  파일 저장에 실패했으므로 결과를 아래에 그대로 출력한다.\n")
-    print(json.dumps(out, ensure_ascii=False, indent=2))
+(HERE / OUT_NAME).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
 print(f"\n  기록: core/{OUT_NAME}  ({out['run_id']})")
 print(describe(CONDITIONS))

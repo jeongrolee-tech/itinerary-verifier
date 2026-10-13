@@ -271,15 +271,16 @@ pip install -r requirements.txt     # anthropic, pydantic, fastapi, uvicorn, htt
 python core/run.py                          # 정답 문제 채점 + 실행 기록
 python core/run.py --case T05               # 문제 하나 상세
 python core/run.py --all                    # 전부 상세
-pytest                                      # 규칙 테스트 (정답 문제 29건 회귀 · 확정 위반 반례 · 예상 이동시간 · 길찾기 · 일정 검증 · 구조화 추출 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출 · 데모 API)
+pytest                                      # 규칙 테스트 (정답 문제 29건 회귀 · 확정 위반 반례 · 예상 이동시간 · 길찾기 · 일정 검증 · 구조화 추출 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출 · 응답 캐시 · 데모 API)
 python core/compare.py --dry-run            # 비교 실험 배선 확인
 python core/compare.py --arms code          # 비교 실험, 판정 코드만 (일부 실행 → last-compare-subset.json)
 python core/build_transit_legs.py           # 지하철 최소 이동시간 계산
 python core/eval_report.py                  # 평가 보고 — 실행 기록 세 개를 오류 유형별로 (docs/eval-report.md)
 
-# Anthropic API 키 필요
+# Anthropic API 키 필요 — 단, 아래 두 평가는 받아 둔 응답이 있으면 키도 돈도 필요 없다 (응답 캐시)
 python core/run_extract.py                  # 자연어 → 구조화 추출 → 판정
 python core/compare.py                      # 비교 실험 — 비교 방식 넷
+python core/compare.py --fresh              # 받아 둔 응답을 쓰지 않고 전부 새로 받는다 (돈이 든다)
 python core/compare.py --model claude-sonnet-5-5
 python core/app.py                          # 데모 화면 http://127.0.0.1:8000 — TMAP 키는 있으면 쓴다
 
@@ -296,6 +297,11 @@ GKEY=... node check-routes-api.mjs
 # TMAP 앱 키 필요 (길찾기 능력 확인. 판정할 때 부르는 건 위 verify.py)
 node check-tmap-api.mjs                     # 수단별로 경로가 오나 — 키를 물어본다
 ```
+
+**평가 실행은 돈이 들기 전에 묻는다.** `run_extract.py`와 `compare.py`는 모델에 보낼 내용이 받아 둔 응답
+(`core/response-cache.json`)과 같으면 그 응답을 쓰고 API를 부르지 않는다. 새로 부를 호출이 있으면 몇 건이고 얼마쯤
+드는지 보여 준 뒤 `y`를 받아야 부른다. 저장소에는 2026-10-12에 받은 응답이 들어 있어서, 프롬프트와 데이터를 바꾸지
+않았다면 두 명령은 키 없이 돌고 비용이 들지 않는다([`core/response_cache.py`](#coreresponse_cachepy--응답-캐시)).
 
 GitHub에 올릴 때마다 같은 `pytest`가 Python 3.10과 3.13에서 자동으로 돈다(GitHub Actions, `.github/workflows/tests.yml`).
 외부 API를 부르지 않는 테스트라 키가 필요 없다.
@@ -557,10 +563,12 @@ itinerary-verifier/
 │   ├── runmeta.py               실행 조건 기록 (코드 커밋 · 입력 지문 · 기준 날짜)
 │   ├── model_info.py            기본 모델 · 단가 · 모델별 옵션
 │   ├── llm.py                   Claude 호출 (구조화 출력 · 거부 처리)
+│   ├── response_cache.py        응답 캐시 — 같은 요청이면 받아 둔 LLM 응답을 다시 쓰고, 돈이 들기 전에 묻는다
 │   ├── routes.py                TMAP 길찾기 (판정할 때만 부르고 저장하지 않는다)
 │   ├── verify.py                일정 하나 검증 (Claude 구조화 추출 → TMAP 길찾기 → 판정)
 │   ├── app.py                   데모 API (FastAPI) — 질문 · 판정 · 표에서 고쳐 다시 검사
 │   ├── web/index.html           데모 화면 한 장
+│   ├── response-cache.json      받아 둔 LLM 응답 (평가 실행이 쓴다)
 │   └── last-*.json              실행 기록 (자동 생성)
 ├── docs/
 │   ├── 용어.md                  용어 정리 — 처음 읽는 사람은 여기부터
@@ -999,8 +1007,11 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | | |
 | --- | --- |
 | **역할** | 자연어 → 구조화 추출 → 판정을 끝까지 돌리고 **구조화 추출과 판정을 따로 채점**한다 |
-| **실행** | `python core/run_extract.py [--case T05] [--extract-only] [--model ...] [--effort ...] [--reference-date ...]` — 키 필요 |
+| **실행** | `python core/run_extract.py [--case T05] [--extract-only] [--fresh] [--model ...] [--effort ...] [--reference-date ...]` — 새로 부를 호출이 있을 때만 키 필요 |
 | **출력** | 화면 + `last-extract-run.json` |
+
+모델에 보낼 내용이 같은 문제는 [응답 캐시](#coreresponse_cachepy--응답-캐시)에 받아 둔 응답을 쓴다. 채점과 판정은 그 응답을 가지고 지금 코드로 다시 한다.
+새로 부를 호출이 있으면 건수와 예상 비용을 보여 주고 `y`를 받는다. 호출이 실패하면(잔액 부족 등) 공식 기록을 건드리지 않고 멈추고, 다시 돌리면 남은 것만 부른다.
 
 두 단계를 따로 채점하는 이유 — 전체가 틀렸을 때 **구조화 추출 문제인지 판정 문제인지** 구분해야 고칠 곳을 알 수 있다.
 
@@ -1026,8 +1037,11 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | | |
 | --- | --- |
 | **역할** | 비교 방식 넷을 같은 문제로 돌려 비교한다 |
-| **실행** | `python core/compare.py [--dry-run] [--arms ...] [--case T05] [--model ...] [--effort ...] [--reference-date ...] [--key=...]` |
+| **실행** | `python core/compare.py [--dry-run] [--fresh] [--arms ...] [--case T05] [--model ...] [--effort ...] [--reference-date ...] [--key=...]` |
 | **출력** | 화면 + `last-compare.json` |
+
+LLM 방식 셋은 돈이 든다. 모델에 보낼 내용이 같은 요청은 [응답 캐시](#coreresponse_cachepy--응답-캐시)에 받아 둔 응답을 쓰고, 판정 코드와 지표는 지금 코드로 다시 계산한다.
+새로 부를 호출이 있으면 방식별 건수와 예상 비용을 보여 주고 `y`를 받는다.
 
 **비교 방식 구성**
 
@@ -1048,10 +1062,10 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | --- | --- |
 | `build_models` | LLM 출력 스키마. **코드 출력과 같은 모양**이어야 비교가 된다 |
 | `facts_for_llm` | 'LLM에 사실 데이터 줌'과 판정 코드에 **완전히 같은** 사실 데이터를 준다 |
-| `run_llm` | `core/llm.py`의 `ask`로 부르고 토큰·지연을 모은다. 거부(refusal)는 `refused`, 형식 오류는 `invalid`로 남긴다 |
+| `llm_requests` | 문제 하나에 LLM 방식마다 보낼 요청을 만든다. 이것으로 요청 지문을 만들고 그대로 부른다 |
+| `answer` | 받아 둔 응답이 있으면 그것을 쓰고, 없으면 `core/llm.py`의 `ask`로 불러 받는 즉시 응답 캐시에 넣는다. 거부(refusal)는 `refused`, 형식 오류는 `invalid`로 남긴다 |
 | `metrics` | 아래 지표를 계산한다. 거부와 형식 오류는 답을 준 것으로 세지 않고 따로 센다 |
 | `StubClient` | `--dry-run`용. API 없이 배선만 통과시킨다. 응답은 실제 호출과 같은 스키마 검증을 지난다 |
-| `save` | 진행 중에는 문제마다 `last-compare.partial.json`에 저장하고(실패 시 홈 디렉터리), 끝까지 돌면 지운다 |
 
 **공식 기록 `last-compare.json`은 모든 비교 방식 · 모든 문제를 한 조건에서 돌렸을 때만 쓴다.** `--arms`나 `--case`로 일부만 돌린 결과는 `last-compare-subset.json`에 따로 남는다. 예전에는 일부만 돌린 결과를 이전 기록에 얹었는데, 그러면 한 기록 안에 다른 정답 · 다른 코드로 낸 판정이 섞인다. 멘토 피드백 3번이 짚은 "옛 기대값이 남은 행"이 그렇게 생겼다. 게다가 진행 중 저장이 이전 기록을 먼저 덮어써서, LLM 비교 방식을 돌린 실행에서는 얹기 자체가 한 번도 제대로 된 적이 없었다.
 
@@ -1069,7 +1083,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | 모델 거부 | 보류와 섞으면 모델이 판단을 보류한 건지 응답을 거부한 건지 구분되지 않는다 |
 | 형식 오류 응답 | 스키마에 맞지 않는 응답도 판정이 아니다. 보류와 섞지 않는다 |
 
-**⭐ 주석이 표시한 결정** — 지시와 정의 분리 · 입력 일치 · 정확도만 보면 안 되는 이유 · 공식 기록은 전체 실행만
+**⭐ 주석이 표시한 결정** — 지시와 정의 분리 · 입력 일치 · 정확도만 보면 안 되는 이유 · 공식 기록은 전체 실행만 · 부르기 전에 응답 캐시와 맞춰 보고 묻는다
 
 ---
 
@@ -1116,7 +1130,7 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | 항목 | 내용 |
 | --- | --- |
 | `code_commit` | 실행할 때의 git 커밋 |
-| `uncommitted` | `core/`에서 커밋하지 않은 변경. 실행 기록(`last-*.json`)은 출력이라 세지 않는다 |
+| `uncommitted` | `core/`에서 커밋하지 않은 변경. 실행 기록(`last-*.json`)과 응답 캐시(`response-cache.json`)는 실행이 쓰는 출력이라 세지 않는다 |
 | `reproducible` | 커밋만으로 같은 실행을 다시 만들 수 있나. 숫자를 인용할 때는 `true`인 기록만 쓴다 |
 | `fingerprints` | `tests.json` · `facts.json` · `policy.json`의 내용 지문(sha256 앞 12자리). 줄바꿈을 맞춰서 Windows와 다른 OS에서 같은 값이 나온다 |
 | `reference_date` | 연도가 빠진 날짜를 푸는 기준 날짜. 구조화 추출 채점과 비교 실험 모두 `tests.json`의 값(2026-09-22)을 쓰고, `--reference-date`로 바꿀 수 있다 |
@@ -1149,9 +1163,9 @@ Google Routes 응답을 쓸 수 없어서 이걸 골랐다. **약관상 저장·
 | | |
 | --- | --- |
 | **역할** | 구조화 출력(JSON 스키마)으로 Claude를 한 번 부르고, 끝까지 온 응답만 스키마로 검증한다 |
-| **입력** | `ask(client, model, effort, system, content, schema)` |
+| **입력** | `ask(client, model, effort, system, content, schema)`. 모델에 보내는 인자는 `request_params`가 만든다 |
 | **출력** | `(검증된 결과, usage)`. 거부면 `Refusal`, 응답이 잘렸거나(`max_tokens`) 스키마에 맞지 않으면 `InvalidOutput`. 둘 다 사용량을 함께 넘긴다 |
-| **읽는 쪽** | `extract.py` · `compare.py` |
+| **읽는 쪽** | `extract.py` · `compare.py` · `run_extract.py` · `response_cache.py` |
 
 SDK의 `messages.parse()`를 쓰지 않는다. `parse()`는 `stop_reason`을 보기 전에 본문을 스키마로 검증해서, 출력 도중 거부돼 JSON이 잘린 응답이면 거부를 확인하기도 전에 `ValidationError`로 실행이 멈춘다(anthropic 1.7.0 · 1.11.0에서 확인). 공식 문서도 거부된 응답의 부분 출력은 버리라고 한다. 그래서 `messages.create`로 받아 `stop_reason`을 먼저 보고, 끝까지 온 응답만 검증한다. 요청 스키마는 `parse()`와 같은 `transform_schema`로 만든다.
 
@@ -1160,6 +1174,36 @@ SDK의 `messages.parse()`를 쓰지 않는다. `parse()`는 `stop_reason`을 보
 거부(refusal)가 나와도 다른 모델로 넘기는 설정(fallbacks)은 켜지 않는다. 평가하는 실행에서 다른 모델이 대신 답하면 그 결과는 이 모델의 결과가 아니다. 거부는 거부로 남긴다.
 
 **⭐ 주석이 표시한 결정** — `parse()` 대신 받은 뒤 검증 · 거부를 다른 모델로 넘기지 않음
+
+---
+
+### `core/response_cache.py` — 응답 캐시
+
+| | |
+| --- | --- |
+| **역할** | 돈을 내고 받은 LLM 응답을 요청 지문별로 저장해 두고, 같은 요청이면 다시 부르지 않는다 |
+| **읽는 쪽** | `run_extract.py` · `compare.py`. 실제 사용 경로(`verify.py` · `app.py`)는 쓰지 않는다 — 사용자가 넣은 일정은 저장하지 않는다 |
+| **파일** | [`core/response-cache.json`](core/response-cache.json) |
+
+**왜 만들었나** — 2026-10-12 ~ 13에 화면 글만 바꾸고 전체 평가를 다시 돌려 같은 요청에 돈을 두 번 냈다. 잔액이 떨어져 도중에 멈춘 실행은 그때까지 받은 응답도 버렸다. 모델이 받는 것이 같으면 답을 다시 살 이유가 없다.
+
+**같은 요청인지는 요청 지문으로 본다.** 모델 · 시스템 프롬프트 · 본문 · 출력 스키마 · effort · max_tokens, 곧 `llm.ask`가 실제로 보내는 인자 전부의 지문이다. 프롬프트나 사실 데이터가 한 글자라도 바뀌면 지문이 달라져 그 요청만 새로 부른다.
+코드 커밋은 지문에 들어가지 않는다. 그래서 화면 글만 바꾼 커밋이나 커밋 메시지를 고친 뒤에도 기록을 지금 커밋으로 다시 만들 수 있다 — 채점과 판정은 지금 코드로 다시 하고, LLM 응답만 받아 둔 것을 쓴다.
+
+| 함수 | 하는 일 |
+| --- | --- |
+| `request_key` | `llm.ask`가 받는 인자로 요청 지문을 만든다. 실제로 보내는 인자와 같은 함수(`llm.request_params`)를 쓴다 |
+| `ResponseCache.put` | 응답을 받는 즉시 파일에 쓴다. 다음 호출에서 멈춰도 돈을 낸 응답은 남고, 다시 돌리면 남은 것만 부른다 |
+| `confirm_spend` | API를 부르기 전에 새로 부를 호출 수와 예상 비용을 보여 주고 `y`를 받는다. 새로 부를 것이 없으면 묻지 않고 키도 받지 않는다 |
+| `cost_summary` | 응답 묶음의 비용과 지연. 받아 둔 응답도 받을 때의 사용량으로 센다 — 이번 실행에서 쓴 돈이 아니다 |
+
+캐시에는 채점에 쓰는 모양으로 검증을 마친 답, 그 호출의 사용량, 받은 실행 번호를 둔다. 거부와 형식 오류도 답으로 둔다 — 평가에서는 그것도 결과다.
+실행 기록의 `responses`에는 새로 받은 건수, 받아 둔 응답을 쓴 건수, 그 응답을 받은 실행이 남는다.
+
+**한계** — 받아 둔 응답을 다시 쓰는 실행은 LLM이 같은 입력에 답을 바꾸는지 보여 주지 않는다. 그걸 보려면 `--fresh`로 새로 받는다.
+2026-10-12 비교 실험 응답은 호출별 사용량을 남기기 전에 받아서 방식별 합계만 있다(`totals`). 그 묶음을 통째로 쓸 때만 합계를 옮겨 적는다.
+
+**⭐ 주석이 표시한 결정** — 부르기 전에 캐시와 맞춰 보고 묻는다 (`run_extract.py` · `compare.py`)
 
 ---
 
@@ -1383,9 +1427,11 @@ Google과 달리 대중교통 · 걷기 · 자동차가 모두 왔다. 다만 �
 | [`core/last-run.json`](core/last-run.json) (판정 기록) | `run.py`가 전체를 돌렸을 때 덮어쓴다. `--case`면 `last-run-subset.json` | 문제별 추출값 · 적용한 기본값 · 검사별 상태와 근거 · 정답 일치 여부 · 소요 시간 · 실행 조건 |
 | [`core/last-extract-run.json`](core/last-extract-run.json) (구조화 추출 기록) | `run_extract.py`가 전체를 돌렸을 때 덮어쓴다. `--case` · `--extract-only`면 `last-extract-run-subset.json` | 추출값 · 기대값과의 차이 · 항목별 일치(`extraction_fields`) · 모델 · 토큰 · 비용 · 지연 · 실행 조건 |
 | [`core/last-compare.json`](core/last-compare.json) (비교 기록) | `compare.py`가 모든 비교 방식 · 문제를 돌렸을 때만 덮어쓴다 | 비교 방식별 판정과 검사 · 지표 · 비용 · 지연 · 실행 조건 |
+| [`core/response-cache.json`](core/response-cache.json) (응답 캐시) | `run_extract.py` · `compare.py`가 새 응답을 받을 때마다 덧붙인다 | 요청 지문별 LLM 응답 · 사용량 · 받은 실행 |
 
 **스크립트가 덮어쓰는 파일이다.** 의미 있는 실행 결과는 그때그때 커밋해두는 것이 안전하다 — 실제로 한 번 잃었고 git 커밋에서 복원했다.
 커밋해서 남길 기록은 실행 조건이 `reproducible: true`인 것이어야 한다. 코드를 먼저 커밋하고 돌린 기록이라는 뜻이다.
+응답 캐시는 돈을 내고 받은 응답이라 기록과 함께 커밋한다. 커밋해 두면 누구든 같은 기록을 키 없이 다시 만들 수 있다.
 기록을 다시 만들면 `python core/eval_report.py`로 평가 보고(`docs/eval-report.md`)도 다시 만든다.
 
 ---
@@ -1628,6 +1674,7 @@ Google은 한국에서 대중교통 경로만 줘서(걷기 · 자동차는 빈 
 ### 최근 완료
 
 - [x] 길찾기 출발 시각에 개장 대기 반영 — 판정 코드의 `entry_at`에 체류시간을 더해 TMAP 요청 시각을 정한다
+- [x] 응답 캐시 — 같은 요청이면 받아 둔 LLM 응답을 다시 쓰고, 돈이 들기 전에 묻고, 멈춘 곳부터 이어 돈다
 
 ### 더 멀리 — 원래 풀고 싶었던 것
 

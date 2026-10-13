@@ -6,7 +6,8 @@
 
 멘토 3번 "최종 보고에는 총점 하나보다 오류 유형별 결과, 잘못된 정상 판정, unknown 비율과 원인, 비용/지연을
 나눠 보여주세요." API 를 부르지 않고 기록만 읽는다. 세 기록의 코드 커밋이나 입력 지문이 다르면 경고한다 —
-조건이 다른 숫자를 한 보고서에 섞지 않기 위해서다.
+조건이 다른 숫자를 한 보고서에 섞지 않기 위해서다. 커밋이 바뀌어 기록을 다시 만들 때 LLM 응답은 응답 캐시에
+받아 둔 것을 쓰므로(모델에 보낸 내용이 같을 때) 돈이 들지 않는다.
 """
 
 from __future__ import annotations
@@ -111,7 +112,12 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
           f"조건 — 코드 `{(c.get('code_commit') or '?')[:7]}` · 정답 문제 `{fp.get('tests.json')}` · "
           f"사실 `{fp.get('facts.json')}` · 우리 기준 `{fp.get('policy.json')}` · "
           f"기준 날짜 {cmp['conditions'].get('reference_date')}", "",
-          f"기록 — 판정 `{run['run_id']}` · 구조화 추출 `{ext['run_id']}` · 비교 실험 `{cmp['run_id']}`", ""]
+          f"기록 — 판정 `{run['run_id']}` · 구조화 추출 `{ext['run_id']}` · 비교 실험 `{cmp['run_id']}`", "",
+          # 모델에 보낸 내용이 같으면 받아 둔 응답을 다시 쓴다(response_cache.py). 어느 실행에서 받은 응답인지 적는다
+          "LLM 응답 — " + " / ".join(
+              f"{name}: 새로 받음 {r['responses']['new']}건 · 받아 둔 응답 {r['responses']['reused']}건"
+              f"(받은 실행 {' · '.join(f'`{x}`' for x in r['responses']['received_in'])})"
+              for name, r in (("구조화 추출", ext), ("비교 실험", cmp))), ""]
     for p in mismatched_conditions({"판정": run, "구조화 추출": ext, "비교 실험": cmp}):
         md += [f"> ⚠ {p}", ""]
 
@@ -181,12 +187,15 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
     # ── 5. 비용과 지연 ───────────────────────────────────────────────
     lat = [r["usage"]["latency_ms"] for r in ex_rows if r.get("usage")]
     judge_ms = [r["elapsed_ms"] for r in res]
-    cost_rows = [[f"구조화 추출 ({ext['model']})", f"${ext['estimated_cost_per_case_usd']}", f"{median(lat) / 1000:.1f}초"]]
-    cost_rows += [[ARM_NAMES.get(arm, arm), f"${v['per_case_usd']}", f"{v['latency_median_ms'] / 1000:.1f}초"]
+    usd = lambda v: "—" if v is None else f"${v}"  # 단가를 모르는 모델이거나 사용량이 남아 있지 않은 응답
+    sec = lambda ms: "—" if ms is None else f"{ms / 1000:.1f}초"
+    cost_rows = [[f"구조화 추출 ({ext['model']})", usd(ext["estimated_cost_per_case_usd"]), sec(median(lat))]]
+    cost_rows += [[ARM_NAMES.get(arm, arm), usd(v["per_case_usd"]), sec(v["latency_median_ms"])]
                   for arm, v in cmp.get("cost", {}).items()]
     judge = median(judge_ms)  # run.py 가 0.01ms 단위로 반올림해 적는다
     cost_rows.append(["판정 코드", "$0", "1ms 미만" if judge < 1 else f"{judge:.0f}ms"])
-    md += ["## 5. 비용과 지연", "", "건당 비용과 지연 중앙값이다. 판정 코드는 외부를 부르지 않는다.", ""]
+    md += ["## 5. 비용과 지연", "",
+           "건당 비용과 지연 중앙값이다. LLM 쪽은 응답을 받을 때 잰 값이다. 판정 코드는 외부를 부르지 않는다.", ""]
     md += table(["", "건당 비용", "지연 중앙값"], cost_rows)
     return "\n".join(md) + "\n"
 

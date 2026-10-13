@@ -22,8 +22,9 @@ def test_fingerprint_changes_with_one_character():
 
 
 def test_run_outputs_do_not_count_as_uncommitted():
-    """실행 기록은 출력이다. 변경으로 세면 한 번 돌린 뒤의 모든 실행이 재현 불가가 된다."""
-    status = " M core/last-run.json\n M core/verdict.py\n?? core/new_rule.py\nR  core/a.py -> core/b.py\n"
+    """실행 기록과 응답 캐시는 출력이다. 변경으로 세면 한 번 돌린 뒤의 모든 실행이 재현 불가가 된다."""
+    status = (" M core/last-run.json\n M core/response-cache.json\n M core/verdict.py\n"
+              "?? core/new_rule.py\nR  core/a.py -> core/b.py\n")
     assert uncommitted(status) == ["core/b.py", "core/new_rule.py", "core/verdict.py"]
 
 

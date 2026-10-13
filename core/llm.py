@@ -36,11 +36,26 @@ class InvalidOutput(Exception):
         self.usage = usage
 
 
+def request_params(*, model: str, effort: str | None, system: str, content: str, schema,
+                   max_tokens: int = 16000) -> dict:
+    """모델에 보내는 것 전부. ask 가 messages.create 에 이대로 넘긴다.
+
+    system 은 프롬프트 캐시에 올린다 — 케이스마다 같으므로 두 번째 호출부터 캐시 읽기 단가가 붙는다.
+    응답 캐시(response_cache.py)는 이것으로 요청 지문을 만든다. 여기 없는 것은 모델이 받지 않으므로,
+    이것이 같으면 같은 요청이다.
+    """
+    output_config = {"format": {"type": "json_schema", "schema": transform_schema(schema)}}
+    if effort:
+        output_config["effort"] = effort
+    return {"model": model, "max_tokens": max_tokens, "output_config": output_config,
+            "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+            "messages": [{"role": "user", "content": content}]}
+
+
 def ask(client, *, model: str, effort: str | None, system: str, content: str, schema,
         max_tokens: int = 16000):
     """한 번 불러 schema(pydantic 모델)로 검증한 결과와 사용량을 돌려준다.
 
-    system 은 캐시한다 — 케이스마다 같으므로 두 번째 호출부터 캐시 읽기 단가가 붙는다.
     거부면 Refusal 을, 응답이 끝까지 오지 않았거나 스키마에 맞지 않으면 InvalidOutput 을 낸다.
     """
     # ⭐ SDK 의 messages.parse() 를 쓰지 않는다. parse() 는 stop_reason 을 보기 전에 본문을
@@ -48,15 +63,10 @@ def ask(client, *, model: str, effort: str | None, system: str, content: str, sc
     #    잘린 응답이면 거부를 확인하기도 전에 ValidationError 로 실행이 멈춘다. 공식 문서도
     #    거부된 응답의 부분 출력은 버리라고 한다. 그래서 create 로 받아 stop_reason 을 먼저 보고,
     #    끝까지 온 응답만 검증한다. 요청 스키마는 parse() 와 같은 transform_schema 로 만든다.
-    output_config = {"format": {"type": "json_schema", "schema": transform_schema(schema)}}
-    if effort:
-        output_config["effort"] = effort
+    params = request_params(model=model, effort=effort, system=system, content=content, schema=schema,
+                            max_tokens=max_tokens)
     started = datetime.now(timezone.utc)
-    r = client.messages.create(
-        model=model, max_tokens=max_tokens, output_config=output_config,
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": content}],
-    )
+    r = client.messages.create(**params)
     details = getattr(r, "stop_details", None)  # 거부가 아니면 None 이다
     usage = {
         "model": model,
