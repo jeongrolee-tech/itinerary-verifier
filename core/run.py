@@ -63,7 +63,7 @@ def detail(case, out, problems):
     print(f"입력: {case['raw']}")
     print(f"정답 이유: {case['why']}\n")
 
-    print("[옮겨 적은 일정]")
+    print("[추출한 일정]")
     for s in case["stops"]:
         d = f"체류 {s['dwell_minutes']}분 (사용자)" if s.get("dwell_minutes") else "체류 미입력"
         print(f"  {s['start']}  {s['place']}  {d}")

@@ -50,9 +50,9 @@ def test_question_missing_only_when_the_user_must_answer():
 @pytest.mark.parametrize("row, blame", [
     ({"end_to_end_ok": True, "extraction_ok": True, "verdict_ok": True, "verdict": "feasible"}, "맞음"),
     ({"end_to_end_ok": False, "extraction_ok": True, "verdict_ok": False, "verdict": "feasible"}, "판정 탓"),
-    ({"end_to_end_ok": False, "extraction_ok": False, "verdict_ok": False, "verdict": "feasible"}, "옮겨 적기 탓"),
-    ({"end_to_end_ok": False, "extraction_ok": False, "verdict_ok": True, "verdict": "feasible"}, "옮겨 적기만 틀림"),
-    ({"error": "refusal: …", "extraction_ok": False}, "옮겨 적기 실패"),
+    ({"end_to_end_ok": False, "extraction_ok": False, "verdict_ok": False, "verdict": "feasible"}, "구조화 추출 탓"),
+    ({"end_to_end_ok": False, "extraction_ok": False, "verdict_ok": True, "verdict": "feasible"}, "구조화 추출만 틀림"),
+    ({"error": "refusal: …", "extraction_ok": False}, "구조화 추출 실패"),
 ])
 def test_end_to_end_errors_are_blamed_on_a_stage(row, blame):
     assert attribution(row).startswith(blame)

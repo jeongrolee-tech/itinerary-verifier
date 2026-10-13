@@ -1098,7 +1098,7 @@ def _date_assumptions(itinerary: dict) -> list[dict]:
         "value": itinerary["date"],
         "source": "llm_inferred",
         "rule": "extract.inferred_date",
-        "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+        "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
         "ask_user": "방문 날짜가 맞는지 확인해 주세요",
     }]
 

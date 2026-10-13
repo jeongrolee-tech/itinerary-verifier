@@ -1,7 +1,7 @@
 # 260913 — Google Places · Routes API 능력 확인
 
 > **읽기 전에** — 그날 쓰던 말로 적은 기록이라 본문은 고치지 않는다. 지금은 이렇게 부른다:
-> 판정 코어 → 판정 코드 · 조회 계층 → 데이터 가져오기 · curated → 공식 페이지에서 옮김.
+> 판정 코어 → 판정 코드 · 조회 계층 → 조회 · curated → 공식 페이지에서 옮김.
 > 나머지 말은 [용어집의 대응표](../용어.md#읽는-말과-코드-값)에 있다.
 
 **입력 조건** Places API (New) `places:searchText` + Place Details, Routes API `computeRoutes`.

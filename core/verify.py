@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-일정 하나 검증 — 자연어 일정을 옮기고(Claude), 구간마다 이동시간을 받고(TMAP), 판정한다.
+일정 하나 검증 — 자연어 일정을 구조화 추출하고(Claude), 구간마다 이동시간을 받고(TMAP), 판정한다.
 
     python core/verify.py "10월 8일 목요일 오후 1시에 서울시립미술관 서소문본관 한 시간, 3시에 경복궁 두 시간"
     python core/verify.py              → 일정을 물어본다
@@ -37,7 +37,7 @@ def verify(text: str, claude, tmap_key: str, facts: dict, policy: dict, today: s
     # 받은 구간이 저장해 둔 지하철 하한선 구간을 대신한다. 받지 못한 구간은 저장해 둔 것이 있으면 그걸 쓴다.
     out = judge(itinerary, {**facts, "legs": {**facts["legs"], **legs}}, policy)
 
-    lines = ["[옮긴 일정]", f"  날짜 {itinerary['date'] or '없음'}"]
+    lines = ["[추출한 일정]", f"  날짜 {itinerary['date'] or '없음'}"]
     for s in itinerary["stops"]:
         dwell = f"{s['dwell_minutes']}분" if "dwell_minutes" in s else "체류 미입력"
         lines.append(f"  {s.get('start', '--:--')}  {s['place']}  {dwell}")
@@ -75,9 +75,9 @@ def main() -> None:
     try:
         print(verify(text, claude, tmap_key, load("facts.json"), load("policy.json"), date.today().isoformat()))
     except Refusal as e:
-        raise SystemExit(f"일정을 옮기지 못했다 — 모델이 거부했다: {e}") from e
+        raise SystemExit(f"일정을 추출하지 못했다 — 모델이 거부했다: {e}") from e
     except InvalidOutput as e:
-        raise SystemExit(f"일정을 옮기지 못했다 — 모델 출력이 형식에 맞지 않았다: {e}") from e
+        raise SystemExit(f"일정을 추출하지 못했다 — 모델 출력이 형식에 맞지 않았다: {e}") from e
 
 
 if __name__ == "__main__":

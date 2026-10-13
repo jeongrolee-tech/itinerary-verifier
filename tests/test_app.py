@@ -156,7 +156,7 @@ def test_no_route_lookup_when_the_judge_stops_first(monkeypatch, change):
 
 
 def test_recheck_works_without_keys():
-    """키 없이 켜면 자연어는 옮길 수 없다고 알리고, 표로 고친 일정은 그대로 다시 검사한다."""
+    """키 없이 켜면 자연어는 추출할 수 없다고 알리고, 표로 고친 일정은 그대로 다시 검사한다."""
     c = client()
     res = c.post("/api/check", json={"text": TEXT})
     assert res.status_code == 503
@@ -169,10 +169,10 @@ def test_empty_text_is_refused():
 
 
 def test_malformed_extraction_is_refused():
-    """Claude 가 '4:30 PM' 처럼 형식이 틀린 시각을 내면 판정하지 않고 옮기지 못했다고 알린다."""
+    """Claude 가 '4:30 PM' 처럼 형식이 틀린 시각을 내면 판정하지 않고 추출하지 못했다고 알린다."""
     bad = {**PALACE, "stops": [{**PALACE["stops"][0], "start": "4:30 PM"}]}
     res = client(bad).post("/api/check", json={"text": TEXT})
-    assert res.status_code == 422 and res.json()["detail"].startswith("일정을 옮기지 못했습니다")
+    assert res.status_code == 422 and res.json()["detail"].startswith("일정을 추출하지 못했습니다")
 
 
 class Down:

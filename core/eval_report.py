@@ -71,14 +71,14 @@ def no_question(check: dict) -> bool:
 def attribution(row: dict) -> str:
     """추출부터 판정까지 끝까지 돌린 한 건이 틀렸다면 어느 단계 탓인지."""
     if row.get("error"):
-        return "옮겨 적기 실패 — 거부 · 형식 오류"
+        return "구조화 추출 실패 — 거부 · 형식 오류"
     if row.get("verdict") is None:
-        return "판정 못 함 — 날짜를 옮겨 적지 못했다"
+        return "판정 못 함 — 날짜를 추출하지 못했다"
     if row.get("end_to_end_ok"):
         return "맞음"
     if row.get("extraction_ok"):
-        return "판정 탓 — 옮겨 적기는 맞았다"
-    return "옮겨 적기 탓 — 판정도 틀렸다" if not row.get("verdict_ok") else "옮겨 적기만 틀림 — 판정은 맞았다"
+        return "판정 탓 — 구조화 추출은 맞았다"
+    return "구조화 추출 탓 — 판정도 틀렸다" if not row.get("verdict_ok") else "구조화 추출만 틀림 — 판정은 맞았다"
 
 
 CONDITION_NAMES = {"code_commit": "코드 커밋", "fingerprints": "입력 지문"}
@@ -111,8 +111,8 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
           f"조건 — 코드 `{(c.get('code_commit') or '?')[:7]}` · 정답 문제 `{fp.get('tests.json')}` · "
           f"사실 `{fp.get('facts.json')}` · 우리 기준 `{fp.get('policy.json')}` · "
           f"기준 날짜 {cmp['conditions'].get('reference_date')}", "",
-          f"기록 — 판정 `{run['run_id']}` · 옮겨 적기 `{ext['run_id']}` · 비교 실험 `{cmp['run_id']}`", ""]
-    for p in mismatched_conditions({"판정": run, "옮겨 적기": ext, "비교 실험": cmp}):
+          f"기록 — 판정 `{run['run_id']}` · 구조화 추출 `{ext['run_id']}` · 비교 실험 `{cmp['run_id']}`", ""]
+    for p in mismatched_conditions({"판정": run, "구조화 추출": ext, "비교 실험": cmp}):
         md += [f"> ⚠ {p}", ""]
 
     # ── 1 · 2. 오류 유형별 결과 · 잘못된 정상 판정 ────────────────────────
@@ -171,8 +171,8 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
     # ── 4. 추출 ───────────────────────────────────────────────────────
     ex_rows = ext["results"]
     graded = [r for r in ex_rows if "extraction_fields" in r]
-    md += ["## 4. 옮겨 적기와 끝까지 돌린 결과", "",
-           f"옮겨 적기 {sum(bool(r.get('extraction_ok')) for r in ex_rows)}/{len(ex_rows)}. 항목별 —", ""]
+    md += ["## 4. 구조화 추출과 끝까지 돌린 결과", "",
+           f"구조화 추출 {sum(bool(r.get('extraction_ok')) for r in ex_rows)}/{len(ex_rows)}. 항목별 —", ""]
     md += table(["항목", "맞음"], [[label, f"{sum(r['extraction_fields'][k] for r in graded)}/{len(ex_rows)}"]
                                   for k, label in EXTRACTION_FIELDS.items()])
     blame = Counter(attribution(r) for r in ex_rows)
@@ -181,7 +181,7 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
     # ── 5. 비용과 지연 ───────────────────────────────────────────────
     lat = [r["usage"]["latency_ms"] for r in ex_rows if r.get("usage")]
     judge_ms = [r["elapsed_ms"] for r in res]
-    cost_rows = [[f"옮겨 적기 ({ext['model']})", f"${ext['estimated_cost_per_case_usd']}", f"{median(lat) / 1000:.1f}초"]]
+    cost_rows = [[f"구조화 추출 ({ext['model']})", f"${ext['estimated_cost_per_case_usd']}", f"{median(lat) / 1000:.1f}초"]]
     cost_rows += [[ARM_NAMES.get(arm, arm), f"${v['per_case_usd']}", f"{v['latency_median_ms'] / 1000:.1f}초"]
                   for arm, v in cmp.get("cost", {}).items()]
     judge = median(judge_ms)  # run.py 가 0.01ms 단위로 반올림해 적는다

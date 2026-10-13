@@ -5,7 +5,7 @@
     python core/app.py          http://127.0.0.1:8000 에서 화면이 열린다
 
 멘토 4번 "얇은 API와 화면으로 … 실제로 보여주세요. 현재 Python 판정 코어에는 FastAPI 정도면 충분합니다."
-API 두 개와 HTML 한 장이다. 옮기기는 extract, 길찾기는 routes, 판정은 verdict, 재검사는 recheck, 질문 모으기는
+API 두 개와 HTML 한 장이다. 구조화 추출은 extract, 길찾기는 routes, 판정은 verdict, 재검사는 recheck, 질문 모으기는
 report 가 하고 여기서는 잇기만 한다.
 
 키는 서버가 읽고 브라우저로 보내지 않는다. 환경변수(ANTHROPIC_API_KEY · TMAP_KEY)에 없으면 실행할 때 묻는다.
@@ -73,7 +73,7 @@ class CheckIn(BaseModel):
 
 
 class RecheckIn(BaseModel):
-    original: dict  # 처음 옮긴 일정 — 사용자가 말한 것. 바뀐 칸과 '꼭 지킨다던 것' 을 이것과 비교한다
+    original: dict  # 처음 추출한 일정 — 사용자가 말한 것. 바뀐 칸과 '꼭 지킨다던 것' 을 이것과 비교한다
     revised: dict   # 사용자가 표에서 고친 일정
     legs: dict = {}  # 처음 검사에서 받은 이동시간 — 원래 일정을 처음과 같은 조건으로 다시 판정한다
 
@@ -107,17 +107,17 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
 
     @app.post("/api/check")
     def check(body: CheckIn) -> dict:
-        """자연어 일정을 옮기고 판정한다. 확인하지 못한 것마다 무엇을 물어야 하는지가 같이 간다."""
+        """자연어 일정을 구조화 추출하고 판정한다. 확인하지 못한 것마다 무엇을 물어야 하는지가 같이 간다."""
         if claude is None:
-            raise HTTPException(503, "Anthropic API 키가 없어 자연어를 옮길 수 없습니다. 키를 넣고 앱을 다시 켜 주세요")
+            raise HTTPException(503, "Anthropic API 키가 없어 자연어 일정을 추출할 수 없습니다. 키를 넣고 앱을 다시 켜 주세요")
         if not body.text.strip():
             raise HTTPException(422, "일정을 적어 주세요")
         try:
             ex, _ = extract(body.text, claude, today=today or date.today().isoformat())
         except Refusal as e:
-            raise HTTPException(422, f"일정을 옮기지 못했습니다 — 모델이 거부했습니다: {e}") from e
+            raise HTTPException(422, f"일정을 추출하지 못했습니다 — 모델이 거부했습니다: {e}") from e
         except InvalidOutput as e:
-            raise HTTPException(422, f"일정을 옮기지 못했습니다 — 모델 출력이 형식에 맞지 않았습니다: {e}") from e
+            raise HTTPException(422, f"일정을 추출하지 못했습니다 — 모델 출력이 형식에 맞지 않았습니다: {e}") from e
         except anthropic.APIError as e:
             raise HTTPException(502, f"Claude API 호출이 실패했습니다 — {type(e).__name__}") from e
         itinerary = to_itinerary(ex)

@@ -65,40 +65,40 @@ def grade_extraction(case, got: dict) -> dict[str, list[str]]:
     """
     p = {k: [] for k in EXTRACTION_FIELDS}
     if got.get("date") != case["date"]:
-        p["date"].append(f"date 기대 {case['date']} → 옮긴 값 {got.get('date')}")
+        p["date"].append(f"date 기대 {case['date']} → 추출값 {got.get('date')}")
     if got.get("weekday_stated") != case.get("weekday_stated"):
-        p["date"].append(f"weekday_stated 기대 {case.get('weekday_stated')} → 옮긴 값 {got.get('weekday_stated')}")
+        p["date"].append(f"weekday_stated 기대 {case.get('weekday_stated')} → 추출값 {got.get('weekday_stated')}")
     if got.get("date_source") != case.get("date_source"):
-        p["date_source"].append(f"date_source 기대 {case.get('date_source')} → 옮긴 값 {got.get('date_source')}")
+        p["date_source"].append(f"date_source 기대 {case.get('date_source')} → 추출값 {got.get('date_source')}")
 
     want_stops, got_stops = case["stops"], got.get("stops", [])
     if len(want_stops) != len(got_stops):
-        p["place"].append(f"장소 개수 기대 {len(want_stops)} → 옮긴 값 {len(got_stops)}")
+        p["place"].append(f"장소 개수 기대 {len(want_stops)} → 추출값 {len(got_stops)}")
     for i, (want, g) in enumerate(zip(want_stops, got_stops)):
         if want["place"] != g.get("place"):
-            p["place"].append(f"stops[{i}].place 기대 {want['place']} → 옮긴 값 {g.get('place')}")
+            p["place"].append(f"stops[{i}].place 기대 {want['place']} → 추출값 {g.get('place')}")
         if want.get("start") != g.get("start"):
-            p["start"].append(f"stops[{i}].start 기대 {want.get('start')} → 옮긴 값 {g.get('start')}")
+            p["start"].append(f"stops[{i}].start 기대 {want.get('start')} → 추출값 {g.get('start')}")
         # 라벨에 출처가 없으면 사용자가 말한 시각이다 (tests.json time_rule)
         want_src = want.get("start_source", "explicit" if want.get("start") else "missing")
         if want_src != g.get("start_source"):
-            p["start_source"].append(f"stops[{i}].start_source 기대 {want_src} → 옮긴 값 {g.get('start_source')}")
+            p["start_source"].append(f"stops[{i}].start_source 기대 {want_src} → 추출값 {g.get('start_source')}")
         # 입력에 없던 체류시간을 채워 넣었는지 — 가장 중요한 항목
         if "dwell_minutes" not in want and "dwell_minutes" in g:
             p["dwell"].append(f"stops[{i}] 입력에 없는 체류시간 {g['dwell_minutes']}분을 추가했다")
         elif want.get("dwell_minutes") != g.get("dwell_minutes"):
-            p["dwell"].append(f"stops[{i}].dwell_minutes 기대 {want.get('dwell_minutes')} → 옮긴 값 {g.get('dwell_minutes')}")
+            p["dwell"].append(f"stops[{i}].dwell_minutes 기대 {want.get('dwell_minutes')} → 추출값 {g.get('dwell_minutes')}")
         want_sup, got_sup = support_scope(want, facts), support_scope(g, facts)
         if want_sup != got_sup:
-            p["support"].append(f"stops[{i}] 지원 범위 기대 {want_sup} → 옮긴 값 {got_sup}")
+            p["support"].append(f"stops[{i}] 지원 범위 기대 {want_sup} → 추출값 {got_sup}")
 
     want_hc, got_hc = case.get("hard_constraints", []), got.get("hard_constraints", [])
     if len(want_hc) != len(got_hc):
-        p["hard_constraints"].append(f"필수 일정 개수 기대 {len(want_hc)} → 옮긴 값 {len(got_hc)}")
+        p["hard_constraints"].append(f"필수 일정 개수 기대 {len(want_hc)} → 추출값 {len(got_hc)}")
     for i, (want, g) in enumerate(zip(want_hc, got_hc)):
         for k in ("type", "place", "time"):
             if want[k] != g.get(k):
-                p["hard_constraints"].append(f"HC[{i}].{k} 기대 {want[k]} → 옮긴 값 {g.get(k)}")
+                p["hard_constraints"].append(f"HC[{i}].{k} 기대 {want[k]} → 추출값 {g.get(k)}")
     return p
 
 
@@ -129,25 +129,25 @@ for case in cases:
         ex, usage = extract(case["raw"], client, model=MODEL, today=REFERENCE_DATE, effort=EFFORT)
     except Refusal as e:
         usages.append(e.usage)  # 거부된 호출도 청구될 수 있다(model_info.billed)
-        print(f"❌ 옮겨 적기 거부: {e}")
+        print(f"❌ 구조화 추출 거부: {e}")
         results.append({"id": case["id"], "extraction_ok": False, "error": f"refusal: {e}",
                         "usage": e.usage})
         continue
     except InvalidOutput as e:
         usages.append(e.usage)  # 끝까지 온 응답이라 청구된다
-        print(f"❌ 옮겨 적기 형식 오류: {e}")
+        print(f"❌ 구조화 추출 형식 오류: {e}")
         results.append({"id": case["id"], "extraction_ok": False, "error": f"invalid_output: {e}",
                         "usage": e.usage})
         continue
     except anthropic.APIError as e:
-        print(f"❌ 옮겨 적기 실패: {type(e).__name__} {e}")
+        print(f"❌ 구조화 추출 실패: {type(e).__name__} {e}")
         results.append({"id": case["id"], "extraction_ok": False, "error": str(e)})
         continue
 
     usages.append(usage)
     got = to_itinerary(ex)
 
-    print("[옮겨 적은 결과]")
+    print("[추출 결과]")
     wd = f"  사용자가 말한 요일 {ex.weekday_stated}" if ex.weekday_stated else ""
     print(f"  날짜  {ex.date}  ({INPUT_SOURCE_NAMES[ex.date_source]}){wd}")
     for s in ex.stops:
@@ -161,7 +161,7 @@ for case in cases:
 
     ex_fields = grade_extraction(case, got)
     ex_problems = [m for msgs in ex_fields.values() for m in msgs]
-    print(f"\n[옮겨 적기 채점]  {'✅ 정답과 일치' if not ex_problems else '❌'}")
+    print(f"\n[구조화 추출 채점]  {'✅ 정답과 일치' if not ex_problems else '❌'}")
     for p in ex_problems:
         print(f"  ❌ {p}")
     print(f"  토큰 in {usage['input_tokens']} / out {usage['output_tokens']}"
@@ -190,7 +190,7 @@ for case in cases:
             row["verdict_ok"] = ok
             row["end_to_end_ok"] = ok and not ex_problems
         else:
-            print("\n[판정]  건너뜀 — 날짜를 옮겨 적지 못했다")
+            print("\n[판정]  건너뜀 — 날짜를 추출하지 못했다")
             row["verdict"] = None
             row["end_to_end_ok"] = False
 
@@ -198,15 +198,15 @@ for case in cases:
 
 # ── 요약 ────────────────────────────────────────────────────────────
 print(f"\n{LINE}\n  요약\n{LINE}")
-print(f"  {pad('문제', 26)}{pad('옮겨 적기', 12)}{pad('판정', 8)}전체")
+print(f"  {pad('문제', 26)}{pad('구조화 추출', 14)}{pad('판정', 8)}전체")
 for r in results:
     ex_m = "✅" if r.get("extraction_ok") else "❌"
     v_m = "–" if extract_only else ("✅" if r.get("verdict_ok") else "❌")
     e2e = "–" if extract_only else ("✅" if r.get("end_to_end_ok") else "❌")
-    print(f"  {pad(r['id'], 26)}{pad(ex_m, 12)}{pad(v_m, 8)}{e2e}")
+    print(f"  {pad(r['id'], 26)}{pad(ex_m, 14)}{pad(v_m, 8)}{e2e}")
 
 n_ex = sum(1 for r in results if r.get("extraction_ok"))
-print(f"\n  옮겨 적기 {n_ex}/{len(results)}")
+print(f"\n  구조화 추출 {n_ex}/{len(results)}")
 graded = [r for r in results if "extraction_fields" in r]  # 거부 · 형식 오류는 항목을 채점하지 못했다
 print("  항목별 " + " · ".join(
     f"{label} {sum(r['extraction_fields'][k] for r in graded)}/{len(results)}" for k, label in EXTRACTION_FIELDS.items()))
@@ -216,7 +216,7 @@ if not extract_only:
     n_e2e = sum(1 for r in scored if r.get("end_to_end_ok"))
     n_v = sum(1 for r in scored if r.get("verdict_ok"))
     print(f"  판정 {n_v}/{len(scored)}")
-    print(f"  전체 {n_e2e}/{len(scored)}  (옮겨 적기와 판정이 모두 맞은 건수)")
+    print(f"  전체 {n_e2e}/{len(scored)}  (구조화 추출과 판정이 모두 맞은 건수)")
     if stale:
         print(f"  ⚠ 정답 재확인 필요 {len(stale)}건은 판정 채점에서 뺐다: " + ", ".join(r["id"] for r in stale))
 
