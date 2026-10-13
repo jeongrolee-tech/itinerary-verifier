@@ -1,13 +1,13 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20261012-155854",
+  "run_id": "run-20261013-122548",
   "version": "core-0.2",
-  "ran_at": "2026-10-12T06:58:54.057076+00:00",
+  "ran_at": "2026-10-13T03:25:48.461158+00:00",
   "facts_snapshot": "facts-2026-09-29",
   "holidays_verified": true,
   "labeled_at": "2026-10-06",
   "conditions": {
-    "code_commit": "bb039df1f2808fa1504450f137a68fe6630e96de",
+    "code_commit": "f63d81a96fb5c093128f62265667c278a84a7a3c",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
@@ -61,7 +61,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -247,7 +247,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -352,7 +352,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         },
         {
@@ -536,7 +536,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         },
         {
@@ -894,7 +894,7 @@
           "value": "2026-10-06",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -1000,7 +1000,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -1107,7 +1107,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         },
         {
@@ -1221,7 +1221,7 @@
           "value": "2026-11-05",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -1289,7 +1289,7 @@
       "expect": "feasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.01,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -1322,7 +1322,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -1431,7 +1431,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         },
         {
@@ -1607,7 +1607,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         },
         {
@@ -1802,7 +1802,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -2003,7 +2003,7 @@
           "value": "2026-10-09",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -2113,7 +2113,7 @@
           "value": "2026-10-17",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -2517,7 +2517,7 @@
           "value": "2026-10-18",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -2959,7 +2959,7 @@
           "value": "2026-10-09",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -3031,7 +3031,7 @@
       "expect": "feasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.5,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -3063,7 +3063,7 @@
           "value": "2026-10-14",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -3169,7 +3169,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -3255,7 +3255,7 @@
           "value": "2026-10-12",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -3344,7 +3344,7 @@
           "value": "2026-10-08",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         },
         {
@@ -3464,7 +3464,7 @@
           "value": "2026-10-15",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -3649,7 +3649,7 @@
           "value": "2026-12-25",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         },
         {
@@ -3813,7 +3813,7 @@
           "value": "2026-10-12",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         },
         {
@@ -3973,7 +3973,7 @@
           "value": "2026-10-15",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -4100,7 +4100,7 @@
           "value": "2026-10-15",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],
@@ -4240,7 +4240,7 @@
           "value": "2026-10-15",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         },
         {
@@ -4402,7 +4402,7 @@
           "value": "2026-10-15",
           "source": "llm_inferred",
           "rule": "extract.inferred_date",
-          "reason": "입력에 연도가 없어 옮겨 적는 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
         }
       ],

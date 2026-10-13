@@ -1,7 +1,7 @@
 {
   "_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·지연을 남긴다. compare.py 가 덮어쓴다.",
-  "run_id": "cmp-20261012-193020",
-  "ran_at": "2026-10-12T10:44:11.189887+00:00",
+  "run_id": "cmp-20261013-122549",
+  "ran_at": "2026-10-13T03:25:50.954638+00:00",
   "facts_snapshot": "facts-2026-09-29",
   "model": "claude-opus-5-5",
   "effort": "low",
@@ -12,7 +12,7 @@
     "cache_read": 0.2
   },
   "conditions": {
-    "code_commit": "bb039df1f2808fa1504450f137a68fe6630e96de",
+    "code_commit": "f63d81a96fb5c093128f62265667c278a84a7a3c",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
@@ -40,6 +40,13 @@
   ],
   "scored": 29,
   "total": 29,
+  "responses": {
+    "new": 0,
+    "reused": 87,
+    "received_in": [
+      "cmp-20261012-193020"
+    ]
+  },
   "metrics": {
     "llm_naive": {
       "n": 29,
