@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -95,19 +96,18 @@ def confirm_spend(new: dict[str, int], reused: int, per_call_usd: dict[str, floa
 def cost_summary(model: str, used: list[dict], totals: dict) -> dict:
     """응답 묶음을 받는 데 든 비용과 지연. 받아 둔 응답도 받을 때의 사용량으로 센다 — 이번 실행에서 쓴 돈이 아니다."""
     n = len(used)
-    usages = [r["usage"] for r in used]
-    if all(usages):
-        costs = [cost_usd(model, u) for u in usages]
-        cost = None if None in costs else sum(costs)  # 단가를 모르는 모델이면 비용을 적지 않는다
-        lat = sorted(u["latency_ms"] for u in usages)
-        return {"n": n, "total_usd": None if cost is None else round(cost, 4),
-                "per_case_usd": None if cost is None else round(cost / n, 4), "latency_median_ms": lat[n // 2]}
-    # 2026-10-12 비교 실험 응답은 호출별 사용량 없이 방식별 합계만 남아 있다. 그 묶음을 통째로 쓸 때만
-    # 그 합계를 옮겨 적는다. 일부가 새 응답으로 바뀌었으면 나눌 수 없으니 비워 둔다
-    sources = {(r["run"], r["label"]) for r in used}
-    if not any(usages) and len(sources) == 1:
-        run, label = next(iter(sources))
-        total = totals.get(run, {}).get(label)
-        if total and total["n"] == n:
-            return dict(total)
-    return {"n": n, "total_usd": None, "per_case_usd": None, "latency_median_ms": None}
+    usages = [r["usage"] for r in used if r["usage"]]
+    # 2026-10-12 비교 실험 응답은 호출별 사용량 없이 방식별 합계만 남아 있다. 그 묶음을 통째로 쓰면 합계를 그대로
+    # 쓰고, 새로 받은 응답이 섞여 있으면 그 호출별 비용을 더한다. 묶음의 일부만 썼으면 합계를 나눌 수 없으니 비워 둔다
+    batches = Counter((r["run"], r["label"]) for r in used if not r["usage"])
+    whole = {b: totals.get(b[0], {}).get(b[1]) for b in batches}
+    if any(not t or t["n"] != batches[b] for b, t in whole.items()):
+        return {"n": n, "total_usd": None, "per_case_usd": None, "latency_median_ms": None}
+    if len(whole) == 1 and not usages:
+        return dict(next(iter(whole.values())))
+    costs = [cost_usd(model, u) for u in usages] + [t["total_usd"] for t in whole.values()]
+    cost = None if None in costs else sum(costs)  # 단가를 모르는 모델이면 비용을 적지 않는다
+    # 중앙값은 묶음끼리 합칠 수 없다. 호출별 지연이 모두 있을 때만 낸다
+    lat = sorted(u["latency_ms"] for u in usages)[n // 2] if len(usages) == n else None
+    return {"n": n, "total_usd": None if cost is None else round(cost, 4),
+            "per_case_usd": None if cost is None else round(cost / n, 4), "latency_median_ms": lat}

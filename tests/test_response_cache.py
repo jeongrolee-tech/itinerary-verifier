@@ -167,6 +167,16 @@ def test_responses_without_call_usage_carry_the_total_of_their_run():
     assert cost_summary("claude-opus-5-5", used, TOTALS) == TOTALS["cmp-1"]["llm_naive"]
 
 
+def test_a_whole_batch_total_adds_to_new_calls():
+    """묶음을 통째로 쓰고 새 문제의 응답이 더해졌으면 합계에 새 호출의 비용을 더한다. 중앙값은 합칠 수 없어 비운다."""
+    used = [{"usage": None, "run": "cmp-1", "label": "llm_naive"}] * 2 + [
+        {"usage": USAGE, "run": "cmp-2", "label": "llm_naive"}]
+    cost = cost_summary("claude-opus-5-5", used, TOTALS)
+    assert cost["n"] == 3 and cost["latency_median_ms"] is None
+    assert cost["total_usd"] == round(0.04 + (100 * 4.00 + 50 * 20.00) / 1e6, 4)
+    assert cost["per_case_usd"] == round(cost["total_usd"] / 3, 4)
+
+
 def test_a_total_is_not_split_when_part_of_the_batch_was_replaced():
     """합계만 아는 묶음의 일부가 새 응답으로 바뀌었으면 나눌 수 없다. 지어내지 않고 비워 둔다."""
     used = [{"usage": None, "run": "cmp-1", "label": "llm_naive"}, {"usage": USAGE, "run": "cmp-2", "label": "llm_naive"}]
