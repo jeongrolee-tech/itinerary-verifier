@@ -55,7 +55,7 @@ def test_requests_to_other_hosts_are_refused():
     localhost 가 아니면 거절한다 — 그래야 남의 페이지가 이 키로 Claude 를 부를 수 없다."""
     app = create_app(Claude(PALACE), today=TODAY)
     assert TestClient(app, base_url="http://evil.example").post("/api/check", json={"text": TEXT}).status_code == 400
-    assert TestClient(app, base_url="http://localhost:8000").get("/").status_code == 200
+    assert TestClient(app, base_url="http://localhost:8001").get("/").status_code == 200
 
 
 def test_missing_info_is_asked_then_rechecked():

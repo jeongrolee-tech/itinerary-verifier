@@ -2,7 +2,7 @@
 """
 데모 — 자연어 입력 → 빠진 정보 질문 → 근거별 판정 → 사용자 수정 → 재검사 (2차 피드백 4번)
 
-    python core/app.py          http://127.0.0.1:8000 에서 화면이 열린다
+    python core/app.py          http://127.0.0.1:8001 에서 화면이 열린다
 
 멘토 4번 "얇은 API와 화면으로 … 실제로 보여주세요. 현재 Python 판정 코어에는 FastAPI 정도면 충분합니다."
 API 두 개와 HTML 한 장이다. 구조화 추출은 extract, 길찾기는 routes, 판정은 verdict, 재검사는 recheck, 질문 모으기는
@@ -157,7 +157,7 @@ def main() -> None:
     print(f"  Anthropic 키 {'있음' if key else '없음 — 자연어 입력이 막힌다'} · "
           f"TMAP 키 {'있음' if tmap_key else '없음 — 저장해 둔 지하철 최소 이동시간으로만 판정한다'}")
     app = create_app(anthropic.Anthropic(api_key=key) if key else None, tmap_key or None)
-    uvicorn.run(app, host="127.0.0.1", port=8000)  # 내 PC 에서만 열린다
+    uvicorn.run(app, host="127.0.0.1", port=8001)  # 내 PC 에서만 열린다
 
 
 if __name__ == "__main__":

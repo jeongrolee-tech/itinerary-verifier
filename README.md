@@ -89,7 +89,7 @@ LLM은 자연어를 구조로 옮기는 데만 쓰고, 근거가 충분한지와
 
 키 없이 바로 된다(`python core/run.py --case T08`). 정답 문제마다 검사별로 무엇을 확인했고 무엇을 못 했는지 나온다.
 자연어 일정을 직접 넣어 보려면 Anthropic · TMAP 키가 필요하다(`core/verify.py`).
-화면으로 보려면 `python core/app.py`를 켜고 http://127.0.0.1:8000 을 연다. 빠진 정보를 묻고, 표에서 고친 일정을
+화면으로 보려면 `python core/app.py`를 켜고 http://127.0.0.1:8001 을 연다. 빠진 정보를 묻고, 표에서 고친 일정을
 다시 검사한다. Anthropic 키는 있어야 하고 TMAP 키는 없어도 된다.
 판정 세 가지가 각각 어떻게 생겼는지 아래 셋으로 보면 된다.
 `[검사]`는 검사 하나하나의 상세이고, `[결과]`는 그것을 사용자에게 보여줄 묶음으로 나눈 것이다 —
@@ -282,7 +282,7 @@ python core/run_extract.py                  # 자연어 → 구조화 추출 →
 python core/compare.py                      # 비교 실험 — 비교 방식 넷
 python core/compare.py --fresh              # 받아 둔 응답을 쓰지 않고 전부 새로 받는다 (돈이 든다)
 python core/compare.py --model claude-sonnet-5-5
-python core/app.py                          # 데모 화면 http://127.0.0.1:8000 — TMAP 키는 있으면 쓴다
+python core/app.py                          # 데모 화면 http://127.0.0.1:8001 — TMAP 키는 있으면 쓴다
 
 # Anthropic API 키 + TMAP 앱 키 필요
 python core/verify.py "10월 8일 목요일 …"   # 일정 하나를 끝까지 검증 — 아무것도 저장하지 않는다
@@ -1278,7 +1278,7 @@ SDK의 `messages.parse()`를 쓰지 않는다. `parse()`는 `stop_reason`을 보
 | | |
 | --- | --- |
 | **역할** | 2차 피드백 4번의 흐름을 화면으로 보여 준다 — 자연어 입력 → 빠진 정보 질문 → 근거별 판정 → 사용자 수정 → 재검사 |
-| **실행** | `python core/app.py`를 켜고 http://127.0.0.1:8000 을 연다. Anthropic 키는 있어야 하고, TMAP 키가 없으면 저장해 둔 지하철 최소 이동시간으로만 판정한다 |
+| **실행** | `python core/app.py`를 켜고 http://127.0.0.1:8001 을 연다. Anthropic 키는 있어야 하고, TMAP 키가 없으면 저장해 둔 지하철 최소 이동시간으로만 판정한다 |
 | **API** | `POST /api/check` — 자연어 일정을 받아 추출한 일정 · 판정 · 물을 말을 준다 / `POST /api/recheck` — 표에서 고친 일정을 받아 수정 전후 판정 · 바뀐 칸 · 따로 확인할 것을 준다. 설명은 http://127.0.0.1:8000/docs |
 | **화면** | `core/web/index.html` 한 장. 판정은 서버가 하고, 화면은 결과를 보여 주고 고친 표를 돌려보내기만 한다 |
 | **남기는 것** | 없다. TMAP 이동시간은 다시 검사할 때 원래 일정을 같은 조건으로 판정하도록 화면이 잠깐 들고 있는다 |
