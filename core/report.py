@@ -103,6 +103,60 @@ def report(result: dict) -> dict:
     }
 
 
+# 줄의 상태는 그 줄 검사 중 가장 나쁜 것이다. 장소 줄의 검사는 이 순서로 적는다
+WORST_FIRST = [FAIL, UNKNOWN, PASS, NA]
+INPUT_CHECKS = ("INPUT_REQUIRED", "INPUT_CONFLICT")
+PLACE_CHECKS_IN_ORDER = ("CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE")
+
+
+def _line(c: dict, name: str) -> dict:
+    return {"id": c.get("id"), "name": name, "status": c["status"],
+            "reason": c.get("detail") or c.get("reason"), "notice": c.get("notice")}
+
+
+def _row(kind: str, time: str | None, title: str, lines: list[dict]) -> dict:
+    status = next((s for s in WORST_FIRST if any(x["status"] == s for x in lines)), None)
+    return {"kind": kind, "time": time, "title": title, "status": status, "lines": lines}
+
+
+def timeline(itinerary: dict, result: dict) -> list[dict]:
+    """일정 순서대로 줄을 만든다 — 장소마다 한 줄, 장소 사이 이동 한 줄, 끝에 필수 일정. result 는 바꾸지 않는다.
+
+    ⭐ 상태별 묶음(report)만 있으면 장소가 네다섯 곳일 때 어느 장소가 문제인지 일정과 다시 맞춰 봐야 한다
+       (2026-10-14 사용자 제안). 줄의 상태는 그 줄 검사 중 가장 나쁜 것이다 — 위반 > 미확인 > 통과 > 해당 없음.
+       미확인은 통과로도 위반으로도 보이지 않게 따로 둔다. 입력이 모자라 판정 코드가 장소를 검사하지 않았으면
+       그 줄은 상태가 없다(None).
+    """
+    pending = list(result["checks"])
+
+    def take(type_: str, target: str) -> dict | None:
+        # 같은 장소가 두 번 나오면 검사 대상 이름이 겹친다. 판정 코드가 일정 순서로 내므로 앞에서부터 하나씩 가져간다
+        c = next((c for c in pending if c["type"] == type_ and c["target"] == target), None)
+        if c is not None:
+            pending.remove(c)
+        return c
+
+    rows, stops = [], itinerary.get("stops") or []
+    for i, s in enumerate(stops):
+        lines = [_line(c, CHECK_NAMES[t]) for t in INPUT_CHECKS + PLACE_CHECKS_IN_ORDER
+                 if (c := take(t, s["place"]))]
+        rows.append(_row("stop", s.get("start"), s["place"], lines))
+        if i + 1 < len(stops):
+            target = f"{s['place']} → {stops[i + 1]['place']}"
+            c = take("INSUFFICIENT_TRAVEL_TIME", target)
+            rows.append(_row("travel", None, target, [_line(c, "이동")] if c else []))
+    # 장소에 붙지 않은 검사 — 날짜 같은 입력 검사. 마지막 장소 뒤 '(없음)' 구간은 일정에 없는 줄이라 뺀다
+    rest = [c for c in pending if not c["target"].endswith("→ (없음)")]
+    if rest:
+        rows.insert(0, _row("input", None, "일정 전체",
+                            [_line(c, f"{c['target']} {CHECK_NAMES.get(c['type'], c['type'])}") for c in rest]))
+    for h in result["hard_constraints"]:
+        e, p = h["event"], h["policy"]
+        kind = EVENT_NAMES.get(e["type"], "필수 일정")
+        rows.append(_row("hard", e["time"], f"필수 일정 · {kind} {e['place']}", [_line({**p, "id": h.get("id")}, kind)]))
+    return rows
+
+
 # 장소 검사 — 질문에 장소 이름이 없으면("방문할 점포를 알려주세요") 앞에 붙인다
 PLACE_CHECKS = {"CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE"}
 

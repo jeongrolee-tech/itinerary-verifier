@@ -35,7 +35,7 @@ from pydantic import BaseModel  # noqa: E402
 from extract import BUFFER_RULES, extract, to_itinerary  # noqa: E402
 from llm import InvalidOutput, Refusal  # noqa: E402
 from recheck import recheck_revision  # noqa: E402
-from report import questions, report  # noqa: E402
+from report import questions, report, timeline  # noqa: E402
 from routes import live_legs  # noqa: E402
 from spend import Spend, counting  # noqa: E402
 from verdict import input_checks, judge, weekday_of  # noqa: E402
@@ -150,7 +150,8 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
             tally("/api/check", meter)
         out = judge(itinerary, with_legs(legs), POLICY)
         return {"itinerary": itinerary, "notes": ex.notes, "legs": legs, "leg_misses": misses,
-                "tmap": bool(tmap_key), "result": out, "report": report(out), "questions": questions(out)}
+                "tmap": bool(tmap_key), "result": out, "report": report(out), "questions": questions(out),
+                "timeline": timeline(itinerary, out)}
 
     @app.post("/api/recheck")
     def recheck(body: RecheckIn) -> dict:
@@ -171,7 +172,8 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
                 "verdict_before": r["before"]["summary"]["verdict"],
                 "verdict_after": r["after"]["summary"]["verdict"],
                 "needs_confirmation": r["needs_confirmation"],
-                "result": r["after"], "report": report(r["after"]), "questions": questions(r["after"])}
+                "result": r["after"], "report": report(r["after"]), "questions": questions(r["after"]),
+                "timeline": timeline(revised, r["after"])}
 
     return app
 

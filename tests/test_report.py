@@ -12,7 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from report import NOT_CHECKED, questions, render, report
+from labels import case_facts
+from report import NOT_CHECKED, questions, render, report, timeline
 from verdict import judge
 
 ROOT = Path(__file__).parent.parent
@@ -100,3 +101,76 @@ def test_not_checked_matches_readme():
         if cell:
             cells.append(cell)
     assert cells == NOT_CHECKED
+
+
+# ── 일정 순서로 보기 (report.timeline) ─────────────────────────────────
+# 상태별 묶음과 같은 판정을 일정 순서로 늘어놓을 뿐이다. 검사 하나가 빠지거나 두 줄에 들어가면 화면이 판정과 달라 보인다.
+
+def lines_of(rows):
+    return [x for r in rows for x in r["lines"]]
+
+
+@pytest.mark.parametrize("c", CASES, ids=[c["id"] for c in CASES])
+def test_every_check_lands_in_one_timeline_row(c, facts, policy):
+    """정답 문제 전부 — 검사와 필수 일정이 한 번씩 들어간다. 마지막 장소 뒤 '(없음)' 구간만 일정에 없는 줄이라 뺀다."""
+    result = judge(c, case_facts(c, facts), policy)
+    rows = timeline(c, result)
+    expected = sorted([x["id"] for x in result["checks"] if not x["target"].endswith("→ (없음)")]
+                      + [h["id"] for h in result["hard_constraints"]])
+    assert sorted(x["id"] for x in lines_of(rows)) == expected
+
+
+def statuses(prefix, facts, policy):
+    c = case(prefix)
+    return [(r["kind"], r["title"], r["status"]) for r in timeline(c, judge(c, case_facts(c, facts), policy))]
+
+
+def test_one_closed_place_shows_where_in_the_day(facts, policy):
+    """T31 — 네 곳 중 경복궁만 화요일 휴궁이다. 그 줄만 위반이고, 쉬는 곳에 닿는 두 구간은 해당 없음이다."""
+    assert statuses("T31", facts, policy) == [
+        ("stop", "창덕궁", "pass"), ("travel", "창덕궁 → 경복궁", "not_applicable"),
+        ("stop", "경복궁", "fail"), ("travel", "경복궁 → 덕수궁", "not_applicable"),
+        ("stop", "덕수궁", "pass"), ("travel", "덕수궁 → 서울시립미술관 서소문본관", "pass"),
+        ("stop", "서울시립미술관 서소문본관", "pass")]
+
+
+def test_unknown_is_its_own_mark(facts, policy):
+    """T32 — 광장시장 줄은 미확인이다. 통과나 위반으로 보이지 않고, 앞뒤 장소와 구간은 그대로 통과다."""
+    rows = statuses("T32", facts, policy)
+    assert ("stop", "광장시장", "unknown") in rows
+    assert all(s == "pass" for kind, title, s in rows if title != "광장시장")
+
+
+def test_hard_constraint_comes_last(facts, policy):
+    """T33 — 세 곳 뒤 열차. 필수 일정 줄이 맨 끝에 온다."""
+    assert statuses("T33", facts, policy)[-1] == ("hard", "필수 일정 · 열차 출발 서울역", "pass")
+
+
+def test_missing_input_rows_wait(facts, policy):
+    """날짜가 없으면 판정 코드는 입력부터 묻고 장소를 검사하지 않는다. 장소 줄은 상태가 없고, 날짜는 맨 위 줄에 온다."""
+    it = {"date": None, "date_source": "missing", "weekday_stated": None, "hard_constraints": [],
+          "stops": [{"place": "경복궁", "start": "14:00", "start_source": "explicit", "scope": "place"},
+                    {"place": "덕수궁", "start_source": "missing", "scope": "place"}]}
+    rows = timeline(it, judge(it, facts, policy))
+    assert (rows[0]["kind"], rows[0]["status"]) == ("input", "unknown")
+    assert [(r["title"], r["status"]) for r in rows[1:]] == [
+        ("경복궁", None), ("경복궁 → 덕수궁", None), ("덕수궁", "unknown")]
+
+
+def test_same_place_twice_keeps_each_visit(facts, policy):
+    """같은 장소를 두 번 가면 검사 대상 이름이 겹친다. 줄마다 자기 방문의 검사 세 개를 갖는다."""
+    it = {"date": "2026-10-21", "date_source": "explicit", "weekday_stated": None, "hard_constraints": [],
+          "stops": [{"place": "경복궁", "start": "10:00", "start_source": "explicit", "dwell_minutes": 60, "scope": "place"},
+                    {"place": "경복궁", "start": "15:00", "start_source": "explicit", "dwell_minutes": 60, "scope": "place"}]}
+    result = judge(it, facts, policy)
+    stops = [r for r in timeline(it, result) if r["kind"] == "stop"]
+    assert [len(r["lines"]) for r in stops] == [3, 3]
+    assert stops[0]["lines"][0]["id"] != stops[1]["lines"][0]["id"]
+
+
+def test_timeline_does_not_change_result(facts, policy):
+    c = case("T31")
+    result = judge(c, case_facts(c, facts), policy)
+    before = copy.deepcopy(result)
+    timeline(c, result)
+    assert result == before

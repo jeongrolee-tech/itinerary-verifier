@@ -189,3 +189,15 @@ def test_claude_outage_is_reported():
     """Claude API 에 닿지 못하면 서버 오류로 죽지 않고 무엇이 실패했는지 알린다."""
     res = TestClient(create_app(Down(), today=TODAY), base_url=LOCAL).post("/api/check", json={"text": TEXT})
     assert res.status_code == 502 and "APIConnectionError" in res.json()["detail"]
+
+
+def test_timeline_goes_out_in_itinerary_order(monkeypatch):
+    """화면은 일정 순서 줄(report.timeline)을 그린다. 검사와 다시 검사 둘 다 보낸다."""
+    tmap(monkeypatch, 20)
+    c = client(T01, tmap_key="key")
+    first = check(c)
+    assert [(r["kind"], r["title"], r["status"]) for r in first["timeline"]] == [
+        ("stop", "서울시립미술관 서소문본관", "pass"), ("travel", "서울시립미술관 서소문본관 → 경복궁", "pass"),
+        ("stop", "경복궁", "pass")]
+    again = recheck(c, first["itinerary"], first["itinerary"], first["legs"])
+    assert [r["kind"] for r in again["timeline"]] == ["stop", "travel", "stop"]

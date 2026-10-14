@@ -68,6 +68,23 @@
   td input.num { width: 5.5em; }
   label.small { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
   ul.plain { margin: 4px 0; padding-left: 20px; }
+  .legend { color: var(--muted); font-size: .85rem; margin: 12px 0 2px; }
+  .tl-row { display: grid; grid-template-columns: 3.2em 1.6em 1fr; gap: 6px; align-items: start;
+            padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .tl-row.travel { padding: 3px 0; font-size: .92rem; }
+  .tl-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tl-row.travel .tl-time { text-align: center; }
+  .tl-mark { font-weight: 700; text-align: center; color: var(--na); }
+  .tl-mark.pass { color: var(--pass); }
+  .tl-mark.fail { color: var(--fail); }
+  .tl-mark.unknown { color: var(--unknown); }
+  .tl-title { font-weight: 600; }
+  .tl-row.travel .tl-title { font-weight: 400; color: var(--muted); }
+  .tl-line, .tl-row .evidence { color: var(--muted); font-size: .9rem; }
+  .tl-line.fail { color: var(--fail); }
+  .tl-line.unknown { color: var(--unknown); }
+  details.by-status { margin: 12px 0; }
+  details.by-status summary { cursor: pointer; color: var(--accent); }
   ::placeholder { color: var(--muted); opacity: 1; }
 </style>
 </head>
@@ -92,12 +109,17 @@
     <div id="verdict" class="verdict"></div>
     <div id="message"></div>
     <div id="judged-date" class="muted small"></div>
+    <div class="legend">✓ 통과 · ✗ 위반 · ? 미확인 · – 해당 없음 — 하나라도 위반이면 불가능, 위반 없이 미확인이 있으면 보류입니다</div>
+    <div id="timeline"></div>
     <div id="questions" class="questions" hidden>
       <h3>물어볼 것</h3>
       <ul id="question-list"></ul>
       <div class="muted small">아래 표에서 알려 주거나 일정을 고친 뒤 다시 검사하세요.</div>
     </div>
-    <div id="groups"></div>
+    <details class="by-status">
+      <summary>상태별로 보기 · 검사마다 근거</summary>
+      <div id="groups"></div>
+    </details>
     <h3>검사하지 않는 것</h3>
     <ul id="not-checked" class="plain muted"></ul>
     <div id="extra" class="muted small"></div>
@@ -229,6 +251,36 @@ function extraLines(data) {
   return lines;
 }
 
+// ── 일정 순서로 보기 ─────────────────────────────────────────────────
+// 줄은 서버가 만든다(report.timeline). 줄의 표시는 그 줄 검사 중 가장 나쁜 것이다. 미확인(?)은 통과로도 위반으로도 보이지 않는다
+const MARK = { pass: "✓", fail: "✗", unknown: "?", not_applicable: "–" };
+const STATUS = { pass: "통과", fail: "위반", unknown: "미확인", not_applicable: "해당 없음" };
+
+function timelineRow(row, result) {
+  // 위반 · 미확인 · 해당 없음은 검사마다 이유를, 통과는 무엇을 확인했는지만 적는다. 이동 줄은 무엇으로 판정했는지 근거를 붙인다
+  const details = [];
+  for (const x of row.lines.filter((x) => x.status !== "pass")) {
+    details.push(el("div", { class: "tl-line " + x.status,
+                             text: `${MARK[x.status]} ${x.name} ${STATUS[x.status]}` + (x.reason ? ` — ${x.reason}` : "") }));
+    if (x.status !== "not_applicable") details.push(evidenceLine(evidenceOf(result, x.id)));
+  }
+  const passed = row.lines.filter((x) => x.status === "pass");
+  if (row.kind === "travel" || row.kind === "hard") {
+    // 이동 · 필수 일정 줄은 검사가 하나라 표시만으로 통과를 안다. 무엇으로 판정했는지(이동시간 · 도착 예상)만 적는다
+    if (row.status === "pass") details.push(evidenceLine(evidenceOf(result, passed[0].id)));
+  } else if (passed.length) {
+    details.push(el("div", { class: "tl-line", text: `✓ ${passed.map((x) => x.name).join(" · ")} 통과` }));
+  }
+  for (const x of row.lines) if (x.notice) details.push(el("div", { class: "tl-line", text: "안내 · " + x.notice }));
+  if (!row.lines.length) details.push(el("div", { class: "tl-line", text: "아직 검사하지 않았습니다 — 빠진 입력부터 묻습니다" }));
+  const status = row.status || "none";
+  return el("div", { class: "tl-row " + row.kind },
+    el("div", { class: "tl-time", text: row.kind === "travel" ? "↓" : row.time || "" }),
+    el("div", { class: "tl-mark " + status, text: MARK[status] || "·", title: STATUS[status] || "검사 전" }),
+    el("div", {}, el("div", { class: "tl-title", text: row.kind === "travel" ? "이동 · " + row.title : row.title }),
+       ...details));
+}
+
 function showResult(data) {
   const rep = data.report, result = data.result;
   $("result").hidden = false;
@@ -238,6 +290,7 @@ function showResult(data) {
   $("judged-date").textContent = result.weekday
     ? `판정한 날짜 · ${result.date} ${WEEKDAYS[result.weekday]}요일` + (result.is_holiday ? " · 공휴일" : "")
     : "";
+  $("timeline").replaceChildren(...(data.timeline || []).map((row) => timelineRow(row, result)));
   // 같은 것을 여러 검사가 물어도 한 번만 묻는다 (report.questions)
   const qs = data.questions || [];
   $("questions").hidden = !qs.length;
