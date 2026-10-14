@@ -29,7 +29,8 @@ arm 0 이 따로 있는 이유: 1차 실험에서 arm1 이 15건 전부 undeterm
 미검토 라벨로 점수를 내면 세 arm 전부 틀린 점수가 나온다.
 
 LLM arm 은 돈이 든다. 모델이 받는 것이 같은 요청은 응답 캐시(response_cache.py)에 받아 둔 응답을 쓰고,
-새로 부를 것이 있으면 몇 건이고 얼마쯤인지 보여 준 뒤 y 를 받아야 부른다.
+새로 부를 것이 있으면 몇 건이고 얼마쯤인지 보여 준 뒤 y 를 받아야 부른다. 부를 때마다 그 호출 비용과
+누적을 찍고, 끝에 이번 실행에서 나간 돈을 찍어 기록(responses.spent_usd)에도 남긴다(spend.py).
 """
 
 import json
@@ -43,6 +44,7 @@ from labels import case_facts, stale_reason  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, effort_for  # noqa: E402
 from report import ARM_NAMES, VERDICT_NAMES, pad, width  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
+from spend import Spend  # noqa: E402
 from verdict import judge  # noqa: E402
 
 # 비교 방식의 답 — 판정 세 가지 밖에 거부 · 형식 오류가 있다
@@ -205,7 +207,7 @@ def llm_requests(case: dict, case_f: dict) -> dict[str, dict]:
                   "schema": Judgment} for arm in ARMS if arm in SYSTEMS}
 
 
-def answer(arm: str, req: dict, key: str) -> dict:
+def answer(arm: str, req: dict, key: str, case_id: str) -> dict:
     """LLM 방식 하나의 답. 받아 둔 응답이 있으면 그것을 쓰고, 없으면 불러서 받는 즉시 응답 캐시에 넣는다."""
     if key in stored:
         return stored[key]
@@ -220,9 +222,14 @@ def answer(arm: str, req: dict, key: str) -> dict:
     except InvalidOutput as e:
         # 형식이 틀린 응답도 판정이 아니다. 따로 세고, 청구된 사용량은 비용에 넣는다
         result, usage = {"verdict": "invalid", "checks": [], "message": str(e)}, e.usage
-    if DRY:  # 가짜 응답은 응답 캐시에 넣지 않는다
+    if DRY:  # 가짜 응답은 응답 캐시에 넣지 않는다. 돈도 나가지 않았다
         return {"label": arm, "run": RUN_ID, "result": result, "usage": usage}
-    return cache.put(key, run=RUN_ID, label=arm, result=result, usage=usage)
+    hit = cache.put(key, run=RUN_ID, label=arm, result=result, usage=usage)
+    cost = meter.claude(ARM_NAMES[arm], usage)
+    # 문제마다 결과 줄은 세 방식의 답을 다 받은 뒤에 찍힌다. 그 앞에 찍히는 이 줄이 위 문제의 것으로 읽히지 않게 번호를 붙인다
+    print(f"    [비용] {case_id.split('-')[0]} {ARM_NAMES[arm]} 새로 부름 {'단가 모름' if cost is None else f'${cost:.4f}'}"
+          f" · 이번 실행 누적 ${meter.claude_usd:.4f}")
+    return hit
 
 
 def last_cost_per_case() -> dict:
@@ -327,6 +334,7 @@ REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
 
 client = cache = Judgment = JUDGMENT_SCHEMA = None
 stored = {}  # 요청 지문 → 받아 둔 응답. 이번 실행에서 다시 쓸 것만 담는다
+meter = Spend()  # 이번 실행에서 새로 부른 호출만 센다 — 받아 둔 응답은 돈이 나가지 않는다
 if need_llm:
     # anthropic 이 있어야 읽힌다. 코드 arm 만 돌릴 때는 읽지 않는다
     from anthropic import APIError, transform_schema  # noqa: E402
@@ -394,11 +402,12 @@ for case, case_f, reqs, keys in plan:
 
     for arm, req in reqs.items():
         try:
-            hit = answer(arm, req, keys[arm])
+            hit = answer(arm, req, keys[arm], case["id"])
         except APIError as e:
             # 잔액 부족 · 네트워크 오류. 남은 문제를 계속 부르지 않고 멈춘다 — 공식 기록은 건드리지 않는다
             raise SystemExit(f"\n  ❌ API 호출 실패: {type(e).__name__} {e}\n"
-                             "  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.") from e
+                             "  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.\n"
+                             f"{meter.summary()}") from e
         rec["arms"][arm] = hit["result"]
         used.setdefault(arm, []).append(hit)
 
@@ -463,11 +472,14 @@ for arm, hits in used.items():
     print(f"\n  {ARM_NAMES.get(arm, arm)}: {c['n']}건  {money}  {lat}")
 
 hits = [h for arm_hits in used.values() for h in arm_hits]
+# spent_usd 는 이번 실행에서 실제로 나간 돈이다. 위 cost 는 응답을 받을 때 든 값이다
 responses = {"new": sum(h["run"] == RUN_ID for h in hits), "reused": sum(h["run"] != RUN_ID for h in hits),
-             "received_in": sorted({h["run"] for h in hits})}
+             "received_in": sorted({h["run"] for h in hits}), "spent_usd": round(meter.claude_usd, 4)}
 if need_llm and not DRY:
-    print(f"\n  이번 실행에서 새로 부른 호출 {responses['new']}건 · 받아 둔 응답 {responses['reused']}건"
-          f"  (위 비용은 응답을 받을 때 든 값이다)")
+    print(f"\n  (위 비용은 응답을 받을 때 든 값이다. 받아 둔 응답 {responses['reused']}건은 이번에 돈이 나가지 않았다)\n")
+    print(meter.summary())
+elif DRY:
+    print("\n  [--dry-run] 가짜 응답으로 돌렸다 — 돈이 나가지 않았다.")
 
 out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·지연을 남긴다. "
                 "compare.py 가 덮어쓴다.",

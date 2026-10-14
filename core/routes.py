@@ -20,12 +20,16 @@ import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
 
+from spend import count_tmap
 from verdict import judge
 
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
 PEDESTRIAN = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1"
 PREDICTION = "https://apis.openapi.sk.com/tmap/routes/prediction?version=1"  # 타임머신 자동차 길 안내
+# 돈을 셀 때 쓰는 이름(spend.TMAP_PRICES). 주소의 ? 앞으로 찾는다
+API_NAMES = {POI.split("?")[0]: "장소 검색", TRANSIT: "대중교통", PEDESTRIAN.split("?")[0]: "보행자 길찾기",
+             PREDICTION.split("?")[0]: "택시 예측(타임머신)"}
 TIMEOUT_S = 20
 TOO_CLOSE = 11  # 대중교통 API 의 "출발지와 도착지가 너무 가까움". HTTP 200 으로 온다
 RETRIES = 3     # 429(너무 빨리 부름)를 받았을 때 다시 묻는 횟수
@@ -77,6 +81,8 @@ def call(method: str, url: str, key: str, body: dict | None = None) -> dict:
             # 요청을 보낸 뒤 응답을 받다가 끊긴 것은 URLError 로 감싸지지 않고 그대로 온다
             # (RemoteDisconnected · ConnectionResetError · IncompleteRead). 한 구간 때문에 검증 전체가 멈추면 안 된다
             raise Miss("NETWORK_ERROR", f"{type(e).__name__}: {e}") from e
+    # 응답을 받은 호출만 센다. 429 로 다시 물은 것과 오류 응답이 청구되는지는 확인하지 못했다
+    count_tmap(API_NAMES.get(url.split("?")[0], url.split("?")[0]))
     if not raw.strip():
         return {}
     try:

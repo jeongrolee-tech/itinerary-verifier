@@ -49,6 +49,20 @@ const PEDESTRIAN = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1
 const CAR = "https://apis.openapi.sk.com/tmap/routes?version=1";
 const PREDICTION = "https://apis.openapi.sk.com/tmap/routes/prediction?version=1";
 
+// 돈을 세는 이름과 요금 — core/spend.py 의 TMAP_PRICES 와 같은 표다. 대중교통은 하루 10건 무료, 넘으면 건당
+// 0.88원(README, 2026-10-02 확인). 무료 제공량은 tmapapi.tmapmobility.com "POI 검색 일 2만 건, 경로탐색 일 1천건"
+// (2026-10-14 확인). 넘은 뒤 단가를 확인하지 못한 것은 null 이다 — 지어내지 않는다.
+const API_NAMES = { [POI.split("?")[0]]: "장소 검색", [TRANSIT]: "대중교통", [PEDESTRIAN.split("?")[0]]: "보행자 길찾기",
+                    [CAR.split("?")[0]]: "자동차 길찾기", [PREDICTION.split("?")[0]]: "택시 예측(타임머신)" };
+const TMAP_PRICES = {
+  "장소 검색": { freePerDay: 20000, won: null },
+  "대중교통": { freePerDay: 10, won: 0.88 },
+  "보행자 길찾기": { freePerDay: 1000, won: null },
+  "자동차 길찾기": { freePerDay: 1000, won: null },
+  "택시 예측(타임머신)": { freePerDay: null, won: null },
+};
+const SPENT = {};  // API 이름 → 응답을 받은 건수. 429 로 다시 물은 것과 오류 응답은 세지 않는다
+
 // 429(너무 빨리 부름)면 기다렸다 다시 묻는다 — core/routes.py 와 같은 규칙이다. 기다릴 시간(Retry-After)을
 // 주면 그만큼, 안 주면 1 · 2 · 4초. 세 번 다시 물어도 막히면 429 응답을 그대로 돌려준다.
 async function fetchTmap(url, init) {
@@ -60,6 +74,10 @@ async function fetchTmap(url, init) {
       res = await fetch(url, { ...init, signal: controller.signal });
     } finally {
       clearTimeout(timer);
+    }
+    if (res.ok) {
+      const name = API_NAMES[url.split("?")[0]] ?? url.split("?")[0];
+      SPENT[name] = (SPENT[name] ?? 0) + 1;
     }
     if (res.status !== 429 || attempt === 3) return res;
     const wait = Number(res.headers.get("Retry-After")) || 2 ** attempt;
@@ -203,4 +221,15 @@ console.log("\n--- 수단별 ---");
 for (const mode of ["대중교통", "걷기", "자동차", "자동차 예측"]) {
   const rs = results.filter(r => r.mode === mode);
   console.log(`${mode}: ${rs.filter(r => r.ok).length}/${rs.length} 경로 받음`);
+}
+
+// 무료 제공량은 하루 전체 사용량에 걸린다. 오늘 이미 몇 건을 썼는지는 TMAP 콘솔에만 있어서 범위로만 말한다
+console.log("\n--- 이번 실행에서 나간 돈 (TMAP) ---");
+if (!Object.keys(SPENT).length) console.log("없다. 응답을 받은 호출이 없다.");
+for (const [api, n] of Object.entries(SPENT)) {
+  const { freePerDay, won } = TMAP_PRICES[api] ?? {};
+  console.log(`${api} ${n}건 — ` + (won != null
+    ? `하루 ${freePerDay.toLocaleString()}건까지 무료, 넘은 건은 건당 ${won}원 (0원 ~ ${(n * won).toFixed(2)}원)`
+    : freePerDay ? `하루 ${freePerDay.toLocaleString()}건까지 무료, 넘은 뒤 단가는 확인하지 못했다`
+    : "요금을 확인하지 못했다"));
 }

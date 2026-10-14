@@ -8,6 +8,7 @@
 키는 환경변수(ANTHROPIC_API_KEY · TMAP_KEY)에 있으면 그걸 쓰고, 없으면 물어본다. 입력은 화면에 안 찍힌다.
 TMAP 에서 받은 좌표와 이동시간은 화면에만 보여 주고 저장하지 않는다 — 약관상 24시간 넘게 쓸 수 없다.
 그래서 기록 파일도 남기지 않는다. 평가 기록은 run.py · run_extract.py · compare.py 가 남긴다.
+끝나면 이번에 나간 돈(Claude 호출 비용 · TMAP 호출 건수)을 찍는다 — 실패로 끝나도 찍는다(spend.py).
 """
 
 import json
@@ -24,16 +25,26 @@ from extract import extract, to_itinerary  # noqa: E402
 from llm import InvalidOutput, Refusal  # noqa: E402
 from report import render, report  # noqa: E402
 from routes import live_legs  # noqa: E402
+from spend import Spend, counting  # noqa: E402
 from verdict import EVENT_NAMES, MODE_NAMES, judge  # noqa: E402
 
 HERE = Path(__file__).parent
 
 
-def verify(text: str, claude, tmap_key: str, facts: dict, policy: dict, today: str) -> str:
-    """자연어 일정 → 화면에 보여 줄 글. 아무것도 저장하지 않는다."""
-    ex, _ = extract(text, claude, today=today)
+def verify(text: str, claude, tmap_key: str, facts: dict, policy: dict, today: str,
+           meter: Spend | None = None) -> str:
+    """자연어 일정 → 화면에 보여 줄 글. 아무것도 저장하지 않는다. meter 를 주면 돈이 드는 호출을 거기에 센다."""
+    try:
+        ex, usage = extract(text, claude, today=today)
+    except (Refusal, InvalidOutput) as e:
+        if meter:
+            meter.claude("구조화 추출", e.usage)  # 거부 · 형식 오류로 끝나도 청구될 수 있다(model_info.billed)
+        raise
+    if meter:
+        meter.claude("구조화 추출", usage)
     itinerary = to_itinerary(ex)
-    legs, misses = live_legs(itinerary, tmap_key, facts, policy)
+    with counting(meter):
+        legs, misses = live_legs(itinerary, tmap_key, facts, policy)
     # 받은 구간이 저장해 둔 지하철 하한선 구간을 대신한다. 받지 못한 구간은 저장해 둔 것이 있으면 그걸 쓴다.
     out = judge(itinerary, {**facts, "legs": {**facts["legs"], **legs}}, policy)
 
@@ -72,12 +83,16 @@ def main() -> None:
     claude = anthropic.Anthropic(
         api_key=os.environ.get("ANTHROPIC_API_KEY") or getpass("Anthropic API 키 입력: ").strip())
     tmap_key = os.environ.get("TMAP_KEY") or getpass("TMAP 앱 키 입력: ").strip()
+    meter = Spend()
     try:
-        print(verify(text, claude, tmap_key, load("facts.json"), load("policy.json"), date.today().isoformat()))
-    except Refusal as e:
-        raise SystemExit(f"일정을 추출하지 못했다 — 모델이 거부했다: {e}") from e
-    except InvalidOutput as e:
-        raise SystemExit(f"일정을 추출하지 못했다 — 모델 출력이 형식에 맞지 않았다: {e}") from e
+        print(verify(text, claude, tmap_key, load("facts.json"), load("policy.json"), date.today().isoformat(),
+                     meter))
+    except (Refusal, InvalidOutput) as e:
+        why = "모델이 거부했다" if isinstance(e, Refusal) else "모델 출력이 형식에 맞지 않았다"
+        print(f"일정을 추출하지 못했다 — {why}: {e}")
+        raise SystemExit(1) from e
+    finally:
+        print(f"\n{meter.summary()}")  # 실패로 끝나도 그때까지 나간 돈은 찍는다
 
 
 if __name__ == "__main__":

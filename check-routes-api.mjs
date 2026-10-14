@@ -18,6 +18,7 @@ if (!KEY) {
 }
 
 const ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
+let CALLS = 0;  // 응답을 받은(HTTP 200) 호출 수 — 끝에 나간 돈을 찍는다
 const REQUEST_TIMEOUT_MS = 20000;
 
 // 출발 시각: 내일 오전 10시 (KST). 대중교통 모드에 필요하다.
@@ -77,6 +78,7 @@ async function probe({ mode, from, to }) {
   } finally {
     clearTimeout(timer);
   }
+  if (res.ok) CALLS += 1;
 
   const raw = await res.text();
   let json;
@@ -130,3 +132,12 @@ if (okModes.length === 3) {
   console.log(`지원: ${okModes.join(", ")} / 미지원: ${results.filter(r => !r.ok).map(r => r.mode).join(", ")}`);
 }
 console.log("결과 저장: routes-api-check.json");
+
+// ── 이번 실행에서 나간 돈 ─────────────────────────────────────────
+// Routes API Compute Routes Essentials — 1,000건에 $5, 매달 1만 건까지 무료. TRAFFIC_AWARE 같은 고급 기능을 쓰면 Pro 인데 쓰지 않는다
+// (https://developers.google.com/maps/billing-and-pricing/pricing — 2026-10-08 갱신본을 2026-10-14 확인). 무료 사용량은 한 달 전체에 걸리는데 이번 달에
+// 이미 몇 건을 썼는지는 Google Cloud 콘솔에만 있어서 범위로만 말한다. 응답을 받은(HTTP 200) 호출만 센다.
+const PER_CALL_USD = 5 / 1000;
+console.log("\n--- 이번 실행에서 나간 돈 ---");
+console.log(`Google Routes ${CALLS}건 — 매달 10,000건까지 무료, 넘은 건은 건당 $${PER_CALL_USD}`
+            + ` ($0 ~ $${(CALLS * PER_CALL_USD).toFixed(3)})`);

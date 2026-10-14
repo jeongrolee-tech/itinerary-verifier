@@ -271,7 +271,7 @@ pip install -r requirements.txt     # anthropic, pydantic, fastapi, uvicorn, htt
 python core/run.py                          # 정답 문제 채점 + 실행 기록
 python core/run.py --case T05               # 문제 하나 상세
 python core/run.py --all                    # 전부 상세
-pytest                                      # 규칙 테스트 (정답 문제 29건 회귀 · 확정 위반 반례 · 예상 이동시간 · 길찾기 · 일정 검증 · 구조화 추출 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출 · 응답 캐시 · 데모 API)
+pytest                                      # 규칙 테스트 (정답 문제 29건 회귀 · 확정 위반 반례 · 예상 이동시간 · 길찾기 · 일정 검증 · 구조화 추출 · 결과 묶기 · 수정 재검사 · 실행 기록 · 모델 호출 · 응답 캐시 · 나간 돈 · 데모 API)
 python core/compare.py --dry-run            # 비교 실험 배선 확인
 python core/compare.py --arms code          # 비교 실험, 판정 코드만 (일부 실행 → last-compare-subset.json)
 python core/build_transit_legs.py           # 지하철 최소 이동시간 계산
@@ -302,6 +302,13 @@ node check-tmap-api.mjs                     # 수단별로 경로가 오나 — 
 (`core/response-cache.json`)과 같으면 그 응답을 쓰고 API를 부르지 않는다. 새로 부를 호출이 있으면 몇 건이고 얼마쯤
 드는지 보여 준 뒤 `y`를 받아야 부른다. 저장소에는 2026-10-12에 받은 응답이 들어 있어서, 프롬프트와 데이터를 바꾸지
 않았다면 두 명령은 키 없이 돌고 비용이 들지 않는다([`core/response_cache.py`](#coreresponse_cachepy--응답-캐시)).
+
+**돈이 드는 실행은 나간 돈을 찍는다** (`core/spend.py`). `run_extract.py` · `compare.py`는 새로 부를 때마다 그 호출의
+비용과 누적을, 끝에는 이번 실행에서 나간 돈을 찍고 기록의 `responses.spent_usd`에도 남긴다. 기록의 '비용'은 응답을 받을 때
+든 값이라 받아 둔 응답을 다시 쓴 실행에서도 같은 숫자가 나오는데, 이것은 이번에 실제로 나간 돈이다. `verify.py`는 끝날 때
+(실패로 끝나도), 데모(`app.py`)는 요청마다 서버 창에 찍는다. `.mjs` 스크립트도 끝에 찍는다. Anthropic은 호출마다 금액을,
+TMAP · Google은 건수와 요금 범위를 찍는다 — 무료 제공량을 오늘 · 이번 달에 이미 얼마나 썼는지는 각 콘솔에만 있어서다.
+TMAP은 대중교통만 넘은 뒤 단가(건당 0.88원)를 확인했고, 나머지는 무료 제공량만 확인했다.
 
 GitHub에 올릴 때마다 같은 `pytest`가 Python 3.10과 3.13에서 자동으로 돈다(GitHub Actions, `.github/workflows/tests.yml`).
 외부 API를 부르지 않는 테스트라 키가 필요 없다.
@@ -568,6 +575,7 @@ itinerary-verifier/
 │   ├── model_info.py            기본 모델 · 단가 · 모델별 옵션
 │   ├── llm.py                   Claude 호출 (구조화 출력 · 거부 처리)
 │   ├── response_cache.py        응답 캐시 — 같은 요청이면 받아 둔 LLM 응답을 다시 쓰고, 돈이 들기 전에 묻는다
+│   ├── spend.py                 이번 실행에서 나간 돈 — Claude 호출 비용 · TMAP 호출 건수를 세서 찍는다
 │   ├── routes.py                TMAP 길찾기 (판정할 때만 부르고 저장하지 않는다)
 │   ├── verify.py                일정 하나 검증 (Claude 구조화 추출 → TMAP 길찾기 → 판정)
 │   ├── app.py                   데모 API (FastAPI) — 질문 · 판정 · 표에서 고쳐 다시 검사

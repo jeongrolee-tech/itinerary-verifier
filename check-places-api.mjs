@@ -23,6 +23,7 @@ if (!KEY) {
 }
 
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchText";
+let CALLS = 0;  // 응답을 받은(HTTP 200) 호출 수 — 끝에 나간 돈을 찍는다
 const REQUEST_TIMEOUT_MS = 20000;
 
 // Places API의 day: 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토
@@ -87,6 +88,7 @@ async function search(textQuery) {
   } finally {
     clearTimeout(timer);
   }
+  if (res.ok) CALLS += 1;
 
   const raw = await res.text();
   let json;
@@ -224,3 +226,12 @@ writeFileSync(
   JSON.stringify({ checked_at: new Date().toISOString(), summary: { total, hasHours, verified: verified.length, matched }, results }, null, 2)
 );
 console.log("\n결과 저장: places-api-check.json");
+
+// ── 이번 실행에서 나간 돈 ─────────────────────────────────────────
+// Places API Text Search Enterprise — regularOpeningHours 를 요청하면 이 등급이다. 1,000건에 $35, 매달 1천 건까지 무료
+// (https://developers.google.com/maps/billing-and-pricing/pricing — 2026-10-08 갱신본을 2026-10-14 확인). 무료 사용량은 한 달 전체에 걸리는데 이번 달에
+// 이미 몇 건을 썼는지는 Google Cloud 콘솔에만 있어서 범위로만 말한다. 응답을 받은(HTTP 200) 호출만 센다.
+const PER_CALL_USD = 35 / 1000;
+console.log("\n--- 이번 실행에서 나간 돈 ---");
+console.log(`Google Places ${CALLS}건 — 매달 1,000건까지 무료, 넘은 건은 건당 $${PER_CALL_USD}`
+            + ` ($0 ~ $${(CALLS * PER_CALL_USD).toFixed(3)})`);

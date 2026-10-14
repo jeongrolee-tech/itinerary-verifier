@@ -9,6 +9,7 @@ API 두 개와 HTML 한 장이다. 구조화 추출은 extract, 길찾기는 rou
 report 가 하고 여기서는 잇기만 한다.
 
 키는 서버가 읽고 브라우저로 보내지 않는다. 환경변수(ANTHROPIC_API_KEY · TMAP_KEY)에 없으면 실행할 때 묻는다.
+돈이 드는 요청마다 서버 창에 그 요청에서 나간 돈과 서버를 켠 뒤 누적을 찍는다(spend.py).
 TMAP 키가 없으면 저장해 둔 지하철 하한선으로만 판정한다. 아무것도 저장하지 않는다 — TMAP 이동시간은 판정할
 때만 쓰고, 원래 일정을 처음과 같은 조건으로 다시 판정하도록 화면이 잠깐 들고 있다가 돌려준다(docs/data-policy.md).
 """
@@ -18,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from datetime import date
 from getpass import getpass
 from pathlib import Path
@@ -35,6 +37,7 @@ from llm import InvalidOutput, Refusal  # noqa: E402
 from recheck import recheck_revision  # noqa: E402
 from report import questions, report  # noqa: E402
 from routes import live_legs  # noqa: E402
+from spend import Spend, counting  # noqa: E402
 from verdict import input_checks, judge, weekday_of  # noqa: E402
 
 HERE = Path(__file__).parent
@@ -84,12 +87,23 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
     # 내 PC 주소로 온 요청만 받는다. 다른 사이트가 자기 도메인을 127.0.0.1 로 돌려 놓고(DNS 리바인딩) 이 서버를 부르면
     # 브라우저는 같은 사이트로 보고 막지 않는다. 그러면 남의 페이지가 이 키로 Claude 와 TMAP 을 부를 수 있다
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+    spent, lock = Spend(), threading.Lock()  # 서버를 켠 뒤 나간 돈. 요청은 여러 스레드에서 동시에 올 수 있다
 
-    def judged_legs(itinerary: dict) -> tuple[dict, dict]:
+    def tally(where: str, meter: Spend) -> None:
+        """요청 하나에서 나간 돈을 서버 창에 찍고 누적에 더한다. 돈이 드는 호출이 없었으면 찍지 않는다."""
+        if not meter.calls():
+            return
+        with lock:
+            spent.merge(meter)
+            total = spent.line()
+        print(f"  [비용] {where} — {meter.line()}\n         서버를 켠 뒤 누적 — {total}", flush=True)
+
+    def judged_legs(itinerary: dict, meter: Spend) -> tuple[dict, dict]:
         """TMAP 으로 받은 구간과 받지 못한 이유. 키가 없거나 판정 코어가 구간을 보지 않는 일정이면 둘 다 비어 있다."""
         if not tmap_key or not needs_routes(itinerary):
             return {}, {}
-        legs, misses = live_legs(itinerary, tmap_key, FACTS, POLICY)
+        with counting(meter):
+            legs, misses = live_legs(itinerary, tmap_key, FACTS, POLICY)
         reasons = {k: m.reason for k, m in misses.items()}
         # 택시를 받지 못한 이유는 구간 안에 예외 객체로 들어 있다. 화면으로 보내려고 이유만 꺼낸다
         for k, leg in legs.items():
@@ -112,16 +126,23 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
             raise HTTPException(503, "Anthropic API 키가 없어 자연어 일정을 추출할 수 없습니다. 키를 넣고 앱을 다시 켜 주세요")
         if not body.text.strip():
             raise HTTPException(422, "일정을 적어 주세요")
+        meter = Spend()
         try:
-            ex, _ = extract(body.text, claude, today=today or date.today().isoformat())
-        except Refusal as e:
-            raise HTTPException(422, f"일정을 추출하지 못했습니다 — 모델이 거부했습니다: {e}") from e
-        except InvalidOutput as e:
-            raise HTTPException(422, f"일정을 추출하지 못했습니다 — 모델 출력이 형식에 맞지 않았습니다: {e}") from e
-        except anthropic.APIError as e:
-            raise HTTPException(502, f"Claude API 호출이 실패했습니다 — {type(e).__name__}") from e
-        itinerary = to_itinerary(ex)
-        legs, misses = judged_legs(itinerary)
+            try:
+                ex, usage = extract(body.text, claude, today=today or date.today().isoformat())
+            except Refusal as e:
+                meter.claude("구조화 추출", e.usage)  # 거부 · 형식 오류로 끝나도 청구될 수 있다(model_info.billed)
+                raise HTTPException(422, f"일정을 추출하지 못했습니다 — 모델이 거부했습니다: {e}") from e
+            except InvalidOutput as e:
+                meter.claude("구조화 추출", e.usage)
+                raise HTTPException(422, f"일정을 추출하지 못했습니다 — 모델 출력이 형식에 맞지 않았습니다: {e}") from e
+            except anthropic.APIError as e:
+                raise HTTPException(502, f"Claude API 호출이 실패했습니다 — {type(e).__name__}") from e
+            meter.claude("구조화 추출", usage)
+            itinerary = to_itinerary(ex)
+            legs, misses = judged_legs(itinerary, meter)
+        finally:
+            tally("/api/check", meter)
         out = judge(itinerary, with_legs(legs), POLICY)
         return {"itinerary": itinerary, "notes": ex.notes, "legs": legs, "leg_misses": misses,
                 "tmap": bool(tmap_key), "result": out, "report": report(out), "questions": questions(out)}
@@ -133,7 +154,11 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
         #    판정한다. 둘을 섞으면 같은 구간을 다른 시각의 이동시간으로 판정해 '수정 전' 판정이 처음 본 것과
         #    달라질 수 있고, 새로 받지 못한 구간에 다른 출발 시각의 값이 들어간다.
         revised = normalized(body.revised)
-        legs, misses = judged_legs(revised)
+        meter = Spend()
+        try:
+            legs, misses = judged_legs(revised, meter)
+        finally:
+            tally("/api/recheck", meter)
         r = recheck_revision(body.original, revised, with_legs(first_legs(body.legs)), POLICY,
                              revised_facts=with_legs(legs))
         return {"legs": legs, "leg_misses": misses, "tmap": bool(tmap_key),

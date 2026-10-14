@@ -15,7 +15,8 @@
   · 판정 평가 — 사람이 확인한 구조화 일정을 넣었을 때 코드가 기대한 결과를 내는가 (run.py)
 
 추출은 돈이 든다. 모델이 받는 것이 같은 요청은 응답 캐시(response_cache.py)에 받아 둔 응답을 쓰고,
-새로 부를 것이 있으면 몇 건이고 얼마쯤인지 보여 준 뒤 y 를 받아야 부른다.
+새로 부를 것이 있으면 몇 건이고 얼마쯤인지 보여 준 뒤 y 를 받아야 부른다. 부를 때마다 그 호출 비용과
+누적을 찍고, 끝에 이번 실행에서 나간 돈을 찍어 기록(responses.spent_usd)에도 남긴다(spend.py).
 """
 
 import json
@@ -33,6 +34,7 @@ from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from report import INPUT_SOURCE_NAMES, SET_NAMES, VERDICT_NAMES, pad  # noqa: E402
 from response_cache import ResponseCache, confirm_spend, request_key  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
+from spend import Spend  # noqa: E402
 from verdict import EVENT_NAMES, judge, support_scope  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -147,6 +149,7 @@ if new_calls:
         raise SystemExit("키가 비어 있다.")
     client = anthropic.Anthropic(api_key=key)
 results, usages, runs = [], [], set()  # usages — 응답마다 하나. 거부된 호출도 들어간다. runs — 응답을 받은 실행
+meter = Spend()  # 이번 실행에서 새로 부른 호출만 센다 — 받아 둔 응답은 돈이 나가지 않는다
 
 for case in cases:
     print(f"\n{LINE}\n  {case['id']}  [{SET_NAMES.get(case['set'], case['set'])}]\n{LINE}")
@@ -165,8 +168,12 @@ for case in cases:
         except anthropic.APIError as e:
             # 잔액 부족 · 네트워크 오류. 남은 문제를 계속 부르지 않고 멈춘다 — 공식 기록은 건드리지 않는다
             raise SystemExit(f"❌ API 호출 실패: {type(e).__name__} {e}\n"
-                             "  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.") from e
+                             "  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.\n"
+                             f"{meter.summary()}") from e
         hit = cache.put(keys[case["id"]], run=RUN_ID, label="extract", result=result, usage=usage)
+        cost = meter.claude("구조화 추출", usage)
+        print(f"[비용] 새로 부름 {'단가 모름' if cost is None else f'${cost:.4f}'}"
+              f" · 이번 실행 누적 ${meter.claude_usd:.4f}\n")
     result, usage = hit["result"], hit["usage"]
     usages.append(usage)
     runs.add(hit["run"])
@@ -264,7 +271,8 @@ lat = [r["usage"]["latency_ms"] for r in results if r.get("usage")]
 if lat:
     print(f"  지연 중앙값 {sorted(lat)[len(lat) // 2]}ms / 최대 {max(lat)}ms")
 print(f"  모델 {MODEL} / effort {EFFORT}")
-print(f"  이번 실행에서 새로 부른 호출 {new_calls}건 · 받아 둔 응답 {len(stored)}건  (위 비용은 응답을 받을 때 든 값이다)")
+print(f"  (위 비용은 응답을 받을 때 든 값이다. 받아 둔 응답 {len(stored)}건은 이번에 돈이 나가지 않았다)\n")
+print(meter.summary())
 
 run = {
     "_역할": "추출 실행 기록. 자연어에서 무엇을 뽑았는지, 기대 추출값과 어디가 "
@@ -276,7 +284,9 @@ run = {
     "facts_snapshot": facts["snapshot_id"],
     "conditions": CONDITIONS,
     # LLM 응답을 이번에 새로 받았는지, 받아 둔 것을 썼는지와 그 응답을 받은 실행
-    "responses": {"new": new_calls, "reused": len(stored), "received_in": sorted(runs)},
+    # spent_usd 는 이번 실행에서 실제로 나간 돈이다. 아래 estimated_cost_usd 는 응답을 받을 때 든 값이다
+    "responses": {"new": new_calls, "reused": len(stored), "received_in": sorted(runs),
+                  "spent_usd": round(meter.claude_usd, 4)},
     "tokens": totals,
     "pricing_per_mtok": PRICES.get(MODEL),
     "estimated_cost_usd": None if cost is None else round(cost, 4),
