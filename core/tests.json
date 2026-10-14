@@ -1,6 +1,6 @@
 {
   "note": "수작업으로 검토한 골든 테스트. 정답 라벨은 판정 코드의 출력을 보지 않고 공식 출처와 규칙 문서에서 만들었다. 만든 경위와 예외는 label_note 에 적는다.",
-  "labeled_at": "2026-10-06",
+  "labeled_at": "2026-10-14",
   "reference_date": "2026-09-22",
   "reference_date_note": "입력의 '오늘'. 연도가 빠진 날짜(\"10월 8일\")는 이 날 기준 가장 가까운 미래로 푼다. 기대 추출값(date)이 이 날을 오늘로 보고 만들어졌다. run_extract.py · compare.py 가 읽고, 실행할 때 --reference-date 로 바꿀 수 있다.",
   "time_rule": "오전·오후 기준 (2026-10-06 정하고 10-07 고침, 사용자 결정). 오전·오후·아침·저녁·밤 같은 말이 시각에 붙어 있거나 '17시 30분' 처럼 24시간으로 말한 시각은 사용자가 말한 시각이다. 붙어 있지 않아도 같은 일정에서 앞에 나온 시각 뒤로 처음 오는 시각으로 정해지면 사용자가 말한 시각이다 — '오후 1시 … 3시' 의 3시는 15:00 이다. 기댈 앞 시각이 없을 때만 기대 추출값의 start_source 를 inferred 로 적고, 값은 일정에 가장 그럴듯한 쪽으로 적는다('5시 반에 경복궁' → 17:30). 추측한 시각에 기대는 검사는 pass 든 fail 이든 확정하지 않는다(README 판정 규칙).",
@@ -1460,9 +1460,407 @@
           "국립중앙박물관 휴무일 · 운영시간 — 지원 목록 밖"
         ]
       }
+    },
+    {
+      "id": "T30-금요일야간세곳",
+      "set": "holdout",
+      "expect": "feasible",
+      "labeled_against": "facts-2026-09-29",
+      "why": "금요일이라 세 곳 모두 연다. 미술관은 금요일만 21:00 까지(입장마감 20:00)라 19:30 입장, 20:30 종료가 된다. 화~목 시간표(입장마감 19:00)를 고르는 구현은 불가능을 낸다. 구간마다 테스트용 이동시간에 권장 여유 10분을 더해도 다음 시작 전에 닿는다. 가장 빠듯한 경복궁 → 덕수궁도 16:25 에 닿아 16:30 시작에 맞는다",
+      "raw": "10월 23일 금요일 오후 2시에 경복궁 들어가서 두 시간 보고, 4시 반에 덕수궁에서 한 시간 반, 저녁 7시 반에 서울시립미술관 서소문본관 가서 한 시간 볼게요.",
+      "date": "2026-10-23",
+      "date_source": "inferred",
+      "weekday_stated": "FRI",
+      "stops": [
+        {
+          "place": "경복궁",
+          "start": "14:00",
+          "dwell_minutes": 120
+        },
+        {
+          "place": "덕수궁",
+          "start": "16:30",
+          "dwell_minutes": 90
+        },
+        {
+          "place": "서울시립미술관 서소문본관",
+          "start": "19:30",
+          "dwell_minutes": 60
+        }
+      ],
+      "legs": {
+        "경복궁|덕수궁": {
+          "minutes": 15,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        },
+        "덕수궁|서울시립미술관 서소문본관": {
+          "minutes": 10,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        }
+      },
+      "expect_checks": [
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "경복궁 → 덕수궁",
+          "status": "pass"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "덕수궁 → 서울시립미술관 서소문본관",
+          "status": "pass"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "서울시립미술관 서소문본관",
+          "status": "pass"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "서울시립미술관 서소문본관",
+          "status": "pass"
+        }
+      ],
+      "expect_applied": {
+        "facts": [
+          "closed_days.weekly — 경복궁 [TUE], 덕수궁 · 서울시립미술관 서소문본관 [MON]",
+          "places.경복궁.hours (3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
+          "places.덕수궁.hours (1~12월) 09:00~21:00, last_admission 20:00",
+          "places.서울시립미술관 서소문본관.hours (FRI) 10:00~21:00, last_admission 20:00",
+          "policy.buffer_minutes.transit_leg 10",
+          "legs 2구간 — 케이스에 적은 테스트용 값"
+        ],
+        "assumptions": [],
+        "missing": []
+      }
+    },
+    {
+      "id": "T31-네곳중화요일휴궁",
+      "set": "holdout",
+      "expect": "infeasible",
+      "labeled_against": "facts-2026-09-29",
+      "why": "10월 20일 화요일은 경복궁 정기휴일이다(공휴일이 아니라 미뤄지지도 않는다). 창덕궁 · 덕수궁 · 미술관은 월요일에 쉬는 곳이라 이날 연다. 네 곳 중 한 곳이 확정 위반이라 전체는 불가능이다. 나머지 세 곳의 입장 · 체류와 덕수궁 → 미술관 이동은 통과다. 쉬는 요일을 궁마다 같게 보거나, 장소가 많을 때 일부만 검사하는 구현을 잡는다",
+      "raw": "10월 20일 화요일 오전 10시에 창덕궁 들어가서 한 시간 반 보고, 낮 12시 반에 경복궁 두 시간, 오후 3시에 덕수궁 한 시간, 오후 5시에 서울시립미술관 서소문본관에서 한 시간 볼게요.",
+      "date": "2026-10-20",
+      "date_source": "inferred",
+      "weekday_stated": "TUE",
+      "stops": [
+        {
+          "place": "창덕궁",
+          "start": "10:00",
+          "dwell_minutes": 90
+        },
+        {
+          "place": "경복궁",
+          "start": "12:30",
+          "dwell_minutes": 120
+        },
+        {
+          "place": "덕수궁",
+          "start": "15:00",
+          "dwell_minutes": 60
+        },
+        {
+          "place": "서울시립미술관 서소문본관",
+          "start": "17:00",
+          "dwell_minutes": 60
+        }
+      ],
+      "legs": {
+        "창덕궁|경복궁": {
+          "minutes": 20,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        },
+        "경복궁|덕수궁": {
+          "minutes": 15,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        },
+        "덕수궁|서울시립미술관 서소문본관": {
+          "minutes": 10,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        }
+      },
+      "expect_checks": [
+        {
+          "type": "CLOSED_DAY",
+          "target": "경복궁",
+          "status": "fail"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "창덕궁",
+          "status": "pass"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "덕수궁",
+          "status": "pass"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "서울시립미술관 서소문본관",
+          "status": "pass"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "덕수궁 → 서울시립미술관 서소문본관",
+          "status": "pass"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "서울시립미술관 서소문본관",
+          "status": "pass"
+        }
+      ],
+      "expect_applied": {
+        "facts": [
+          "places.경복궁.closed_days.weekly [TUE] — 2026-10-20 은 공휴일이 아니다",
+          "closed_days.weekly — 창덕궁 · 덕수궁 · 서울시립미술관 서소문본관 [MON]",
+          "places.창덕궁.hours (2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
+          "places.서울시립미술관 서소문본관.hours (TUE·WED·THU) 10:00~20:00, last_admission 19:00",
+          "legs 3구간 — 케이스에 적은 테스트용 값"
+        ],
+        "assumptions": [],
+        "missing": []
+      }
+    },
+    {
+      "id": "T32-다섯곳중광장시장",
+      "set": "holdout",
+      "expect": "undetermined",
+      "labeled_against": "facts-2026-09-29",
+      "why": "수요일이라 궁 세 곳과 미술관은 열고, 입장 · 체류와 네 구간 이동은 모두 통과다. 광장시장은 점포마다 달라 시장 단위 운영정보가 없어 휴무일과 입장을 확인하지 못한다. 위반은 없고 확인 못 한 검사가 남아 보류다. 확인할 정보가 없다고 통과로 넘기는 구현은 가능을, 한 곳의 빈 정보를 다른 장소나 구간까지 미확인으로 번지게 하는 구현은 다른 검사를 틀린다",
+      "raw": "10월 21일 수요일 오전 9시 반에 경복궁에서 한 시간 보고, 11시 반에 창덕궁 한 시간, 오후 1시에 광장시장에서 한 시간 동안 점심 먹고, 오후 3시에 덕수궁 한 시간, 오후 4시 반에 서울시립미술관 서소문본관에서 한 시간 반 볼게요.",
+      "date": "2026-10-21",
+      "date_source": "inferred",
+      "weekday_stated": "WED",
+      "stops": [
+        {
+          "place": "경복궁",
+          "start": "09:30",
+          "dwell_minutes": 60
+        },
+        {
+          "place": "창덕궁",
+          "start": "11:30",
+          "dwell_minutes": 60
+        },
+        {
+          "place": "광장시장",
+          "start": "13:00",
+          "dwell_minutes": 60
+        },
+        {
+          "place": "덕수궁",
+          "start": "15:00",
+          "dwell_minutes": 60
+        },
+        {
+          "place": "서울시립미술관 서소문본관",
+          "start": "16:30",
+          "dwell_minutes": 90
+        }
+      ],
+      "legs": {
+        "경복궁|창덕궁": {
+          "minutes": 20,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        },
+        "창덕궁|광장시장": {
+          "minutes": 15,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        },
+        "광장시장|덕수궁": {
+          "minutes": 20,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        },
+        "덕수궁|서울시립미술관 서소문본관": {
+          "minutes": 10,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        }
+      },
+      "expect_checks": [
+        {
+          "type": "CLOSED_DAY",
+          "target": "광장시장",
+          "status": "unknown"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "광장시장",
+          "status": "unknown"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "경복궁 → 창덕궁",
+          "status": "pass"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "창덕궁 → 광장시장",
+          "status": "pass"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "광장시장 → 덕수궁",
+          "status": "pass"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "덕수궁 → 서울시립미술관 서소문본관",
+          "status": "pass"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "창덕궁",
+          "status": "pass"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "서울시립미술관 서소문본관",
+          "status": "pass"
+        }
+      ],
+      "expect_applied": {
+        "facts": [
+          "closed_days.weekly — 경복궁 [TUE], 창덕궁 · 덕수궁 · 서울시립미술관 서소문본관 [MON]",
+          "places.경복궁.hours (3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
+          "places.창덕궁.hours (2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
+          "places.서울시립미술관 서소문본관.hours (TUE·WED·THU) 10:00~20:00, last_admission 19:00",
+          "policy.buffer_minutes.transit_leg 10",
+          "legs 4구간 — 케이스에 적은 테스트용 값"
+        ],
+        "assumptions": [],
+        "missing": [
+          "places.광장시장.hours · closed_days 없음 — missing_note '점포마다 달라서 시장 단위 정의를 확보하지 못했다'"
+        ]
+      }
+    },
+    {
+      "id": "T33-세곳과열차",
+      "set": "holdout",
+      "expect": "feasible",
+      "labeled_against": "facts-2026-09-29",
+      "why": "금요일이라 세 곳 모두 열고, 구간마다 권장 여유 10분을 더해도 다음 시작 전에 닿는다. 덕수궁에서 15:30 에 나와 서울역까지 20분(테스트용 값)이면 15:50 에 닿아, 열차 권장 여유 15분을 더해도 16:05 로 16:30 열차 전이다. 장소 여러 곳 뒤에 필수 일정이 붙어도 근거가 다 있으면 가능이 나와야 한다. 열차를 마지막 장소의 종료 시각이 아니라 다른 시각에서 재거나, 서울역을 방문 장소로 넣는 구현을 잡는다",
+      "raw": "10월 16일 금요일 오전 9시 반에 창덕궁 가서 한 시간 보고, 11시 반에 경복궁 두 시간, 오후 2시에 덕수궁에서 한 시간 반 본 다음, 오후 4시 반에 서울역에서 KTX를 꼭 타야 해요.",
+      "date": "2026-10-16",
+      "date_source": "inferred",
+      "weekday_stated": "FRI",
+      "stops": [
+        {
+          "place": "창덕궁",
+          "start": "09:30",
+          "dwell_minutes": 60
+        },
+        {
+          "place": "경복궁",
+          "start": "11:30",
+          "dwell_minutes": 120
+        },
+        {
+          "place": "덕수궁",
+          "start": "14:00",
+          "dwell_minutes": 90
+        }
+      ],
+      "hard_constraints": [
+        {
+          "id": "HC1",
+          "type": "TRAIN_DEPARTURE",
+          "place": "서울역",
+          "time": "16:30",
+          "buffer_rule": "rail_boarding",
+          "source": "user_stated",
+          "raw": "오후 4시 반 서울역에서 KTX. 꼭 타야 해요"
+        }
+      ],
+      "legs": {
+        "창덕궁|경복궁": {
+          "minutes": 20,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        },
+        "경복궁|덕수궁": {
+          "minutes": 15,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        },
+        "덕수궁|서울역": {
+          "minutes": 20,
+          "mode": "transit",
+          "is_lower_bound": false,
+          "source": "synthetic_fixture",
+          "method": "synthetic_fixture"
+        }
+      },
+      "expect_checks": [
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "창덕궁 → 경복궁",
+          "status": "pass"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "경복궁 → 덕수궁",
+          "status": "pass"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "덕수궁",
+          "status": "pass"
+        }
+      ],
+      "expect_hard_constraints": [
+        {
+          "id": "HC1",
+          "status": "pass"
+        }
+      ],
+      "expect_applied": {
+        "facts": [
+          "closed_days.weekly — 경복궁 [TUE], 창덕궁 · 덕수궁 [MON]",
+          "places.창덕궁.hours (2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
+          "places.경복궁.hours (3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
+          "places.덕수궁.hours (1~12월) 09:00~21:00, last_admission 20:00",
+          "policy.buffer_minutes.transit_leg 10 · rail_boarding 15",
+          "legs 3구간 — 케이스에 적은 테스트용 값 (덕수궁|서울역 20분은 T27 과 같다)"
+        ],
+        "assumptions": [],
+        "missing": []
+      }
     }
   ],
-  "label_note": "라벨은 공식 페이지 문구에서 만들었고 기대 추출값은 입력 원문에 적힌 것만 넣는다. 2026-09-22 재검토 — 이동시간 출처를 공공누리 지하철 하한선으로 바꾸고 장소 4곳을 추가하자 8건의 전제가 달라졌다. T01·T04 는 하한선으로 확정이 불가능해져 내렸고, T10·T13 은 전제가 사라져 케이스 목적을 옮겼다. T04 는 이전 라벨이 약관상 쓸 수 없는 값(Google 실측값)에 기대어 위반을 확정하고 있었다. 2026-10-06 — 결과를 보지 않은 holdout 12건(T16~T27)을 2차 피드백 3번의 여섯 범주(3~6곳 일정 · 공휴일과 운영시간 경계 · 같은 이름의 장소 · 애매한 시간 표현 · 확정 오류와 정보 부족 · 열차 조건만)마다 2건씩 더했다. Claude 가 판정 코드를 돌리지 않고 초안을 쓰고 사용자가 확인했으며, 처음 돌리기 전에 커밋했다. 다만 초안을 쓴 Claude 는 판정 코드를 함께 고쳐 온 작성자라 코드를 본 적이 없는 상태가 아니다(초안 직전에도 이동 검사 부분을 읽었다). 그래서 정답은 코드가 아니라 README 판정 규칙과 facts.json 의 공식 근거로 정했고, 새 12건은 라벨을 커밋하기 전에 코드로 돌리거나 결과를 본 적이 없다. 오전·오후 기준(time_rule)은 2026-10-06 에 '시각에 직접 붙은 말만' 으로 정했다가, 첫 실행 전인 10-07 에 '앞 시각 이어받기' 로 고쳤다. '오후 1시 … 3시' 의 3시를 묻는 것은 답이 뻔한 질문이기 때문이다. 그래서 T23 정답이 undetermined 에서 feasible 로 바뀌었고, T01 · T03 · T12 는 처음 라벨 그대로다. 2026-10-07 — 3-5 지원 범위 분류를 채점하려고 holdout 2건(T28 구역 · T29 지원 목록 밖 장소)을 더했다. 판정 코드(support_scope)를 고친 뒤에 썼지만 코드로 돌리지 않았고, 처음 돌리기 전에 커밋했다.",
+  "label_note": "라벨은 공식 페이지 문구에서 만들었고 기대 추출값은 입력 원문에 적힌 것만 넣는다. 2026-09-22 재검토 — 이동시간 출처를 공공누리 지하철 하한선으로 바꾸고 장소 4곳을 추가하자 8건의 전제가 달라졌다. T01·T04 는 하한선으로 확정이 불가능해져 내렸고, T10·T13 은 전제가 사라져 케이스 목적을 옮겼다. T04 는 이전 라벨이 약관상 쓸 수 없는 값(Google 실측값)에 기대어 위반을 확정하고 있었다. 2026-10-06 — 결과를 보지 않은 holdout 12건(T16~T27)을 2차 피드백 3번의 여섯 범주(3~6곳 일정 · 공휴일과 운영시간 경계 · 같은 이름의 장소 · 애매한 시간 표현 · 확정 오류와 정보 부족 · 열차 조건만)마다 2건씩 더했다. Claude 가 판정 코드를 돌리지 않고 초안을 쓰고 사용자가 확인했으며, 처음 돌리기 전에 커밋했다. 다만 초안을 쓴 Claude 는 판정 코드를 함께 고쳐 온 작성자라 코드를 본 적이 없는 상태가 아니다(초안 직전에도 이동 검사 부분을 읽었다). 그래서 정답은 코드가 아니라 README 판정 규칙과 facts.json 의 공식 근거로 정했고, 새 12건은 라벨을 커밋하기 전에 코드로 돌리거나 결과를 본 적이 없다. 오전·오후 기준(time_rule)은 2026-10-06 에 '시각에 직접 붙은 말만' 으로 정했다가, 첫 실행 전인 10-07 에 '앞 시각 이어받기' 로 고쳤다. '오후 1시 … 3시' 의 3시를 묻는 것은 답이 뻔한 질문이기 때문이다. 그래서 T23 정답이 undetermined 에서 feasible 로 바뀌었고, T01 · T03 · T12 는 처음 라벨 그대로다. 2026-10-07 — 3-5 지원 범위 분류를 채점하려고 holdout 2건(T28 구역 · T29 지원 목록 밖 장소)을 더했다. 판정 코드(support_scope)를 고친 뒤에 썼지만 코드로 돌리지 않았고, 처음 돌리기 전에 커밋했다. 2026-10-14 — 3곳 이상 일정이 29건 중 2건(T16 · T17)뿐이라 holdout 4건(T30~T33)을 더했다. 3곳 가능(금요일 야간 시간표) · 4곳 중 한 곳 휴궁으로 불가능 · 5곳 중 한 곳 정보 없음으로 보류 · 3곳 뒤 열차 가능이다. Claude 가 판정 코드를 돌리지 않고 초안을 쓰고 사용자가 확인했으며, 처음 돌리기 전에 커밋했다. 초안을 쓰기 직전 같은 세션에서 판정 코드의 이동 · 체류 검사 부분을 읽었다. 테스트용 이동시간은 기존 문제와 같은 구간이면 같은 값을 썼다.",
   "label_fields": {
     "raw": "입력 (자연어)",
     "date / date_source / weekday_stated / stops / hard_constraints": "기대 추출값 — run_extract.py 가 이것과 대조한다. date_source 는 연도를 말했으면 explicit, 아니면 inferred",
