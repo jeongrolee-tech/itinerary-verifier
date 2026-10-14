@@ -121,13 +121,6 @@ def ask_key() -> str:
     return getpass("Anthropic API 키 입력: ").strip()
 
 
-def last_cost_per_case() -> float | None:
-    """지난 공식 기록의 건당 비용 — 새로 부를 호출의 비용을 어림하는 데 쓴다. 모델이 다르면 견줄 수 없다."""
-    path = HERE / "last-extract-run.json"
-    last = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    return last.get("estimated_cost_per_case_usd") if last.get("model") == MODEL else None
-
-
 RUN_ID = f"extract-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 # ⭐ API 를 부르기 전에 요청을 다 만들어 응답 캐시와 맞춰 본다. 모델이 받는 것이 같은 요청은 받아 둔 응답을 쓰고,
@@ -140,7 +133,7 @@ stored = {}  # 문제 → 받아 둔 응답. --fresh 면 쓰지 않고 전부 �
 if "--fresh" not in args:
     stored = {cid: hit for cid, key in keys.items() if (hit := cache.get(key))}
 new_calls = len(cases) - len(stored)
-confirm_spend({"구조화 추출": new_calls}, len(stored), {"구조화 추출": last_cost_per_case()})
+confirm_spend({"구조화 추출": new_calls}, len(stored), {"구조화 추출": cache.estimate_usd(MODEL, "extract", new_calls)})
 
 client = None
 if new_calls:

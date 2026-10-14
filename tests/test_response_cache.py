@@ -14,6 +14,7 @@ from anthropic.types import Message
 from pydantic import BaseModel
 
 from llm import ask
+from model_info import cost_usd
 from response_cache import ResponseCache, confirm_spend, cost_summary, request_key
 from runmeta import fingerprint
 
@@ -113,7 +114,7 @@ def test_nothing_new_means_no_question_and_no_cost(monkeypatch, capsys):
 def test_new_calls_show_how_many_and_how_much(monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda *_: "y")
     confirm_spend({"LLM에 그냥 물음": 0, "LLM에 사실 데이터 줌": 29}, 58,
-                  {"LLM에 그냥 물음": 0.0218, "LLM에 사실 데이터 줌": 0.0566})
+                  {"LLM에 그냥 물음": 0.0, "LLM에 사실 데이터 줌": 1.6414})
     out = capsys.readouterr().out
     assert "받아 둔 응답 58건" in out and "새로 부를 호출은 29건" in out
     assert "예상 비용 약 $1.64" in out
@@ -133,6 +134,46 @@ def test_no_one_to_answer_stops_before_spending(monkeypatch):
     monkeypatch.setattr("builtins.input", closed)
     with pytest.raises(SystemExit):
         confirm_spend({"구조화 추출": 3}, 26, {"구조화 추출": 0.0077})
+
+
+def used(input_tokens, output_tokens, cache_read=0, cache_write=0, model="claude-opus-5-5"):
+    return {**USAGE, "model": model, "input_tokens": input_tokens, "output_tokens": output_tokens,
+            "cache_read": cache_read, "cache_write": cache_write}
+
+
+# 2026-10-14 에 T30~T33 구조화 추출로 실제로 받은 네 호출의 사용량. 첫 호출이 프롬프트 캐시를 썼다
+OCT14 = [used(117, 400, cache_write=4435), used(133, 457, cache_read=4435),
+         used(161, 583, cache_read=4435), used(134, 455, cache_read=4435)]
+
+
+def cache_with(tmp_path, usages, label="extract"):
+    cache = ResponseCache(tmp_path / "cache.json")
+    cache.responses = {f"k{i}": {"label": label, "run": "r", "result": {}, "usage": u} for i, u in enumerate(usages)}
+    return cache
+
+
+def test_estimate_is_not_below_what_the_same_calls_cost(tmp_path):
+    """그날 지난 평균으로 $0.03 이라고 했는데 $0.0649 가 나갔다. 같은 네 호출이면 어림이 실제보다 낮으면 안 된다."""
+    spent = sum(cost_usd("claude-opus-5-5", u) for u in OCT14)
+    estimate = cache_with(tmp_path, OCT14).estimate_usd("claude-opus-5-5", "extract", 4)
+    assert spent == pytest.approx(0.0649, abs=1e-4)
+    assert spent <= estimate < spent * 1.5  # 넉넉하되 터무니없지 않게
+
+
+def test_estimate_counts_one_cache_write_per_run(tmp_path):
+    """한 건이든 네 건이든 시스템 프롬프트를 캐시에 올리는 비용은 한 번이다."""
+    cache = cache_with(tmp_path, OCT14)
+    one, four = (cache.estimate_usd("claude-opus-5-5", "extract", n) for n in (1, 4))
+    per_call = (161 * 4.00 + 4435 * 0.20 + 583 * 20.00) / 1e6
+    assert four - one == pytest.approx(3 * per_call)
+
+
+def test_estimate_without_comparable_calls_is_unknown(tmp_path):
+    """다른 이름 · 다른 모델의 응답으로는 어림하지 않는다. 부를 것이 없으면 0 이다."""
+    cache = cache_with(tmp_path, OCT14)
+    assert cache.estimate_usd("claude-opus-5-5", "llm_naive", 4) is None
+    assert cache.estimate_usd("claude-sonnet-5-5", "extract", 4) is None
+    assert cache.estimate_usd("claude-opus-5-5", "llm_naive", 0) == 0
 
 
 def test_unknown_cost_is_said_not_guessed(monkeypatch, capsys):

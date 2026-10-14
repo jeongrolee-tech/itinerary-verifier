@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from llm import request_params
-from model_info import cost_usd
+from model_info import PRICES, cost_usd
 from runmeta import fingerprint
 
 PATH = Path(__file__).parent / "response-cache.json"
@@ -65,11 +65,32 @@ class ResponseCache:
         os.replace(tmp, self.path)
         return self.responses[key]
 
+    def estimate_usd(self, model: str, label: str, n: int) -> float | None:
+        """같은 모델 · 같은 이름(label)으로 새로 부를 n 건의 비용을 넉넉히 어림한다. 견줄 응답이 없으면 None.
 
-def confirm_spend(new: dict[str, int], reused: int, per_call_usd: dict[str, float | None]) -> None:
+        ⭐ 지난 기록의 건당 평균을 쓰지 않는다. 2026-10-14 에 그렇게 $0.40 이라고 하고 $0.63 이 나갔다 — 평균에는
+           방식마다 첫 호출 한 번의 프롬프트 캐시 쓰기가 29건에 나뉘어 묻혀 있었고, 새 문제는 장소가 많아 답이 더 길었다.
+           그래서 받아 둔 응답의 호출별 사용량에서 입력과 출력은 가장 긴 것을 쓰고, 시스템 프롬프트는 호출마다 캐시
+           읽기로, 첫 호출 한 번은 캐시 쓰기로 센다. 실제보다 조금 많게 나오는 쪽을 고른 것이다.
+        """
+        if not n:
+            return 0.0
+        usages = [r["usage"] for r in self.responses.values()
+                  if r["label"] == label and r["usage"] and r["usage"]["model"] == model]
+        p = PRICES.get(model)
+        if not usages or p is None:
+            return None
+        system = max(u["cache_read"] + u["cache_write"] for u in usages)
+        per_call = (max(u["input_tokens"] for u in usages) * p["input"] + system * p["cache_read"]
+                    + max(u["output_tokens"] for u in usages) * p["output"]) / 1e6
+        return n * per_call + system * (p["cache_write"] - p["cache_read"]) / 1e6
+
+
+def confirm_spend(new: dict[str, int], reused: int, estimated_usd: dict[str, float | None]) -> None:
     """API 를 부르기 전에 무엇을 새로 부르고 얼마쯤 드는지 보여 준다. 새로 부를 것이 있으면 y 를 받아야 넘어간다.
 
-    new 는 이름별 새 호출 수, per_call_usd 는 같은 이름의 지난 건당 비용(모르면 None)이다.
+    new 는 이름별 새 호출 수, estimated_usd 는 그 호출들을 다 부르는 데 드는 어림 비용(ResponseCache.estimate_usd,
+    모르면 None)이다.
     """
     calls = sum(new.values())
     print(f"  응답 캐시 — 받아 둔 응답 {reused}건을 다시 쓰고, 새로 부를 호출은 {calls}건이다.")
@@ -79,11 +100,12 @@ def confirm_spend(new: dict[str, int], reused: int, per_call_usd: dict[str, floa
     costs = []
     for name, n in new.items():
         if n:
-            price = per_call_usd.get(name)
-            costs.append(None if price is None else n * price)
-            print(f"    {name} {n}건  " + ("비용 모름 — 견줄 지난 기록이 없다" if price is None else f"약 ${n * price:.2f}"))
+            cost = estimated_usd.get(name)
+            costs.append(cost)
+            print(f"    {name} {n}건  " + ("비용 모름 — 견줄 응답이 없다" if cost is None else f"약 ${cost:.2f}"))
     if None not in costs:
-        print(f"  예상 비용 약 ${sum(costs):.2f}  (지난 기록의 건당 비용으로 어림한 값)")
+        print(f"  예상 비용 약 ${sum(costs):.2f}  (받아 둔 응답 중 가장 긴 입력 · 출력에 첫 호출의 프롬프트 캐시 쓰기를"
+              " 더해 넉넉히 어림한 값)")
     try:
         answer = input("  API 를 부르면 돈이 든다. 계속하려면 y: ")
     except EOFError:

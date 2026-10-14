@@ -232,14 +232,6 @@ def answer(arm: str, req: dict, key: str, case_id: str) -> dict:
     return hit
 
 
-def last_cost_per_case() -> dict:
-    """지난 공식 기록의 방식별 건당 비용 — 새로 부를 호출의 비용을 어림하는 데 쓴다. 모델이 다르면 견줄 수 없다."""
-    path = HERE / "last-compare.json"
-    last = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    costs = last.get("cost", {}) if last.get("model") == MODEL else {}
-    return {ARM_NAMES[arm]: costs.get(arm, {}).get("per_case_usd") for arm in SYSTEMS}
-
-
 # ── 지표 ────────────────────────────────────────────────────────────
 def metrics(scored: list[dict]) -> dict:
     """
@@ -362,10 +354,11 @@ elif need_llm:
     cache = ResponseCache()
     if "--fresh" not in args:  # --fresh 면 받아 둔 응답을 쓰지 않고 전부 새로 받아 바꿔 넣는다
         stored = {key: hit for _, _, _, keys in plan for key in keys.values() if (hit := cache.get(key))}
-    new = {ARM_NAMES[arm]: sum(1 for _, _, _, keys in plan if arm in keys and keys[arm] not in stored)
-           for arm in SYSTEMS}
+    counts = {arm: sum(1 for _, _, _, keys in plan if arm in keys and keys[arm] not in stored) for arm in SYSTEMS}
+    new = {ARM_NAMES[arm]: n for arm, n in counts.items()}
     new_calls = sum(new.values())
-    confirm_spend(new, sum(len(keys) for _, _, _, keys in plan) - new_calls, last_cost_per_case())
+    confirm_spend(new, sum(len(keys) for _, _, _, keys in plan) - new_calls,
+                  {ARM_NAMES[arm]: cache.estimate_usd(MODEL, arm, n) for arm, n in counts.items()})
     if new_calls:
         import os
         from getpass import getpass
