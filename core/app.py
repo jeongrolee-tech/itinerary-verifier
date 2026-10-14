@@ -96,7 +96,12 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
         with lock:
             spent.merge(meter)
             total = spent.line()
-        print(f"  [비용] {where} — {meter.line()}\n         서버를 켠 뒤 누적 — {total}", flush=True)
+        try:
+            print(f"  [비용] {where} — {meter.line()}\n         서버를 켠 뒤 누적 — {total}", flush=True)
+        except (OSError, UnicodeError):
+            # 서버 창이 UTF-8 이 아니면(main 을 거치지 않고 켠 경우) 찍지 못한다. 그래도 요청은 끝까지 간다 —
+            # 이미 돈을 낸 판정을 비용 줄 하나 때문에 오류로 돌려주면 안 된다
+            pass
 
     def judged_legs(itinerary: dict, meter: Spend) -> tuple[dict, dict]:
         """TMAP 으로 받은 구간과 받지 못한 이유. 키가 없거나 판정 코어가 구간을 보지 않는 일정이면 둘 다 비어 있다."""

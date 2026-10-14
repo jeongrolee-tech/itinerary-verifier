@@ -135,3 +135,15 @@ def test_demo_prints_what_each_request_spent(monkeypatch, capsys):
     no_tmap = TestClient(create_app(Claude(T01), None, today="2026-10-01"), base_url="http://127.0.0.1")
     no_tmap.post("/api/recheck", json={"original": first["itinerary"], "revised": first["itinerary"]})
     assert "[비용]" not in capsys.readouterr().out
+
+
+def test_demo_request_survives_a_console_that_cannot_print(monkeypatch):
+    """서버 창이 cp949 면 비용 줄의 '—' 를 찍지 못한다(2026-10-14 에 실제로 났다). 그래도 판정은 돌려준다 — 돈은 이미 나갔다."""
+    tmap_answers(monkeypatch)
+    c = TestClient(create_app(Claude(T01), "key", today="2026-10-01"), base_url="http://127.0.0.1")
+
+    def cp949_console(*args, **kwargs):
+        raise UnicodeEncodeError("cp949", "—", 0, 1, "illegal multibyte sequence")
+    monkeypatch.setattr("builtins.print", cp949_console)
+    res = c.post("/api/check", json={"text": TEXT})
+    assert res.status_code == 200 and res.json()["report"]["verdict"] == "feasible"
