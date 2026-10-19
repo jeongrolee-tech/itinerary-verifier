@@ -45,6 +45,12 @@
   .verdict.infeasible { color: var(--fail); }
   .verdict.undetermined { color: var(--unknown); }
   .questions { background: var(--ask); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+  .scope { margin: 14px 0 4px; }
+  .scope-title { font-weight: 700; margin-bottom: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .chip { display: inline-flex; align-items: baseline; gap: 6px; background: var(--card); border: 1px solid var(--line);
+          border-radius: 999px; padding: 5px 12px; font-weight: 600; }
+  .chip .note { font-weight: 400; font-size: .82rem; color: var(--unknown); }
   .questions h3 { margin: 0 0 4px; }
   .questions ul { margin: 0 0 4px; padding-left: 20px; }
   .group h3 .count { color: var(--muted); font-weight: 400; }
@@ -93,7 +99,11 @@
   <h1>여행 일정 검증</h1>
   <p class="lead">일정을 평소 말하듯 적으면 표로 정리해 판정합니다. 확인하지 못한 것은 무엇을 알려 주면 되는지 같이
     보여 주고, 아래 표에서 고친 뒤 다시 검사할 수 있습니다.</p>
-  <p id="scope" class="lead small" hidden></p>
+  <section id="scope" class="scope" hidden>
+    <div class="scope-title">지금 운영시간과 휴무일을 확인할 수 있는 장소</div>
+    <div id="scope-places" class="chips"></div>
+    <div id="scope-note" class="muted small">다른 장소도 넣을 수 있어요. 그 장소의 운영시간과 휴무일은 미확인으로 나와요.</div>
+  </section>
 
   <section class="card">
     <label for="text"><b>일정</b></label>
@@ -488,14 +498,15 @@ $("add-hc").onclick = () => $("hcs").append(hcRow());
     const res = await fetch("/api/places");
     if (!res.ok) return;
     const { places } = await res.json();
-    const names = places.map((p) => {
-      if (!p.unsettled_weekdays.length) return p.place;
+    // 장소마다 칩 하나. 확인하지 못하는 요일이 있는 곳만 작은 글씨로 덧붙인다
+    $("scope-places").replaceChildren(...places.map((p) => {
       const days = p.unsettled_weekdays.map((w) => WEEKDAYS[w] || w).join("·");
-      return `${p.place}(${days}요일 제외${p.holiday ? ", 공휴일은 확인" : ""})`;
-    });
-    $("scope").textContent = names.length
-      ? `운영시간과 휴무일을 확인할 수 있는 장소는 ${names.join(", ")}입니다. 다른 장소도 넣을 수 있지만 그 장소의 운영시간과 휴무일은 미확인으로 나옵니다.`
-      : "지금은 운영시간과 휴무일을 확인할 수 있는 장소가 없습니다. 근거의 적용 기간이 지났을 수 있습니다.";
+      const note = days ? `${days} 제외${p.holiday ? ", 공휴일은 확인" : ""}` : null;
+      return el("span", { class: "chip" }, p.place, note ? el("span", { class: "note", text: note }) : null);
+    }));
+    if (!places.length) {
+      $("scope-note").textContent = "지금은 확인할 수 있는 장소가 없어요. 근거의 적용 기간이 지났을 수 있어요.";
+    }
     $("scope").hidden = false;
   } catch {
     // 안내를 못 받아도 검사는 그대로 된다
