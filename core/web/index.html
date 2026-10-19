@@ -506,11 +506,13 @@ $("add-hc").onclick = () => $("hcs").append(hcRow());
 const SKETCH = {
   "경복궁": { x: 118, y: 30, icon: "palace" },
   "창덕궁": { x: 272, y: 26, icon: "palace" },
-  "종묘": { x: 290, y: 82, icon: "palace" },
+  "종묘": { x: 268, y: 82, icon: "palace" },
   "덕수궁": { x: 108, y: 150, icon: "palace" },
   "서울시립미술관 서소문본관": { x: 52, y: 176, icon: "museum", lines: ["서울시립미술관", "서소문본관"] },
 };
 const SVG = "http://www.w3.org/2000/svg";
+// 확인하지 못한 이유를 짧게 — 판정 코드의 미확인 이유(verdict.py) 중 요일에 따라 생기는 것만
+const REASON_SHORT = { UNSUPPORTED_ADMISSION_TYPE: "회차 관람이라" };
 
 function svgEl(tag, attrs = {}, text = null) {
   const node = document.createElementNS(SVG, tag);
@@ -524,8 +526,8 @@ function sketchBase() {
   return [
     svgEl("path", { class: "road", d: "M 138 58 L 138 220" }),
     svgEl("text", { class: "guide", x: 144, y: 216 }, "세종대로"),
-    svgEl("path", { class: "stream", d: "M 146 136 C 200 142, 260 150, 352 162" }),
-    svgEl("text", { class: "guide", x: 304, y: 178 }, "청계천"),
+    svgEl("path", { class: "stream", d: "M 146 144 C 200 150, 260 160, 352 172" }),
+    svgEl("text", { class: "guide", x: 312, y: 188 }, "청계천"),
   ];
 }
 
@@ -541,7 +543,8 @@ function sketchPlace(p, when) {
     for (const dx of [-5, 0, 5]) g.append(svgEl("path", { class: "icon", d: `M ${x + dx} ${y + 1} L ${x + dx} ${y + 9}` }));
   }
   (lines || [p.place]).forEach((line, i) => g.append(svgEl("text", { class: "name", x, y: y + 24 + i * 14, "text-anchor": "middle" }, line)));
-  if (when) g.append(svgEl("text", { class: "when", x, y: y + 24 + (lines || [0]).length * 14, "text-anchor": "middle" }, when));
+  (when || []).forEach((line, i) => g.append(svgEl("text", { class: "when", x, y: y + 24 + ((lines || [0]).length + i) * 13,
+                                                              "text-anchor": "middle" }, line)));
   return g;
 }
 
@@ -551,10 +554,15 @@ function sketchPlace(p, when) {
     const res = await fetch("/api/places");
     if (!res.ok) return;
     const { places } = await res.json();
-    // 확인하지 못하는 요일이 있는 곳만 확인되는 요일을 덧붙인다 — 종묘 '수·토·일·공휴일만'
+    // 확인하지 못하는 요일이 있는 곳만 그 요일과 이유를 두 줄로 덧붙인다 — 종묘 '월·목·금은 회차 관람이라 / 확인 못 해요.
+    // 공휴일은 돼요'. '수·토·일만' 처럼 되는 요일을 적으면 그날만 연다고 읽힌다. 이유는 판정 코드의 미확인 이유로 고른다
     const whenOf = (p) => {
-      const days = [...p.open_weekdays.map((w) => WEEKDAYS[w] || w), ...(p.holiday ? ["공휴일"] : [])].join("·");
-      return p.unsettled_weekdays.length ? `${days}만` : null;
+      if (!p.unsettled_weekdays.length) return null;
+      const days = p.unsettled_weekdays.map((w) => WEEKDAYS[w] || w);
+      const last = days[days.length - 1].charCodeAt(0) - 0xAC00;
+      const topic = last >= 0 && last < 11172 && last % 28 ? "은" : "는";  // 받침이 있으면 '은'
+      const why = p.unsettled_reasons.map((r) => REASON_SHORT[r]).filter(Boolean).join(" ");
+      return [`${days.join("·")}${topic} ${why}`.trim(), `확인 못 해요${p.holiday ? ". 공휴일은 돼요" : ""}`];
     };
     const drawn = places.filter((p) => SKETCH[p.place]);
     if (drawn.length) {
@@ -565,7 +573,7 @@ function sketchPlace(p, when) {
     // 그림에 자리가 없는 장소(데이터에 새로 더한 곳)는 칩으로 보여 준다
     $("scope-places").replaceChildren(...places.filter((p) => !SKETCH[p.place]).map((p) => {
       const note = whenOf(p);
-      return el("span", { class: "chip" }, p.place, note ? el("span", { class: "note", text: note }) : null);
+      return el("span", { class: "chip" }, p.place, note ? el("span", { class: "note", text: note.join(" ") }) : null);
     }));
     if (!places.length) {
       $("scope-note").textContent = "지금은 확인할 수 있는 장소가 없어요. 근거의 적용 기간이 지났을 수 있어요.";

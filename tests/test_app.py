@@ -58,7 +58,7 @@ def test_supported_places_come_from_the_judge():
     places = {p["place"]: p for p in res.json()["places"]}
     assert set(places) == {"경복궁", "창덕궁", "덕수궁", "서울시립미술관 서소문본관", "종묘"}
     assert places["종묘"]["unsettled_weekdays"] == ["MON", "THU", "FRI"] and places["종묘"]["holiday"]
-    assert places["종묘"]["open_weekdays"] == ["WED", "SAT", "SUN"]  # 화요일은 쉬는 날로 확정 — 연 날이 아니다
+    assert places["종묘"]["unsettled_reasons"] == ["UNSUPPORTED_ADMISSION_TYPE"]  # 회차 관람이라 확인 못 한다
     assert all(not p["unsettled_weekdays"] for name, p in places.items() if name != "종묘")
 
 
