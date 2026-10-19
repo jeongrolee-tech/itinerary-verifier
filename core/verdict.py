@@ -56,12 +56,6 @@ def shift_date(iso: str, days: int) -> str:
     return (Date.fromisoformat(iso) + timedelta(days=days)).isoformat()
 
 
-def is_last_wednesday(iso: str) -> bool:
-    """문화가 있는 날 — 매달 마지막 수요일. 이 날은 종묘가 일반관람으로 열린다."""
-    d = Date.fromisoformat(iso)
-    return d.weekday() == 2 and (d + timedelta(days=7)).month != d.month
-
-
 def evidence_usable_on(ev: dict | None, visit_date: str) -> bool:
     """오늘 조회했다는 사실만으로 다음 달 방문일에 쓸 수 있는 정보가 되지는 않는다."""
     # ⭐ 근거에는 '언제 조회했나' 만이 아니라 '언제까지 쓸 수 있나' 가 필요하다.
@@ -418,7 +412,7 @@ def _admission_without_hours(name, place, visit_date, holidays) -> dict | None:
     #    종묘 평일은 회차 입장(09:20, 10:20 … 16:20)이라 연속 구간으로 못 적는다.
     #    연속 구간처럼 적으면 16:20 과 16:40 사이 도착을 통과시켜 버린다.
     if adm.get("type") == "timed_entry":
-        general_day = (visit_date in holidays["dates"]) or is_last_wednesday(visit_date)
+        general_day = visit_date in holidays["dates"]
         if weekday_of(visit_date) in adm.get("timed_weekdays", []) and not general_day:
             return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
                          unknown_reason="UNSUPPORTED_ADMISSION_TYPE",
