@@ -78,7 +78,8 @@ def supported_places(facts: dict, policy: dict, today: str) -> list[dict]:
     """화면 위에 알릴 장소 — 휴무일과 입장을 판정 코드가 확정하는 곳. README 지원 범위 표와 같은 방법이다."""
     # ⭐ 목록을 화면에 적어 두면 데이터와 따로 논다(2026-10-19 종묘 수요일이 바뀌었을 때처럼). 그래서 장소마다
     #    내일부터 공휴일이 아닌 날로 요일 일곱 개와 다가오는 공휴일 하루를 판정 코드로 돌려 본다. 하루라도
-    #    확정되는 곳만 싣고, 확정하지 못하는 요일을 같이 알린다. 쉬는 날이라고 확정하는 것도 확정이다
+    #    확정되는 곳만 싣는다. 쉬는 날이라고 확정하는 것도 확정이다. 화면은 '어느 요일에 가면 확인해 주나' 를
+    #    알아야 해서, 문을 열고 입장까지 확정되는 요일(open_weekdays)을 따로 준다
     holidays = set(facts["holidays"]["dates"])
     day, days = date.fromisoformat(today), {}
     while len(days) < 7:
@@ -87,19 +88,25 @@ def supported_places(facts: dict, policy: dict, today: str) -> list[dict]:
             days.setdefault(weekday_of(day.isoformat()), day.isoformat())
     holiday = min((d for d in holidays if d > today), default=None)
 
-    def settled(place: str, visit_date: str) -> bool:
+    def state(place: str, visit_date: str) -> str | None:
+        """그날 판정 코드가 확정하는 것 — 'closed'(쉬는 날) · 'open'(열고 입장도 확정) · None(확정 못 함)."""
         out = judge({"date": visit_date, "stops": [{"place": place, "start": "11:00", "dwell_minutes": 30}]},
                     facts, policy)
         status = {c["type"]: c["status"] for c in out["checks"] if c.get("target") == place}
-        closed = status.get("CLOSED_DAY")
-        return closed == FAIL or (closed == PASS and status.get("ADMISSION_NOT_POSSIBLE") in (PASS, FAIL))
+        if status.get("CLOSED_DAY") == FAIL:
+            return "closed"
+        if status.get("CLOSED_DAY") == PASS and status.get("ADMISSION_NOT_POSSIBLE") in (PASS, FAIL):
+            return "open"
+        return None
 
     places = []
     for place in facts["places"]:
-        unsettled = [wd for wd in WEEKDAY_ORDER if not settled(place, days[wd])]
-        on_holiday = holiday is not None and settled(place, holiday)
+        states = {wd: state(place, days[wd]) for wd in WEEKDAY_ORDER}
+        unsettled = [wd for wd, s in states.items() if s is None]
+        on_holiday = holiday is not None and state(place, holiday) is not None
         if len(unsettled) < len(WEEKDAY_ORDER) or on_holiday:
-            places.append({"place": place, "unsettled_weekdays": unsettled, "holiday": on_holiday})
+            places.append({"place": place, "unsettled_weekdays": unsettled,
+                           "open_weekdays": [wd for wd, s in states.items() if s == "open"], "holiday": on_holiday})
     return places
 
 

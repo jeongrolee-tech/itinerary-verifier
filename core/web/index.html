@@ -498,10 +498,10 @@ $("add-hc").onclick = () => $("hcs").append(hcRow());
     const res = await fetch("/api/places");
     if (!res.ok) return;
     const { places } = await res.json();
-    // 장소마다 칩 하나. 확인하지 못하는 요일이 있는 곳만 작은 글씨로 덧붙인다
+    // 장소마다 칩 하나. 확인하지 못하는 요일이 있는 곳만 확인되는 요일을 작은 글씨로 덧붙인다 — 종묘 '수·토·일·공휴일만'
     $("scope-places").replaceChildren(...places.map((p) => {
-      const days = p.unsettled_weekdays.map((w) => WEEKDAYS[w] || w).join("·");
-      const note = days ? `${days} 제외${p.holiday ? ", 공휴일은 확인" : ""}` : null;
+      const days = [...p.open_weekdays.map((w) => WEEKDAYS[w] || w), ...(p.holiday ? ["공휴일"] : [])].join("·");
+      const note = p.unsettled_weekdays.length ? `${days}만` : null;
       return el("span", { class: "chip" }, p.place, note ? el("span", { class: "note", text: note }) : null);
     }));
     if (!places.length) {
