@@ -51,6 +51,14 @@
   .chip { display: inline-flex; align-items: baseline; gap: 6px; background: var(--card); border: 1px solid var(--line);
           border-radius: 999px; padding: 5px 12px; font-weight: 600; }
   .chip .note { font-weight: 400; font-size: .82rem; color: var(--unknown); }
+  .sketch { display: block; width: 100%; max-width: 520px; margin: 4px 0 6px; color: var(--fg); }
+  .sketch .road { stroke: var(--line); stroke-width: 6; fill: none; stroke-linecap: round; }
+  .sketch .stream { stroke: var(--accent); stroke-opacity: .45; stroke-width: 3; fill: none; stroke-linecap: round; }
+  .sketch .guide { fill: var(--muted); font-size: 10px; }
+  .sketch .icon { fill: var(--card); stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+  .sketch .name { fill: currentColor; font-size: 12px; font-weight: 700; }
+  .sketch .when { fill: var(--unknown); font-size: 10.5px; }
+  .sketch .partial .icon { stroke: var(--unknown); }
   .questions h3 { margin: 0 0 4px; }
   .questions ul { margin: 0 0 4px; padding-left: 20px; }
   .group h3 .count { color: var(--muted); font-weight: 400; }
@@ -101,8 +109,9 @@
     보여 주고, 아래 표에서 고친 뒤 다시 검사할 수 있습니다.</p>
   <section id="scope" class="scope" hidden>
     <div class="scope-title">지금 운영시간과 휴무일을 확인할 수 있는 장소</div>
+    <svg id="scope-sketch" class="sketch" viewBox="0 8 360 218" role="img" hidden></svg>
     <div id="scope-places" class="chips"></div>
-    <div id="scope-note" class="muted small">다른 장소도 넣을 수 있어요. 그 장소의 운영시간과 휴무일은 미확인으로 나와요.</div>
+    <div id="scope-note" class="muted small">개략도라 실제 거리와 다를 수 있어요. 다른 장소도 넣을 수 있지만 그 장소의 운영시간과 휴무일은 미확인으로 나와요.</div>
   </section>
 
   <section class="card">
@@ -492,16 +501,70 @@ $("add-stop").onclick = () => $("stops").append(stopRow());
 $("add-hc").onclick = () => $("hcs").append(hcRow());
 
 // ── 지원 장소 ───────────────────────────────────────────────────────
+// 개략도 — 강북 도심 다섯 곳의 위치 관계만 맞춘 그림이다. 좌표 데이터가 아니라 화면 배치값이라 실제 거리와 다르다.
+// 어느 장소를 그릴지는 서버가 정한다(/api/places). 여기는 자리와 모양만 갖고 있다
+const SKETCH = {
+  "경복궁": { x: 118, y: 30, icon: "palace" },
+  "창덕궁": { x: 272, y: 26, icon: "palace" },
+  "종묘": { x: 290, y: 82, icon: "palace" },
+  "덕수궁": { x: 108, y: 150, icon: "palace" },
+  "서울시립미술관 서소문본관": { x: 52, y: 176, icon: "museum", lines: ["서울시립미술관", "서소문본관"] },
+};
+const SVG = "http://www.w3.org/2000/svg";
+
+function svgEl(tag, attrs = {}, text = null) {
+  const node = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (text !== null) node.textContent = text;
+  return node;
+}
+
+function sketchBase() {
+  // 길잡이 선 둘 — 세종대로(광화문 → 시청)와 청계천. 장소 사이의 방향을 읽게 해 줄 뿐이다
+  return [
+    svgEl("path", { class: "road", d: "M 138 58 L 138 220" }),
+    svgEl("text", { class: "guide", x: 144, y: 216 }, "세종대로"),
+    svgEl("path", { class: "stream", d: "M 146 136 C 200 142, 260 150, 352 162" }),
+    svgEl("text", { class: "guide", x: 304, y: 178 }, "청계천"),
+  ];
+}
+
+function sketchPlace(p, when) {
+  const { x, y, icon, lines } = SKETCH[p.place];
+  const g = svgEl("g", { class: when ? "partial" : "" });
+  if (icon === "palace") {  // 기와지붕 하나와 몸채
+    g.append(svgEl("path", { class: "icon", d: `M ${x - 14} ${y} Q ${x} ${y - 12} ${x + 14} ${y} Z` }),
+             svgEl("rect", { class: "icon", x: x - 9, y: y, width: 18, height: 9 }));
+  } else {  // 박공과 기둥 셋
+    g.append(svgEl("path", { class: "icon", d: `M ${x - 12} ${y - 1} L ${x} ${y - 10} L ${x + 12} ${y - 1} Z` }),
+             svgEl("rect", { class: "icon", x: x - 10, y: y, width: 20, height: 10 }));
+    for (const dx of [-5, 0, 5]) g.append(svgEl("path", { class: "icon", d: `M ${x + dx} ${y + 1} L ${x + dx} ${y + 9}` }));
+  }
+  (lines || [p.place]).forEach((line, i) => g.append(svgEl("text", { class: "name", x, y: y + 24 + i * 14, "text-anchor": "middle" }, line)));
+  if (when) g.append(svgEl("text", { class: "when", x, y: y + 24 + (lines || [0]).length * 14, "text-anchor": "middle" }, when));
+  return g;
+}
+
 // 서버가 판정 코드로 확정되는 장소를 골라 준다(app.supported_places). 화면에 목록을 적어 두지 않는다
 (async () => {
   try {
     const res = await fetch("/api/places");
     if (!res.ok) return;
     const { places } = await res.json();
-    // 장소마다 칩 하나. 확인하지 못하는 요일이 있는 곳만 확인되는 요일을 작은 글씨로 덧붙인다 — 종묘 '수·토·일·공휴일만'
-    $("scope-places").replaceChildren(...places.map((p) => {
+    // 확인하지 못하는 요일이 있는 곳만 확인되는 요일을 덧붙인다 — 종묘 '수·토·일·공휴일만'
+    const whenOf = (p) => {
       const days = [...p.open_weekdays.map((w) => WEEKDAYS[w] || w), ...(p.holiday ? ["공휴일"] : [])].join("·");
-      const note = p.unsettled_weekdays.length ? `${days}만` : null;
+      return p.unsettled_weekdays.length ? `${days}만` : null;
+    };
+    const drawn = places.filter((p) => SKETCH[p.place]);
+    if (drawn.length) {
+      $("scope-sketch").replaceChildren(...sketchBase(), ...drawn.map((p) => sketchPlace(p, whenOf(p))));
+      $("scope-sketch").setAttribute("aria-label", "확인할 수 있는 장소 개략도: " + drawn.map((p) => p.place).join(", "));
+      $("scope-sketch").removeAttribute("hidden");  // svg 요소에는 hidden 속성 값이 먹지 않는다
+    }
+    // 그림에 자리가 없는 장소(데이터에 새로 더한 곳)는 칩으로 보여 준다
+    $("scope-places").replaceChildren(...places.filter((p) => !SKETCH[p.place]).map((p) => {
+      const note = whenOf(p);
       return el("span", { class: "chip" }, p.place, note ? el("span", { class: "note", text: note }) : null);
     }));
     if (!places.length) {
