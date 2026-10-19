@@ -50,7 +50,7 @@ const CAR = "https://apis.openapi.sk.com/tmap/routes?version=1";
 const PREDICTION = "https://apis.openapi.sk.com/tmap/routes/prediction?version=1";
 
 // 돈을 세는 이름과 요금 — core/spend.py 의 TMAP_PRICES 와 같은 표다. 대중교통은 하루 10건 무료, 넘으면 건당
-// 0.88원(README, 2026-10-02 확인). 무료 제공량은 tmapapi.tmapmobility.com "POI 검색 일 2만 건, 경로탐색 일 1천건"
+// 0.88원(docs/data-policy.md, 2026-10-02 확인). 무료 제공량은 tmapapi.tmapmobility.com "POI 검색 일 2만 건, 경로탐색 일 1천건"
 // (2026-10-14 확인). 넘은 뒤 단가를 확인하지 못한 것은 null 이다 — 지어내지 않는다.
 const API_NAMES = { [POI.split("?")[0]]: "장소 검색", [TRANSIT]: "대중교통", [PEDESTRIAN.split("?")[0]]: "보행자 길찾기",
                     [CAR.split("?")[0]]: "자동차 길찾기", [PREDICTION.split("?")[0]]: "택시 예측(타임머신)" };

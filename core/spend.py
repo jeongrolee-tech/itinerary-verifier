@@ -19,7 +19,7 @@ from contextvars import ContextVar
 
 from model_info import cost_usd
 
-# TMAP 요금. 대중교통은 README '길찾기 플랫폼별로 되는 것'(2026-10-02 확인 — 하루 10건 무료, 넘으면 건당 0.88원).
+# TMAP 요금. 대중교통은 docs/data-policy.md '길찾기 플랫폼별로 되는 것'(2026-10-02 확인 — 하루 10건 무료, 넘으면 건당 0.88원).
 # 무료 제공량은 https://tmapapi.tmapmobility.com 첫 화면 "POI 검색 일 2만 건, 경로탐색 일 1천건"(2026-10-14 확인).
 # ⭐ 무료 제공량을 넘은 뒤의 건당 단가는 대중교통만 확인했다. 모르는 값은 None 으로 두고 지어내지 않는다.
 #    무료 제공량은 하루 전체 사용량에 걸리는데, 오늘 이미 몇 건을 썼는지는 TMAP 콘솔에만 있다. 그래서 한 번의

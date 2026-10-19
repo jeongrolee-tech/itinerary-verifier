@@ -183,3 +183,26 @@
 - 국가유산청 궁능유적본부 · 서울시립미술관 페이지의 **공공누리 유형** (제1~4유형 중 무엇인지)
 - 이동시간 대체 출처의 약관 — 국토교통부 TAGO 대중교통정보, 서울시 열린데이터광장, ODsay
 - Google 파생값(`minutes: 24`)이 캐싱에 해당하는지에 대한 Google 측 확답
+
+## 7. 길찾기 플랫폼별로 되는 것 · 2026-10-02 확인
+
+✅ 된다 · ❌ 안 된다 · ⚠️ 조건이 있다 · ❔ 확인하지 못했다
+
+| 플랫폼 | 대중교통 | 걷기 | 자동차 · 택시 | 출발 시각 지정 | 판정할 때 쓰기 | 결과 저장 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Google Routes | ✅ | ❌ 한국은 빈 결과 | ❌ 한국은 빈 결과 | ✅ | ✅ | ❌ `place_id`만 영구 |
+| 네이버 지도 API | ❌ | ❌ | ✅ 택시 요금도 준다 | ❌ | ✅ | ❌ |
+| 카카오 | ❌ 앱을 여는 링크만 | ❌ 제휴 파트너 전용 | ✅ | ✅ 미래 운행 정보 길찾기 | ⚠️ 상업적 사용은 제휴 | ❌ |
+| TMAP | ✅ 걷기 구간 포함. 아주 가까우면 결과 없음 | ✅ | ✅ 택시 요금도 준다 | ✅ 대중교통 `searchDttm` · 자동차 타임머신 길 안내 | ✅ | ❌ 24시간까지만 |
+| ODsay | ✅ | ❔ | ❌ API 목록에 없다 | ❌ 요청 항목에 없다 | ✅ | ❌ |
+| 서울교통공사 공공데이터 | ⚠️ 열차 탑승 시간만 | ❌ | ❌ | — | ✅ | ✅ 공공누리 1유형 |
+
+- TMAP 줄은 2026-10-02 · 10-05에 `check-tmap-api.mjs`로 직접 불러 확인했다. 대중교통과 자동차(타임머신) 모두
+  5개월 뒤(2027-03-05) 출발로도 답이 왔다. 다른 플랫폼이 몇 달 뒤 출발을 받는지는 확인하지 못했다
+- TMAP 대중교통은 하루 10건까지 무료이고, 넘으면 건당 0.88원이다
+- 근거
+  - Google · TMAP 저장 조항은 이 문서의 [1절](#1-google-maps-platform-places-api--routes-api) · [2절](#2-tmap-open-api), Google 모드별 결과는 [09-13 실험](experiments/2026-09-13-google-api-capability.md)
+  - 네이버 — [Directions 5 문서](https://api.ncloud-docs.com/docs/ai-naver-mapsdirections-driving), [Maps 서비스 이용약관](https://xv-ncloud.pstatic.net/images/provision/%5B%EB%AF%BC%EA%B0%84%5DMaps%EC%84%9C%EB%B9%84%EC%8A%A4%EC%9D%B4%EC%9A%A9%EC%95%BD%EA%B4%80_v0.4_(CLEAN)_1742433558704.pdf) 제7조 ⑪ "모든 Maps API 의 결과 데이터는 값을 리턴 받는 즉시 1회 자신의 서비스에서 사용하는 것만 허용"
+  - 카카오 — [도보 길찾기 문서](https://developers.kakaomobility.com/affiliate/walking/directions) "제휴 파트너 전용 API", 데브톡 답변 [2024-01-22](https://devtalk.kakao.com/t/api-api/134553) "길찾기는 URL Scheme으로 제공" · [2026-09-11](https://devtalk.kakao.com/t/future-directions-api-v1-future-directions/151611) "상업적으로 사용하는 경우, 반드시 제휴" · [2026-09-17](https://devtalk.kakao.com/t/api/151736) "결과값의 DB저장은 허용되지 않으므로"
+  - TMAP — [대중교통 API](https://transit.tmapmobility.com/), [경로 요청 문서](https://transit.tmapmobility.com/docs/routes)의 `searchDttm` "타임머신 기능 검색 날짜", [보행자 경로 안내](https://openapi.sk.com/products/detail?linkMenuSeq=45)
+  - ODsay — [API 가이드](https://lab.odsay.com/guide/guide), [운영정책](https://lab.odsay.com/doc/totalPolicy) 4.5.10 "결과 데이터 … 무단으로 복제, 저장, 가공, 배포" 금지

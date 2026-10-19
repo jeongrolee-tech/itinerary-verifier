@@ -37,7 +37,7 @@ ERROR_TYPES = {
 }
 NO_ANSWER = "답을 받지 못함 — 거부 · 형식 오류"
 
-# 확인하지 못한 이유마다 누가 풀 수 있는지. README 의 unknown 이유 표 '어떻게 해결하나' 칸과 같다.
+# 확인하지 못한 이유마다 누가 풀 수 있는지. docs/파일별-역할.md 판정 코드 절의 확인하지 못한 이유 표 '어떻게 해결하나' 칸과 같다.
 # 판정 코드가 내는 이유가 모두 여기 있는지 tests/test_eval_report.py 가 verdict.py 와 대조한다
 SOLVED_BY = {
     "사용자": {"PLACE_NOT_RESOLVED", "NO_USER_DWELL", "LATE_BY_LOWER_BOUND", "LATE_BY_ESTIMATE", "INFERRED_INPUT",
