@@ -453,6 +453,18 @@ def _admission_by_hours(name, place, visit_date, start, holidays) -> dict:
         return check("ADMISSION_NOT_POSSIBLE", name, FAIL, evidence=evidence,
                      detail=f"입장마감({limit}) 이후 도착")
 
+    # ⭐ 입장마감 정각 도착은 공식 안내가 '…까지 입장' 이라고 규칙으로 적은 곳만 통과다.
+    #    미술관은 '관람 종료 1시간 전까지 입장'(last_admission_rule)이라 '까지' 가 그 시각을 포함한다.
+    #    궁궐 표는 '(입장마감 17:00)' 처럼 시각만 적어 정각에 들어가는지 말하지 않는다. 2026-10-09 한글날
+    #    종묘는 17시에 입장을 막았다(블로그 후기의 현장 안내문 '5시부터 6시 사이에는 입장 불가').
+    #    근거가 말하지 않는 것은 통과로도 위반으로도 확정하지 않는다
+    if to_min(start) == to_min(limit) and h.get("last_admission") and not h.get("last_admission_rule"):
+        return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN, evidence=evidence,
+                     unknown_reason="AT_LAST_ADMISSION",
+                     detail=f"입장마감({limit}) 정각 도착 — 공식 안내가 정각에 들어갈 수 있는지 말하지 않는다",
+                     how_to_resolve={"user": f"{name} 입장마감({limit}) 정각에 도착해요. 정각에 들어갈 수 있는지는 "
+                                             f"공식 안내에 없어요. 조금 일찍 도착할 수 있나요?"})
+
     # ⭐ 개장 전 도착은 불가능이 아니다. 기다리면 개장 시각에 들어간다.
     #    8:30 에 경복궁(9:00 개장)에 오면 30분 기다려야 할 뿐이다. 지도 서비스도
     #    "9시에 엽니다" 를 안내로 보여줄 뿐 막지 않는다. 대신 입장 시각을 개장으로

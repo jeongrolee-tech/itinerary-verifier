@@ -388,3 +388,40 @@ def test_arrive_by_still_passes_with_its_rule(facts, policy):
     """대조군: '21:00 까지 도착' 은 권장 여유 기준(transit_leg)이 있어 지금처럼 pass 다."""
     to_airport(facts)
     assert train(judge(market_until("21:00", "ARRIVE_BY"), facts, policy))["status"] == PASS
+
+
+# ── I. 입장마감 정각 ──────────────────────────────────────────────────
+# 궁궐 표는 '(입장마감 17:00)' 처럼 시각만 적는다. 정각에 들어가는지는 공식 안내가 말하지 않는다.
+# 미술관은 '관람 종료 1시간 전까지 입장' 이라 '까지' 가 그 시각을 포함한다(정답 문제 T19).
+
+def one_stop(place, date, start):
+    return {"date": date, "stops": [{"place": place, "start": start, "dwell_minutes": 30}]}
+
+
+def test_exact_last_admission_without_rule_is_unknown(facts, policy):
+    """2026-10-09 한글날 17:00 종묘 — 블로그 후기에서 실제로 입장을 막힌 일정이다(안내문 '5시부터 6시
+    사이에는 입장 불가'). 공식 표만으로는 통과로도 위반으로도 확정하지 않는다."""
+    a = admission(judge(one_stop("종묘", "2026-10-09", "17:00"), facts, policy), "종묘")
+    assert a["status"] == UNKNOWN and a["unknown_reason"] == "AT_LAST_ADMISSION"
+    assert a["how_to_resolve"]["user"]
+
+
+def test_exact_last_admission_at_palace_is_unknown(facts, policy):
+    """같은 규칙이 다른 궁궐에도 — 10월 경복궁 입장마감 17:00."""
+    a = admission(judge(one_stop(PALACE, THURSDAY, "17:00"), facts, policy), PALACE)
+    assert a["status"] == UNKNOWN and a["unknown_reason"] == "AT_LAST_ADMISSION"
+
+
+def test_one_minute_before_last_admission_passes(facts, policy):
+    """대조군: 16:59 는 입장마감 전이라 통과다."""
+    assert admission(judge(one_stop(PALACE, THURSDAY, "16:59"), facts, policy), PALACE)["status"] == PASS
+
+
+def test_one_minute_after_last_admission_fails(facts, policy):
+    """대조군: 17:01 은 입장마감 뒤라 지금처럼 위반이다."""
+    assert admission(judge(one_stop(PALACE, THURSDAY, "17:01"), facts, policy), PALACE)["status"] == FAIL
+
+
+def test_until_rule_lets_exact_time_in(facts, policy):
+    """대조군: 미술관 수요일 19:00 — 공식 안내가 '관람 종료 1시간 전까지 입장' 이라 정각도 들어간다."""
+    assert admission(judge(one_stop(MUSEUM, "2026-10-14", "19:00"), facts, policy), MUSEUM)["status"] == PASS
