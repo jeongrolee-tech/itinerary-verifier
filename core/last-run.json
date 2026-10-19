@@ -1,18 +1,18 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20261014-122359",
+  "run_id": "run-20261019-194313",
   "version": "core-0.2",
-  "ran_at": "2026-10-14T03:23:59.203816+00:00",
-  "facts_snapshot": "facts-2026-09-29",
+  "ran_at": "2026-10-19T10:43:13.975025+00:00",
+  "facts_snapshot": "facts-2026-10-19",
   "holidays_verified": true,
   "labeled_at": "2026-10-14",
   "conditions": {
-    "code_commit": "a40d69ecc60a45748737f9a1203bf582a213580d",
+    "code_commit": "e1f5a00ed73137f086f91f7198dc0a5eac066da3",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "tests.json": "5cc757a28e02",
-      "facts.json": "e7500f29c6c7",
+      "tests.json": "7755ec704a66",
+      "facts.json": "d61e9a539c05",
       "policy.json": "1e3605504d71"
     }
   },
@@ -216,7 +216,7 @@
       "expect": "infeasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.01,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -1859,10 +1859,10 @@
               ]
             },
             "dwell_fixed_minutes": 50,
-            "rule_text": "월,수,목,금 * 정해진 시간에 입장 후 해설사와 함께 50분 정도 관람 / 일반관람 불가",
+            "rule_text": "월,목,금 * 정해진 시간에 입장 후 해설사와 함께 50분 정도 관람 / 일반관람 불가",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
-            "checked_at": "2026-09-22"
+            "checked_at": "2026-10-19"
           },
           "how_to_resolve": {
             "system": "회차 입장 검사 구현 — 도착 시각이 어느 회차에 들어가는지와 고정 체류 50분을 함께 본다"
@@ -2082,7 +2082,7 @@
           "places.종묘.admission.general_admission_when 에 SAT",
           "places.경복궁.hours (3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
           "places.창덕궁.hours (2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
-          "places.종묘.hours (SAT·SUN·공휴일, 2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
+          "places.종묘.hours (WED·SAT·SUN·공휴일, 2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
           "places.서울시립미술관 서소문본관.hours (SAT·SUN·공휴일, 3~10월) 10:00~19:00, last_admission 18:00",
           "places.덕수궁.hours (1~12월) 09:00~21:00, last_admission 20:00 — rule_text '09:00~21:00 (입장마감 20:00) 야간상시'",
           "policy.buffer_minutes.transit_leg 10",
@@ -2250,7 +2250,7 @@
             "entry_at": "15:00",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
-            "checked_at": "2026-09-22",
+            "checked_at": "2026-10-19",
             "valid_until": "2026-12-31"
           },
           "id": "chk-008"
@@ -2486,7 +2486,7 @@
           "places.경복궁.hours (3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
           "places.창덕궁.hours (2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
           "places.종묘.admission.general_admission_when 에 SUN",
-          "places.종묘.hours (SAT·SUN·공휴일, 2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
+          "places.종묘.hours (WED·SAT·SUN·공휴일, 2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
           "policy.buffer_minutes.transit_leg 10",
           "legs 5구간 — 케이스에 적은 테스트용 값"
         ],
@@ -2756,7 +2756,7 @@
             "entry_at": "16:30",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
-            "checked_at": "2026-09-22",
+            "checked_at": "2026-10-19",
             "valid_until": "2026-12-31"
           },
           "id": "chk-014"
@@ -2931,8 +2931,8 @@
       "expect_applied": {
         "facts": [
           "holidays.dates 에 2026-10-09",
-          "places.종묘.admission.general_admission_when 에 '공휴일' — rule_text '월,수,목,금 * 정해진 시간에 입장 후 해설사와 함께 50분 정도 관람 / 일반관람 불가'",
-          "places.종묘.hours (SAT·SUN·공휴일, 2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
+          "places.종묘.admission.general_admission_when 에 '공휴일' — rule_text '월,목,금 * 정해진 시간에 입장 후 해설사와 함께 50분 정도 관람 / 일반관람 불가'",
+          "places.종묘.hours (WED·SAT·SUN·공휴일, 2·3·4·5·9·10월) 09:00~18:00, last_admission 17:00",
           "places.종묘.closed_days.weekly [TUE]"
         ],
         "assumptions": []
@@ -2996,7 +2996,7 @@
             "entry_at": "14:00",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
-            "checked_at": "2026-09-22",
+            "checked_at": "2026-10-19",
             "valid_until": "2026-12-31"
           },
           "id": "chk-002"
@@ -3309,7 +3309,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -4064,7 +4064,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.99,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {

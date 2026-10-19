@@ -1,22 +1,22 @@
 {
   "_역할": "추출 실행 기록. 자연어에서 무엇을 뽑았는지, 기대 추출값과 어디가 달랐는지, 모델·비용·지연을 남긴다. run_extract.py 가 덮어쓴다.",
-  "run_id": "extract-20261014-122357",
-  "ran_at": "2026-10-14T03:23:57.146922+00:00",
+  "run_id": "extract-20261019-194248",
+  "ran_at": "2026-10-19T10:42:48.591103+00:00",
   "model": "claude-opus-5-5",
   "effort": "low",
-  "facts_snapshot": "facts-2026-09-29",
+  "facts_snapshot": "facts-2026-10-19",
   "conditions": {
-    "code_commit": "a40d69ecc60a45748737f9a1203bf582a213580d",
+    "code_commit": "e1f5a00ed73137f086f91f7198dc0a5eac066da3",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "tests.json": "5cc757a28e02",
-      "facts.json": "e7500f29c6c7",
+      "tests.json": "7755ec704a66",
+      "facts.json": "d61e9a539c05",
       "policy.json": "1e3605504d71"
     },
     "reference_date": "2026-09-22",
     "libraries": {
-      "anthropic": "1.13.0",
+      "anthropic": "1.15.0",
       "pydantic": "2.14.1"
     },
     "prompts": {
