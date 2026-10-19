@@ -93,6 +93,7 @@
   <h1>여행 일정 검증</h1>
   <p class="lead">일정을 평소 말하듯 적으면 표로 정리해 판정합니다. 확인하지 못한 것은 무엇을 알려 주면 되는지 같이
     보여 주고, 아래 표에서 고친 뒤 다시 검사할 수 있습니다.</p>
+  <p id="scope" class="lead small" hidden></p>
 
   <section class="card">
     <label for="text"><b>일정</b></label>
@@ -479,6 +480,27 @@ $("text").addEventListener("keydown", (e) => {
 });
 $("add-stop").onclick = () => $("stops").append(stopRow());
 $("add-hc").onclick = () => $("hcs").append(hcRow());
+
+// ── 지원 장소 ───────────────────────────────────────────────────────
+// 서버가 판정 코드로 확정되는 장소를 골라 준다(app.supported_places). 화면에 목록을 적어 두지 않는다
+(async () => {
+  try {
+    const res = await fetch("/api/places");
+    if (!res.ok) return;
+    const { places } = await res.json();
+    const names = places.map((p) => {
+      if (!p.unsettled_weekdays.length) return p.place;
+      const days = p.unsettled_weekdays.map((w) => WEEKDAYS[w] || w).join("·");
+      return `${p.place}(${days}요일 제외${p.holiday ? ", 공휴일은 확인" : ""})`;
+    });
+    $("scope").textContent = names.length
+      ? `운영시간과 휴무일을 확인할 수 있는 장소는 ${names.join(", ")}입니다. 다른 장소도 넣을 수 있지만 그 장소의 운영시간과 휴무일은 미확인으로 나옵니다.`
+      : "지금은 운영시간과 휴무일을 확인할 수 있는 장소가 없습니다. 근거의 적용 기간이 지났을 수 있습니다.";
+    $("scope").hidden = false;
+  } catch {
+    // 안내를 못 받아도 검사는 그대로 된다
+  }
+})();
 </script>
 </body>
 </html>

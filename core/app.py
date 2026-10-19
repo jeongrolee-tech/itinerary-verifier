@@ -20,7 +20,7 @@ import json
 import os
 import sys
 import threading
-from datetime import date
+from datetime import date, timedelta
 from getpass import getpass
 from pathlib import Path
 
@@ -38,7 +38,7 @@ from recheck import recheck_revision  # noqa: E402
 from report import questions, report, timeline  # noqa: E402
 from routes import live_legs  # noqa: E402
 from spend import Spend, counting  # noqa: E402
-from verdict import input_checks, judge, weekday_of  # noqa: E402
+from verdict import FAIL, PASS, input_checks, judge, weekday_of  # noqa: E402
 
 HERE = Path(__file__).parent
 load = lambda n: json.loads((HERE / n).read_text(encoding="utf-8"))  # noqa: E731
@@ -69,6 +69,38 @@ def needs_routes(itinerary: dict) -> bool:
         return False
     stated = itinerary.get("weekday_stated")
     return not stated or stated == weekday_of(itinerary["date"])
+
+
+WEEKDAY_ORDER = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+
+
+def supported_places(facts: dict, policy: dict, today: str) -> list[dict]:
+    """화면 위에 알릴 장소 — 휴무일과 입장을 판정 코드가 확정하는 곳. README 지원 범위 표와 같은 방법이다."""
+    # ⭐ 목록을 화면에 적어 두면 데이터와 따로 논다(2026-10-19 종묘 수요일이 바뀌었을 때처럼). 그래서 장소마다
+    #    내일부터 공휴일이 아닌 날로 요일 일곱 개와 다가오는 공휴일 하루를 판정 코드로 돌려 본다. 하루라도
+    #    확정되는 곳만 싣고, 확정하지 못하는 요일을 같이 알린다. 쉬는 날이라고 확정하는 것도 확정이다
+    holidays = set(facts["holidays"]["dates"])
+    day, days = date.fromisoformat(today), {}
+    while len(days) < 7:
+        day += timedelta(days=1)
+        if day.isoformat() not in holidays:
+            days.setdefault(weekday_of(day.isoformat()), day.isoformat())
+    holiday = min((d for d in holidays if d > today), default=None)
+
+    def settled(place: str, visit_date: str) -> bool:
+        out = judge({"date": visit_date, "stops": [{"place": place, "start": "11:00", "dwell_minutes": 30}]},
+                    facts, policy)
+        status = {c["type"]: c["status"] for c in out["checks"] if c.get("target") == place}
+        closed = status.get("CLOSED_DAY")
+        return closed == FAIL or (closed == PASS and status.get("ADMISSION_NOT_POSSIBLE") in (PASS, FAIL))
+
+    places = []
+    for place in facts["places"]:
+        unsettled = [wd for wd in WEEKDAY_ORDER if not settled(place, days[wd])]
+        on_holiday = holiday is not None and settled(place, holiday)
+        if len(unsettled) < len(WEEKDAY_ORDER) or on_holiday:
+            places.append({"place": place, "unsettled_weekdays": unsettled, "holiday": on_holiday})
+    return places
 
 
 class CheckIn(BaseModel):
@@ -123,6 +155,11 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
     @app.get("/")
     def page():
         return FileResponse(HERE / "web" / "index.html")
+
+    @app.get("/api/places")
+    def places() -> dict:
+        """화면 위에 알릴 지원 장소. 판정 코드만 돌리고 돈이 드는 호출은 없다."""
+        return {"places": supported_places(FACTS, POLICY, today or date.today().isoformat())}
 
     @app.post("/api/check")
     def check(body: CheckIn) -> dict:

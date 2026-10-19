@@ -50,6 +50,17 @@ def test_page_is_served():
     assert res.status_code == 200 and "<title>여행 일정 검증</title>" in res.text
 
 
+def test_supported_places_come_from_the_judge():
+    """화면 위 안내 — 판정 코드가 휴무일과 입장을 확정하는 장소만, 확정하지 못하는 요일과 함께 온다.
+    종묘는 월 · 목 · 금이 회차 입장이라 검사가 없고, 공휴일은 일반관람이라 확정된다(facts-2026-10-19)."""
+    res = client().get("/api/places")
+    assert res.status_code == 200
+    places = {p["place"]: p for p in res.json()["places"]}
+    assert set(places) == {"경복궁", "창덕궁", "덕수궁", "서울시립미술관 서소문본관", "종묘"}
+    assert places["종묘"]["unsettled_weekdays"] == ["MON", "THU", "FRI"] and places["종묘"]["holiday"]
+    assert all(not p["unsettled_weekdays"] for name, p in places.items() if name != "종묘")
+
+
 def test_requests_to_other_hosts_are_refused():
     """다른 사이트가 자기 도메인을 127.0.0.1 로 돌려 이 서버를 부르는 것(DNS 리바인딩)을 막는다. Host 가 127.0.0.1 이나
     localhost 가 아니면 거절한다 — 그래야 남의 페이지가 이 키로 Claude 를 부를 수 없다."""
