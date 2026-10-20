@@ -362,13 +362,13 @@ def check_admission(name, place, visit_date, start, closed_status, holidays, sup
     if place is None:
         return place_not_checked("ADMISSION_NOT_POSSIBLE", name, support)
 
-    without_hours = _admission_without_hours(name, place, visit_date, holidays)
+    without_hours = _admission_without_hours(name, place, visit_date, start, holidays)
     if without_hours:
         return without_hours
     return _admission_by_hours(name, place, visit_date, start, holidays)
 
 
-def _admission_without_hours(name, place, visit_date, holidays) -> dict | None:
+def _admission_without_hours(name, place, visit_date, start, holidays) -> dict | None:
     """입장 방식(상시 개방 · 회차 입장)과 공휴일 캘린더만으로 결론이 나는 경우. 시간표를 봐야 하면 None."""
     adm = place.get("admission") or {}
 
@@ -406,27 +406,60 @@ def _admission_without_hours(name, place, visit_date, holidays) -> dict | None:
                      detail=f"공휴일 캘린더의 적용 기간(~{holidays.get('valid_until')})을 벗어난 방문일이다",
                      how_to_resolve={"system": "방문 연도의 공휴일 캘린더를 다시 조회"})
 
-    # ⭐ 같은 unknown 이라도 이유가 다르면 따로 적는다.
-    #      NO_OPERATING_HOURS_DATA     정보를 못 구했다        → 데이터를 확보하면 해결
-    #      UNSUPPORTED_ADMISSION_TYPE  정보는 구했는데 검사가 없다 → 코드를 고쳐야 해결
-    #    종묘 평일은 회차 입장(09:20, 10:20 … 16:20)이라 연속 구간으로 못 적는다.
-    #    연속 구간처럼 적으면 16:20 과 16:40 사이 도착을 통과시켜 버린다.
-    if adm.get("type") == "timed_entry":
-        general_day = visit_date in holidays["dates"]
-        if weekday_of(visit_date) in adm.get("timed_weekdays", []) and not general_day:
-            return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
-                         unknown_reason="UNSUPPORTED_ADMISSION_TYPE",
-                         detail=adm.get("unsupported_note",
-                                        "회차 입장 검사가 구현되지 않았다"),
-                         evidence={"admission_type": "timed_entry",
-                                   "entry_times": adm.get("entry_times_ko"),
-                                   "dwell_fixed_minutes": adm.get("dwell_fixed_minutes"),
-                                   "rule_text": adm.get("rule_text"),
-                                   "source": adm.get("source"), "url": adm.get("url"),
-                                   "checked_at": adm.get("checked_at")},
-                         how_to_resolve={"system": "회차 입장 검사 구현 — 도착 시각이 어느 회차에 "
-                                                   "들어가는지와 고정 체류 50분을 함께 본다"})
+    timed = timed_day(place, visit_date, holidays)
+    if timed:
+        return _timed_admission(name, timed, visit_date, start)
     return None
+
+
+def timed_day(place: dict, visit_date: str, holidays: dict) -> dict | None:
+    """그날이 회차 입장 날이면 입장 방식(admission)을, 아니면 None. 종묘 월 · 목 · 금 — 공휴일은 일반관람이다."""
+    adm = place.get("admission") or {}
+    if adm.get("type") != "timed_entry" or visit_date in holidays["dates"]:
+        return None
+    return adm if weekday_of(visit_date) in adm.get("timed_weekdays", []) else None
+
+
+def _timed_admission(name, adm, visit_date, start) -> dict:
+    """회차 입장 — 도착 뒤 첫 한국어 회차에 들어간다. 마지막 회차 뒤 도착은 위반, 마지막 회차 정각은 확인 못 함."""
+    # ⭐ 회차 시간표를 연속 운영시간으로 바꾸지 않는다. 바꾸면 마지막 회차(16:20) 뒤 16:30 도착을 '입장마감 전' 으로
+    #    통과시키고, 회차를 기다리는 시간도 놓친다. 기다리는 것은 개장 전 도착과 같다 — 그 회차 시각에 들어간 것으로
+    #    보고 체류와 다음 이동을 거기서부터 센다(entry_at). 외국어 회차가 한국어 마지막 회차보다 늦게 남아 있으면
+    #    그 회차로 들어갈 수 있는지 공식 안내가 말하지 않으므로 위반으로 확정하지 않는다
+    season = "10-2" if int(visit_date[5:7]) in (10, 11, 12, 1, 2) else "3-9"
+    times = (adm.get("entry_times_ko") or {}).get(season) or []
+    others = [t for ts in (adm.get("entry_times_other_languages") or {}).values() for t in ts]
+    evidence = {"admission_type": "timed_entry", "entry_kind": "회차", "planned_time": start, "entry_times": times,
+                "tour_minutes": adm.get("dwell_fixed_minutes"), "rule_text": adm.get("rule_text"),
+                "source": adm.get("source"), "url": adm.get("url"),
+                "checked_at": adm.get("checked_at"), "valid_until": adm.get("valid_until")}
+    if not times:
+        return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN, evidence=evidence,
+                     unknown_reason="NO_OPERATING_HOURS_DATA",
+                     detail="그날 적용할 회차 시간표가 없다",
+                     how_to_resolve={"system": "방문일에 적용되는 회차 시간표를 확인"})
+    last = times[-1]
+    if to_min(start) > to_min(last):
+        if any(to_min(t) >= to_min(start) for t in others):
+            return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN, evidence=evidence,
+                         unknown_reason="NO_OPERATING_HOURS_DATA",
+                         detail=f"한국어 마지막 회차({last}) 뒤 도착이다. 남은 외국어 회차로 들어갈 수 있는지 공식 안내가 없다",
+                         how_to_resolve={"system": "외국어 회차에 다른 언어 관람객이 들어갈 수 있는지 확인"})
+        return check("ADMISSION_NOT_POSSIBLE", name, FAIL, evidence=evidence,
+                     detail=f"마지막 회차({last}) 뒤 도착 — 다른 언어 회차도 모두 그보다 이르다")
+    if to_min(start) == to_min(last):
+        return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN, evidence=evidence,
+                     unknown_reason="AT_LAST_ADMISSION",
+                     detail=f"마지막 회차({last}) 정각 도착 — 공식 안내가 정각에 들어갈 수 있는지 말하지 않는다",
+                     how_to_resolve={"user": f"{name} 마지막 회차({last}) 정각에 도착해요. 정각에 들어갈 수 있는지는 "
+                                             f"공식 안내에 없어요. 조금 일찍 도착할 수 있나요?"})
+    entry = next(t for t in times if to_min(t) >= to_min(start))
+    evidence["entry_at"] = entry
+    wait = to_min(entry) - to_min(start)
+    return check("ADMISSION_NOT_POSSIBLE", name, PASS, evidence=evidence,
+                 notice=(f"이날은 정해진 회차로만 들어간다 — {entry} 회차" + (f"까지 {wait}분 기다린다" if wait else "")
+                         + f". 해설사를 따라 {adm.get('dwell_fixed_minutes')}분 정도 관람하고 일반관람은 안 된다. "
+                         f"체류와 다음 이동은 {entry}부터 계산한다"))
 
 
 def _admission_by_hours(name, place, visit_date, start, holidays) -> dict:
@@ -502,6 +535,10 @@ def check_dwell(name, place, visit_date, start, dwell, admission_status, policy,
                      how_to_resolve={"user": f"{name}에서 얼마나 머무르실 예정인가요?"},
                      depends_on_assumptions=[dwell.get("assumption_id")])
 
+    timed = timed_day(place, visit_date, holidays)
+    if timed:
+        return _dwell_on_tour(name, timed, start, dwell)
+
     h = hours_for(place, visit_date, holidays)
     end = to_min(start) + dwell["value"]
     evidence = {
@@ -512,6 +549,25 @@ def check_dwell(name, place, visit_date, start, dwell, admission_status, policy,
         return check("DWELL_NOT_COMPLETABLE", name, FAIL, evidence=evidence,
                      detail=f"계획한 체류 종료({to_hhmm(end)})가 폐장({h['close']}) 이후다")
     return check("DWELL_NOT_COMPLETABLE", name, PASS, evidence=evidence)
+
+
+def _dwell_on_tour(name, adm, entry, dwell) -> dict:
+    """회차 입장 날의 체류 — 해설 관람 시간 안이면 통과, 넘으면 그만큼 머물 수 있는지 확인 못 함."""
+    # ⭐ 공식 문구는 '50분 정도' 라 확정 체류로 쓰지 않는다. 체류는 사용자가 말한 값이다. 그 값이 해설 시간 안이면
+    #    회차가 끝나기 전에 마친다. 넘으면 일반관람이 안 되는 날이라 더 머물 수 있는지 공식 안내가 말하지 않는다
+    tour = adm.get("dwell_fixed_minutes")
+    end = to_min(entry) + dwell["value"]
+    evidence = {"dwell_minutes": dwell["value"], "dwell_source": dwell["source"], "end_time": to_hhmm(end),
+                "tour_minutes": tour, "rule_text": adm.get("rule_text"), "source": adm.get("source"),
+                "url": adm.get("url"), "checked_at": adm.get("checked_at"), "valid_until": adm.get("valid_until")}
+    if dwell["value"] <= tour:
+        return check("DWELL_NOT_COMPLETABLE", name, PASS, evidence=evidence)
+    return check("DWELL_NOT_COMPLETABLE", name, UNKNOWN, evidence=evidence,
+                 unknown_reason="DWELL_BEYOND_TOUR",
+                 detail=f"계획한 체류 {dwell['value']}분이 해설 관람({tour}분 정도)보다 길다. 일반관람이 안 되는 날이라 "
+                        f"더 머물 수 있는지 공식 안내가 말하지 않는다",
+                 how_to_resolve={"user": f"이날 {name}에서는 해설사를 따라 {tour}분 정도 관람해요. 그보다 오래 머물 수 "
+                                         f"있는지는 공식 안내에 없어요. {tour}분 안으로 잡아도 될까요?"})
 
 
 # ── 이동시간 ────────────────────────────────────────────────────────
@@ -585,7 +641,7 @@ def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
     # 다음 장소에 도착해야 하는 시각은 실제로 들어갈 수 있는 시각이다. 09:45 로 계획했어도
     # 10:00 에 열면 그 전에는 어차피 기다린다(check_admission). 10:00 까지만 가면 된다.
     target = to_min(to["entry"])
-    by = to["entry"] if to["entry"] == to["start"] else f"{to['entry']}(개장)"
+    by = to["entry"] if to["entry"] == to["start"] else f"{to['entry']}({to['entry_kind']})"
     stated_dwell = frm["dwell"]["source"] == "user_stated"
 
     return (_late_without_travel(label, frm, to, target, by, stated_dwell)
@@ -1194,8 +1250,9 @@ def _place_checks(stops, visit_date, facts, policy, date_dep) -> tuple[list[dict
         a = unconfirmed(check_admission(st["name"], st["place"], visit_date, st["start"],
                                         c["status"], facts["holidays"], st["support"]),
                         date_dep + st["start_dep"])
-        # 개장 전에 도착하면 개장 시각에 들어간다. 체류와 다음 이동은 거기서부터 센다.
-        st["entry"] = (a.get("evidence") or a.get("reference") or {}).get("entry_at", st["start"])
+        # 개장 전에 도착하면 개장 시각에, 회차 입장이면 다음 회차에 들어간다. 체류와 다음 이동은 거기서부터 센다.
+        ev = a.get("evidence") or a.get("reference") or {}
+        st["entry"], st["entry_kind"] = ev.get("entry_at", st["start"]), ev.get("entry_kind", "개장")
         d = unconfirmed(check_dwell(st["name"], st["place"], visit_date, st["entry"], st["dwell"],
                                     a["status"], policy, facts["holidays"]),
                         date_dep + st["start_dep"])

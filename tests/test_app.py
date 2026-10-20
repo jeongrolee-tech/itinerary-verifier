@@ -52,14 +52,12 @@ def test_page_is_served():
 
 def test_supported_places_come_from_the_judge():
     """화면 위 안내 — 판정 코드가 휴무일과 입장을 확정하는 장소만, 확정하지 못하는 요일과 함께 온다.
-    종묘는 월 · 목 · 금이 회차 입장이라 검사가 없고, 공휴일은 일반관람이라 확정된다(facts-2026-10-19)."""
+    종묘 월 · 목 · 금은 회차 입장 검사가 생겨 이제 모든 요일이 확정된다."""
     res = client().get("/api/places")
     assert res.status_code == 200
     places = {p["place"]: p for p in res.json()["places"]}
     assert set(places) == {"경복궁", "창덕궁", "덕수궁", "서울시립미술관 서소문본관", "종묘"}
-    assert places["종묘"]["unsettled_weekdays"] == ["MON", "THU", "FRI"] and places["종묘"]["holiday"]
-    assert places["종묘"]["unsettled_reasons"] == ["UNSUPPORTED_ADMISSION_TYPE"]  # 회차 관람이라 확인 못 한다
-    assert all(not p["unsettled_weekdays"] for name, p in places.items() if name != "종묘")
+    assert all(not p["unsettled_weekdays"] and p["holiday"] for p in places.values())
 
 
 def test_requests_to_other_hosts_are_refused():

@@ -38,7 +38,7 @@ from recheck import recheck_revision  # noqa: E402
 from report import questions, report, timeline  # noqa: E402
 from routes import live_legs  # noqa: E402
 from spend import Spend, counting  # noqa: E402
-from verdict import FAIL, PASS, UNKNOWN, input_checks, judge, weekday_of  # noqa: E402
+from verdict import FAIL, PASS, input_checks, judge, weekday_of  # noqa: E402
 
 HERE = Path(__file__).parent
 load = lambda n: json.loads((HERE / n).read_text(encoding="utf-8"))  # noqa: E731
@@ -78,9 +78,8 @@ def supported_places(facts: dict, policy: dict, today: str) -> list[dict]:
     """화면 위에 알릴 장소 — 휴무일과 입장을 판정 코드가 확정하는 곳. README 지원 범위 표와 같은 방법이다."""
     # ⭐ 목록을 화면에 적어 두면 데이터와 따로 논다(2026-10-19 종묘 수요일이 바뀌었을 때처럼). 그래서 장소마다
     #    내일부터 공휴일이 아닌 날로 요일 일곱 개와 다가오는 공휴일 하루를 판정 코드로 돌려 본다. 하루라도
-    #    확정되는 곳만 싣는다. 쉬는 날이라고 확정하는 것도 확정이다. 확정하지 못하는 요일에는 판정 코드가 낸
-    #    미확인 이유(unsettled_reasons)를 같이 준다 — '수·토·일만' 처럼 쓰면 그날만 연다고 읽혀서, 화면은
-    #    '월·목·금은 회차 관람이라 확인 못 해요' 처럼 못 하는 요일과 이유를 적는다
+    #    확정되는 곳만 싣는다. 쉬는 날이라고 확정하는 것도 확정이다. 확정하지 못하는 요일이 있으면 같이 준다
+    #    — 화면은 '수·토·일만' 처럼 되는 요일을 적지 않고(그날만 연다고 읽힌다) 못 하는 요일을 적는다
     holidays = set(facts["holidays"]["dates"])
     day, days = date.fromisoformat(today), {}
     while len(days) < 7:
@@ -89,24 +88,20 @@ def supported_places(facts: dict, policy: dict, today: str) -> list[dict]:
             days.setdefault(weekday_of(day.isoformat()), day.isoformat())
     holiday = min((d for d in holidays if d > today), default=None)
 
-    def unsettled_reason(place: str, visit_date: str) -> str | None:
-        """그날 휴무일과 입장이 다 확정되면 None, 아니면 판정 코드가 낸 미확인 이유. 쉬는 날로 확정돼도 None 이다."""
+    def settled(place: str, visit_date: str) -> bool:
+        """그날 휴무일과 입장을 판정 코드가 다 확정하는가. 쉬는 날로 확정되는 것도 확정이다."""
         out = judge({"date": visit_date, "stops": [{"place": place, "start": "11:00", "dwell_minutes": 30}]},
                     facts, policy)
-        checks = {c["type"]: c for c in out["checks"] if c.get("target") == place}
-        closed, admission = checks.get("CLOSED_DAY", {}), checks.get("ADMISSION_NOT_POSSIBLE", {})
-        if closed.get("status") == FAIL or (closed.get("status") == PASS and admission.get("status") in (PASS, FAIL)):
-            return None
-        return (admission if closed.get("status") == PASS else closed).get("unknown_reason") or UNKNOWN
+        status = {c["type"]: c["status"] for c in out["checks"] if c.get("target") == place}
+        closed = status.get("CLOSED_DAY")
+        return closed == FAIL or (closed == PASS and status.get("ADMISSION_NOT_POSSIBLE") in (PASS, FAIL))
 
     places = []
     for place in facts["places"]:
-        reasons = {wd: unsettled_reason(place, days[wd]) for wd in WEEKDAY_ORDER}
-        unsettled = [wd for wd, r in reasons.items() if r]
-        on_holiday = holiday is not None and unsettled_reason(place, holiday) is None
+        unsettled = [wd for wd in WEEKDAY_ORDER if not settled(place, days[wd])]
+        on_holiday = holiday is not None and settled(place, holiday)
         if len(unsettled) < len(WEEKDAY_ORDER) or on_holiday:
-            places.append({"place": place, "unsettled_weekdays": unsettled,
-                           "unsettled_reasons": sorted({r for r in reasons.values() if r}), "holiday": on_holiday})
+            places.append({"place": place, "unsettled_weekdays": unsettled, "holiday": on_holiday})
     return places
 
 

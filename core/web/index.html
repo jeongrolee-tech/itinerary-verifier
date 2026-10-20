@@ -236,7 +236,14 @@ function evidenceLine(found) {
                + (ev.effective_closed_date ? ` (그 주는 ${ev.effective_closed_date})` : ""));
   }
   if (ev.open) parts.push(`운영 ${ev.open}~${ev.close}` + (ev.last_admission ? `, 입장마감 ${ev.last_admission}` : ""));
-  if (ev.end_time && !assumed) parts.push(`${ev.dwell_minutes}분 머물면 ${ev.end_time}에 끝남, 폐장 ${ev.closing_time}`);
+  if (ev.entry_times) {  // 회차 입장 — 어느 회차에 들어가는지
+    parts.push(`한국어 회차 ${ev.entry_times[0]}~${ev.entry_times[ev.entry_times.length - 1]}`
+               + (ev.entry_at ? `, ${ev.entry_at} 회차 입장` : ""));
+  }
+  if (ev.end_time && !assumed) {
+    parts.push(`${ev.dwell_minutes}분 머물면 ${ev.end_time}에 끝남, `
+               + (ev.tour_minutes ? `해설 관람 ${ev.tour_minutes}분 정도` : `폐장 ${ev.closing_time}`));
+  }
   if (ev.travel_minutes) {  // 0분(바로 이어도 늦는 경우)은 판정 이유에 이미 적혀 있다
     const source = ev.travel_source || ev.source;
     parts.push(`이동 ${[MODES[ev.mode], `${ev.travel_minutes}분`].filter(Boolean).join(" ")}`
@@ -511,8 +518,6 @@ const SKETCH = {
   "서울시립미술관 서소문본관": { x: 52, y: 176, icon: "museum", lines: ["서울시립미술관", "서소문본관"] },
 };
 const SVG = "http://www.w3.org/2000/svg";
-// 확인하지 못한 이유를 짧게 — 판정 코드의 미확인 이유(verdict.py) 중 요일에 따라 생기는 것만
-const REASON_SHORT = { UNSUPPORTED_ADMISSION_TYPE: "회차 관람이라" };
 
 function svgEl(tag, attrs = {}, text = null) {
   const node = document.createElementNS(SVG, tag);
@@ -554,15 +559,14 @@ function sketchPlace(p, when) {
     const res = await fetch("/api/places");
     if (!res.ok) return;
     const { places } = await res.json();
-    // 확인하지 못하는 요일이 있는 곳만 그 요일과 이유를 두 줄로 덧붙인다 — 종묘 '월·목·금은 회차 관람이라 / 확인 못 해요.
-    // 공휴일은 돼요'. '수·토·일만' 처럼 되는 요일을 적으면 그날만 연다고 읽힌다. 이유는 판정 코드의 미확인 이유로 고른다
+    // 확인하지 못하는 요일이 있는 곳만 그 요일을 덧붙인다 — '월·목·금은 / 확인 못 해요'.
+    // '수·토·일만' 처럼 되는 요일을 적으면 그날만 연다고 읽힌다
     const whenOf = (p) => {
       if (!p.unsettled_weekdays.length) return null;
       const days = p.unsettled_weekdays.map((w) => WEEKDAYS[w] || w);
       const last = days[days.length - 1].charCodeAt(0) - 0xAC00;
       const topic = last >= 0 && last < 11172 && last % 28 ? "은" : "는";  // 받침이 있으면 '은'
-      const why = p.unsettled_reasons.map((r) => REASON_SHORT[r]).filter(Boolean).join(" ");
-      return [`${days.join("·")}${topic} ${why}`.trim(), `확인 못 해요${p.holiday ? ". 공휴일은 돼요" : ""}`];
+      return [`${days.join("·")}${topic}`, `확인 못 해요${p.holiday ? ". 공휴일은 돼요" : ""}`];
     };
     const drawn = places.filter((p) => SKETCH[p.place]);
     if (drawn.length) {
