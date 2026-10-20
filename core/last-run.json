@@ -1,18 +1,18 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20261019-194313",
+  "run_id": "run-20261020-125931",
   "version": "core-0.2",
-  "ran_at": "2026-10-19T10:43:13.975025+00:00",
-  "facts_snapshot": "facts-2026-10-19",
+  "ran_at": "2026-10-20T03:59:31.892428+00:00",
+  "facts_snapshot": "facts-2026-10-20",
   "holidays_verified": true,
   "labeled_at": "2026-10-14",
   "conditions": {
-    "code_commit": "e1f5a00ed73137f086f91f7198dc0a5eac066da3",
+    "code_commit": "269e46aa3ec8427f64151ba06a4ef3fbbad523c1",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "tests.json": "7755ec704a66",
-      "facts.json": "d61e9a539c05",
+      "tests.json": "b28d9fa8164c",
+      "facts.json": "5e2bb7b1fde0",
       "policy.json": "1e3605504d71"
     }
   },
@@ -1569,7 +1569,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.01,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -1772,13 +1772,12 @@
       "stale_reason": null,
       "expect_applied": {
         "facts": [
-          "종묘 정기휴일 화요일",
-          "종묘 회차 입장 시각표(국어 09:20~16:20)"
+          "places.종묘.closed_days.weekly [TUE]",
+          "places.종묘.admission.timed_weekdays [MON, THU, FRI] — rule_text '월,목,금 * 정해진 시간에 입장 후 해설사와 함께 50분 정도 관람 / 일반관람 불가'",
+          "places.종묘.admission.entry_times_ko['10-2'] 09:20, 10:20, … 16:20",
+          "places.종묘.admission.dwell_fixed_minutes 50"
         ],
-        "assumptions": [],
-        "missing": [
-          "회차 입장 검사 구현"
-        ]
+        "assumptions": []
       },
       "date": "2026-10-08",
       "date_source": "inferred",
@@ -1789,10 +1788,10 @@
         "verdict": "undetermined",
         "message": "위반은 발견되지 않았지만 1개 항목을 확인하지 못했습니다",
         "counts": {
-          "pass": 1,
+          "pass": 2,
           "fail": 0,
           "unknown": 1,
-          "not_applicable": 2
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -1829,52 +1828,54 @@
         {
           "type": "ADMISSION_NOT_POSSIBLE",
           "target": "종묘",
-          "status": "unknown",
+          "status": "pass",
           "severity": null,
-          "unknown_reason": "UNSUPPORTED_ADMISSION_TYPE",
-          "detail": "회차 입장은 연속 운영시간 구간으로 표현할 수 없다. 16:20 회차와 16:40 회차 사이 도착은 입장 불가인데 현재 검사는 그것을 판별하지 못한다",
           "evidence": {
             "admission_type": "timed_entry",
-            "entry_times": {
-              "10-2": [
-                "09:20",
-                "10:20",
-                "11:20",
-                "12:20",
-                "13:20",
-                "14:20",
-                "15:20",
-                "16:20"
-              ],
-              "3-9": [
-                "09:20",
-                "10:20",
-                "11:20",
-                "12:20",
-                "13:20",
-                "14:20",
-                "15:20",
-                "16:20",
-                "16:40"
-              ]
-            },
-            "dwell_fixed_minutes": 50,
+            "entry_kind": "회차",
+            "planned_time": "10:00",
+            "entry_times": [
+              "09:20",
+              "10:20",
+              "11:20",
+              "12:20",
+              "13:20",
+              "14:20",
+              "15:20",
+              "16:20"
+            ],
+            "tour_minutes": 50,
             "rule_text": "월,목,금 * 정해진 시간에 입장 후 해설사와 함께 50분 정도 관람 / 일반관람 불가",
             "source": "curated",
             "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
-            "checked_at": "2026-10-19"
+            "checked_at": "2026-10-19",
+            "valid_until": "2026-12-31",
+            "entry_at": "10:20"
           },
-          "how_to_resolve": {
-            "system": "회차 입장 검사 구현 — 도착 시각이 어느 회차에 들어가는지와 고정 체류 50분을 함께 본다"
-          },
+          "notice": "이날은 정해진 회차로만 들어간다 — 10:20 회차까지 20분 기다린다. 해설사를 따라 50분 정도 관람하고 일반관람은 안 된다. 체류와 다음 이동은 10:20부터 계산한다",
           "id": "chk-002"
         },
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "종묘",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "evidence": {
+            "dwell_minutes": 60,
+            "dwell_source": "user_stated",
+            "end_time": "11:20",
+            "tour_minutes": 50,
+            "rule_text": "월,목,금 * 정해진 시간에 입장 후 해설사와 함께 50분 정도 관람 / 일반관람 불가",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-10-19",
+            "valid_until": "2026-12-31"
+          },
+          "unknown_reason": "DWELL_BEYOND_TOUR",
+          "detail": "계획한 체류 60분이 해설 관람(50분 정도)보다 길다. 일반관람이 안 되는 날이라 더 머물 수 있는지 공식 안내가 말하지 않는다",
+          "how_to_resolve": {
+            "user": "이날 종묘에서는 해설사를 따라 50분 정도 관람해요. 그보다 오래 머물 수 있는지는 공식 안내에 없어요. 50분 안으로 잡아도 될까요?"
+          },
           "id": "chk-003"
         },
         {
@@ -3309,7 +3310,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
