@@ -14,12 +14,17 @@ arm 을 나눈 이유는 **개선이 어디서 왔는지 구분**하기 위해�
 
     arm 0  llm_naive       자연어 일정만. 상태 정의만 주고 지시는 주지 않는다
     arm 1  llm_only        같은 입력 + "근거 없으면 unknown 으로 둬라" 지시
-    arm 2  llm_with_facts  구조화 일정 + 사실 + 정책. 판정은 LLM
-    arm 3  code            같은 입력.                  판정은 verdict.py
+    arm 2  llm_with_facts  구조화 일정 + 사실 + 정책 + 판정 규칙. 판정은 LLM
+    arm 3  code            같은 입력 · 같은 규칙.      판정은 verdict.py
 
     arm 0 → 1   지시 효과      프롬프트로 보류를 유도하면 달라지는가
-    arm 1 → 2   정보 제공 효과
-    arm 2 → 3   판정 방식 효과  입력이 같으므로 그 차이만 남는다
+    arm 1 → 2   정보 제공 효과 — 사실 데이터와 판정 규칙에 입력 구조화가 섞여 있다. arm 1 은 자연어를,
+                arm 2 는 사람이 쓴 구조화 일정을 받는다. 셋을 따로 떼어 재지 않는다
+    arm 2 → 3   판정 방식 효과  입력과 판정 규칙이 같으므로 그 차이만 남는다
+
+판정 규칙(RULES)은 arm 2 에만 준다. 3차 피드백 — T15 에서 '공휴일 시간표가 요일 시간표보다 먼저' 라는
+규칙을 판정 코드만 알고 있었다. 그러면 arm 2 와 arm 3 의 차이를 판정 방식 효과로만 읽을 수 없다.
+사실 데이터가 없는 arm 0 · 1 에는 규칙을 적용할 값이 없어서 주지 않는다.
 
 arm 0 이 따로 있는 이유: 1차 실험에서 arm1 이 15건 전부 undetermined 였는데,
 그건 "근거 없이 추측하지 말라"고 **지시했기 때문**이다. 지시를 따른 결과를
@@ -153,6 +158,49 @@ SYSTEM_LLM_ONLY = f"""너는 여행 일정의 실행 가능성을 검증한다.
 **사실 데이터는 주어지지 않는다.** 운영시간·휴무일·이동시간을 확보하지 못한 상태다.
 근거 없이 추측해서 pass 나 fail 을 내지 말고, 확보하지 못한 근거가 필요한 검사는 unknown 으로 둔다."""
 
+# ⭐ 판정 코드(verdict.py)가 쓰는 규칙을 그대로 적는다 — README 판정 규칙 표와 같은 내용이다.
+#    3차 피드백: 같은 facts.json 을 줘도 적용 규칙이 다르면 LLM 31/33 과 코드 33/33 의 차이를 판정 방식 효과로만
+#    설명할 수 없다(T15 공휴일 우선 · 권장 여유 미달 처리). 판정 코드의 규칙을 고치면 여기도 고친다
+RULES = """판정 규칙 — 판정 코드가 쓰는 규칙과 같다. 이 규칙대로 판정한다.
+
+시간표와 휴무일
+  1. 방문일이 공휴일(holidays.dates)이면 holiday 가 true 인 시간표를 먼저 쓴다. 요일 시간표보다 우선한다.
+     예: 공휴일인 금요일은 금요일 시간표가 아니라 공휴일 시간표다. 그 밖에는 months · weekdays 가 맞는 시간표를 쓴다.
+  2. 정기휴일(closed_days.weekly)이 공휴일과 겹치면 exception_rule 을 따른다.
+     shift_to_next_nonholiday — 그날은 열고, 그다음 첫 비공휴일에 쉰다.
+     open_if_holiday_no_shift — 그날은 열고, 쉬는 날을 밀지 않는다.
+     값이 없으면 공휴일이어도 쉰다. fixed_dates(MM-DD)는 그날 쉰다. 두 규칙이 반대 결론이면 unknown 이다.
+  3. 쉬는 날이면 휴무 검사는 fail 이고, 그 장소의 입장 · 체류 검사는 not_applicable 이다.
+
+입장
+  4. 입장마감(last_admission) 뒤에 도착하면 fail 이다. 입장마감 정각 도착은 last_admission_rule 이 '…까지 입장'
+     인 곳만 pass 이고, 그 문구가 없으면 unknown 이다. 개장 전에 도착하면 개장 시각에 들어간다.
+  5. 회차 입장인 날(admission.type 이 timed_entry 이고 방문 요일이 timed_weekdays)은 도착 뒤 첫 한국어 회차
+     (entry_times_ko 에서 방문 월이 속한 구간)에 들어간다. 마지막 한국어 회차 뒤에 도착하면 fail 이다. 그보다 늦은
+     외국어 회차가 있으면 fail 이 아니다. 마지막 회차 정각 도착은 unknown 이다.
+
+체류
+  6. 입장이 pass 가 아니면 체류는 not_applicable 이다. 체류시간을 사용자가 말하지 않았으면 unknown 이다.
+     말했으면 입장 시각에 체류를 더한 시각이 폐장보다 늦을 때 fail 이다. 회차 입장인 날은 해설 시간
+     (dwell_fixed_minutes)보다 긴 체류가 unknown 이다.
+
+이동
+  7. 앞 장소를 나서는 시각은 입장 시각에 사용자가 말한 체류를 더한 것이다. 체류를 모르면 0분으로 본다.
+     다음 장소에 닿아야 하는 시각은 그 장소에 실제로 들어가는 시각(개장 · 회차)이다.
+  8. 이동 0분으로도 늦을 때만 fail 이다. 이동시간으로 늦으면 unknown, 닿지만 권장 여유
+     (policy.buffer_minutes.transit_leg)를 못 채우면 unknown, 여유까지 채우면 pass 다. 앞 장소의 체류를 사용자가
+     말하지 않았으면 바로 나와도 늦을 때만 늦다고 보고, 그 밖에는 unknown 이다.
+  9. 대중교통으로 pass 가 안 나오고 구간에 택시 대안(alternatives)이 있으면 택시 시간으로 같은 규칙을 적용한다.
+  10. 양 끝 중 한 곳이 쉬는 날이면 이동은 not_applicable 이다. 구역(area)이 끼거나 구간 이동시간(legs)이 없으면
+      unknown 이다. 마지막 장소 뒤에는 이동이 없다.
+
+필수 일정(hard_constraints)
+  11. 마지막 장소에서 필수 일정 장소로 가는 이동으로 보고, 그 구간의 INSUFFICIENT_TRAVEL_TIME 검사로 적는다.
+      출발 시각(열차 · 항공편)은 그 시각에 닿아도 놓친 것이다. 권장 여유는 buffer_rule 이 가리키는 policy 값이다.
+      이동 0분으로도 놓치면 fail, 이동시간으로 놓치거나 여유가 모자라면 unknown 이다. buffer_rule 의 값이 policy 에
+      없으면(항공편) pass 를 내지 않는다. 필수 일정 시각보다 늦게 시작하는 장소가 있으면 하루 중간의 일정이라
+      unknown 이다."""
+
 SYSTEM_LLM_FACTS = f"""너는 여행 일정의 실행 가능성을 검증한다.
 
 {STATES}
@@ -169,7 +217,9 @@ facts 에 없는 운영시간·휴무일·이동시간을 네 지식으로 메�
 체류시간이 system_default 면 사용자가 말하지 않은 값이다.
 시각의 start_source 가 inferred 면 사용자가 정확히 말하지 않아 추측한 시각이다(예: 앞에 기댈 시각 없이 "4시" 라고만 했다).
 그 시각에 기대는 검사는 pass 도 fail 도 확정하지 않는다.
-장소의 scope 가 area 면 구역만 정해진 일정이라 확인할 시설이 없다."""
+장소의 scope 가 area 면 구역만 정해진 일정이라 확인할 시설이 없다.
+
+{RULES}"""
 
 
 def itinerary_for(case: dict) -> dict:
@@ -371,6 +421,7 @@ elif need_llm:
             raise SystemExit("키가 비어 있다.")
         client = anthropic.Anthropic(api_key=key)
 
+# 프롬프트 지문 — llm_with_facts 의 지문에 판정 규칙(RULES)도 들어 있다
 CONDITIONS = run_meta(reference_date=REFERENCE_DATE, libraries=library_versions(), prompts={
     "llm_naive": fingerprint(SYSTEM_LLM_NAIVE), "llm_only": fingerprint(SYSTEM_LLM_ONLY),
     "llm_with_facts": fingerprint(SYSTEM_LLM_FACTS), "judgment_schema": JUDGMENT_SCHEMA})
