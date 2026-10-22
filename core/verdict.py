@@ -1350,6 +1350,9 @@ def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date) ->
     for hc in itinerary.get("hard_constraints", []):
         if _hard_constraints_input([hc]):
             continue
+        if is_midday(hc, itinerary["stops"]):
+            hard.append(_midday_result(hc))
+            continue
         if seq[-1] is None:
             missing = stop_inputs[-1][0]
             event = {"type": hc["type"], "place": hc["place"], "time": hc["time"],
@@ -1363,6 +1366,28 @@ def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date) ->
         h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"])
         hard.append(h)
     return hard
+
+
+def is_midday(hc: dict, stops: list[dict]) -> bool:
+    """필수 일정이 하루 중간에 있나 — 그 시각보다 늦게 시작하는 장소가 하나라도 있으면 그렇다. 같은 시각에
+    시작하는 장소는 필수 일정과 겹치는 것이라 지금처럼 판정한다(19:00 장소 · 19:00 열차는 위반)."""
+    # ⭐ 필수 일정은 마지막 장소에서 출발한다고 계산한다. 그래서 하루 마지막 교통편(열차 · 항공편 · 마지막 도착 기한)만
+    #    맞다. "정오까지 미술관 앞에 꼭, 오후 3시 덕수궁" 을 마지막 장소에서 계산하면 정오 뒤의 덕수궁(16:00 퇴장)을
+    #    실패 근거로 쓴다(3차 피드백). 하루 중간의 필수 일정은 앞뒤 장소와 잇는 검사가 아직 없으니 확정하지 않고 알린다
+    return any(re.fullmatch(HHMM, str(s.get("start") or "")) and to_min(s["start"]) > to_min(hc["time"])
+               for s in stops)
+
+
+def _midday_result(hc: dict) -> dict:
+    """하루 중간의 필수 일정 — 판정하지 않고 미확인으로 알린다. 위반으로 확정하지 않는다."""
+    event = {"type": hc["type"], "place": hc["place"], "time": hc["time"],
+             "source": hc.get("source", "user_stated"), "raw": hc.get("raw")}
+    name = f"{EVENT_NAMES.get(hc['type'], '필수 일정')}({hc['time']} {hc['place']})"
+    return {"id": hc["id"], "event": event, "policy": {
+        "status": UNKNOWN, "unknown_reason": "MIDDAY_HARD_CONSTRAINT", "severity": "blocking",
+        "detail": f"{name}이 하루 중간에 있다. 필수 일정은 아직 하루 마지막 교통편만 판정한다",
+        "how_to_resolve": {"system": "필수 일정을 그 시각 앞뒤 장소와 잇는 검사 구현"},
+        "notice": f"{name}은 하루 중간이라 아직 검사하지 않아요. 앞 장소에서 제때 닿는지는 직접 확인해 주세요"}}
 
 
 def _summary(checks: list[dict], hard: list[dict]) -> dict:

@@ -86,7 +86,6 @@ def test_missing_time_elsewhere_keeps_confirmed_violation(facts, policy):
 # 나오는 16:00 으로 판정하면 정오 뒤의 활동을 실패 근거로 쓴 셈이다. 하루 중간의 필수 일정은 아직 검사하지
 # 않으므로 위반으로 확정하지 않고 알린다.
 
-@pytest.mark.xfail(strict=True, reason="필수 조건을 늘 마지막 장소(stops[-1])에서 출발한다고 계산한다")
 def test_midday_constraint_is_not_judged_from_the_last_stop(facts, policy):
     result = judge({"date": THURSDAY, "stops": [
         {"place": PALACE, "start": "09:00", "dwell_minutes": 60},
@@ -94,8 +93,18 @@ def test_midday_constraint_is_not_judged_from_the_last_stop(facts, policy):
     ], "hard_constraints": [{"id": "HC1", "type": "ARRIVE_BY", "place": MUSEUM, "time": "12:00",
                              "buffer_rule": "transit_leg", "source": "user_stated"}]}, facts, policy)
     policy_eval = result["hard_constraints"][0]["policy"]
-    assert policy_eval["status"] == UNKNOWN
+    assert policy_eval["status"] == UNKNOWN and policy_eval["unknown_reason"] == "MIDDAY_HARD_CONSTRAINT"
+    assert policy_eval["notice"]  # 아직 검사하지 않는다고 알린다
     assert result["summary"]["verdict"] != "infeasible"
+
+
+def test_last_train_of_the_day_is_still_judged(facts, policy):
+    """대조군: 하루 마지막 교통편은 지금처럼 마지막 장소에서 판정한다 — 19:00 에 광장시장을 나와 19:00 KTX 는
+    이동 0분으로도 늦어 위반이다."""
+    result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}],
+                    "hard_constraints": [{"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "19:00",
+                                          "buffer_rule": "rail_boarding", "source": "user_stated"}]}, facts, policy)
+    assert result["hard_constraints"][0]["policy"]["status"] == FAIL
 
 
 # ── 4. 재검사 API 에도 일정 검증이 필요하다 ──────────────────────────────

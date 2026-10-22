@@ -22,7 +22,7 @@ import urllib.request
 from datetime import date, datetime, timedelta
 
 from spend import count_tmap
-from verdict import HHMM, judge, segment_key
+from verdict import HHMM, is_midday, judge, segment_key
 
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
@@ -195,7 +195,8 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
     pairs = [(i, segment_key(i, a["place"], b["place"]), a, b) for i, (a, b) in enumerate(zip(stops, stops[1:]))] + [
         (len(stops) - 1, segment_key(hc.get("id") or f"HC{n}", stops[-1]["place"], hc["place"]),
          stops[-1], {"place": hc["place"]})
-        for n, hc in enumerate(itinerary.get("hard_constraints", []), 1)]
+        for n, hc in enumerate(itinerary.get("hard_constraints", []), 1)
+        if hc.get("time") and not is_midday(hc, stops)]  # 하루 중간의 필수 일정은 판정하지 않으니 묻지 않는다
     day = date.fromisoformat(itinerary["date"])
     at, legs, misses = {}, {}, {}
     for i, k, a, b in pairs:
