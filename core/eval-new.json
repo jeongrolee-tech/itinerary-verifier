@@ -67,7 +67,7 @@
          "raw": "서울역에서 KTX를 꼭 타야 하는데 기차 시간은 아직 안 정했어요"}
       ],
       "legs": {
-        "창덕궁|덕수궁": {"minutes": 25, "mode": "transit", "is_lower_bound": false,
+        "창덕궁|덕수궁": {"minutes": 15, "mode": "transit", "is_lower_bound": false,
                        "source": "synthetic_fixture", "method": "synthetic_fixture"}
       }
     },
