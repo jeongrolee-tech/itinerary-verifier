@@ -18,7 +18,7 @@ from test_verify import T01, TEXT, Claude, tmap
 
 TODAY = "2026-10-01"
 LOCAL = "http://127.0.0.1"  # 앱은 내 PC 주소로 온 요청만 받는다
-LEG = "서울시립미술관 서소문본관|경복궁"
+LEG = "0:서울시립미술관 서소문본관|경복궁"  # 판정할 때 받은 구간은 구간 번호로 붙는다
 # T08 과 같은 일정 — 10월 8일 목요일 16:30 경복궁. 얼마나 머물지 말하지 않았다
 PALACE = {"date": "2026-10-08", "date_source": "inferred", "weekday_stated": "THU", "notes": [],
           "hard_constraints": [],

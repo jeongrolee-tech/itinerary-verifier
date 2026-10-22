@@ -56,7 +56,6 @@ def revisit():
     ]}
 
 
-@pytest.mark.xfail(strict=True, reason="이동시간 키가 '출발|도착' 이라 오후 조회가 오전을 덮어쓴다")
 def test_revisit_keeps_each_legs_own_travel_time(monkeypatch, facts, policy):
     monkeypatch.setattr(routes, "call", TimedTmap())
     legs, misses = live_legs(revisit(), "key", facts, policy)

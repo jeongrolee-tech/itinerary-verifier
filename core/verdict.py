@@ -571,9 +571,31 @@ def _dwell_on_tour(name, adm, entry, dwell) -> dict:
 
 
 # ── 이동시간 ────────────────────────────────────────────────────────
-def leg_between(facts: dict, a: str, b: str) -> dict | None:
-    """A → B 구간의 이동시간. 방향이 있다 — A|B 가 있어도 B|A 는 따로 있어야 한다."""
+def segment_key(segment, a: str, b: str) -> str:
+    """판정할 때 받은 이동시간(TMAP)을 붙이는 이름 — 구간 번호(출발 장소 순번, 필수 일정이면 그 번호) · 출발 · 도착."""
+    return f"{segment}:{a}|{b}"
+
+
+def leg_for(facts: dict, key: str, a: str, b: str, visit_date: str, depart: str) -> dict | None:
+    """A → B 구간의 이동시간. 방향이 있다 — A|B 가 있어도 B|A 는 따로 있어야 한다.
+
+    판정할 때 받은 값(segment_key 로 붙은 구간)은 받은 날짜 · 출발 시각이 이 판정과 같을 때만 쓴다.
+    아니면 저장해 둔 값(출발|도착 — 공공데이터 최소 이동시간 · 테스트용 이동시간)을 쓴다.
+    """
+    # ⭐ 예상 이동시간은 그 출발 시각의 교통이다. 같은 장소 사이를 오전 · 오후에 오가면 값이 다르다(3차 피드백:
+    #    10:30 출발 45분 · 13:30 출발 10분). '출발|도착' 하나에 저장하면 나중 조회가 앞 조회를 덮어써 오전 구간을
+    #    오후 값으로 통과시킨다. 그래서 구간 번호로 붙이고, 다시 쓰는 조건을 정한다 — 같은 구간(번호 · 출발 · 도착),
+    #    같은 날짜, 같은 출발 시각. 수단은 구간에 함께 붙은 mode 와 택시 대안(alternatives)이 말해 준다.
+    #    저장해 둔 값은 시각과 상관없는 최소 이동시간이나 테스트용 값이라 출발|도착으로 찾는다
+    live = facts["legs"].get(key)
+    if live and live.get("depart_at") == f"{visit_date}T{depart}":
+        return live
     return facts["legs"].get(f"{a}|{b}")
+
+
+def departure(st: dict) -> str:
+    """장소를 나서는 시각 — 입장 시각에 사용자가 말한 체류를 더한다. 체류를 모르면 바로 나선다고 본다(0분)."""
+    return to_hhmm(to_min(st["entry"]) + (st["dwell"]["value"] if st["dwell"]["source"] == "user_stated" else 0))
 
 
 MODE_NAMES = {"metro": "지하철", "transit": "대중교통", "walk": "도보", "taxi": "택시"}
@@ -620,7 +642,8 @@ def _with_taxi(result: dict, taxi: dict, assess) -> dict:
 
 def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
     """구간 하나의 이동 검사. 대중교통으로 '된다' 가 안 나오면 붙어 있는 택시 대안을 본다."""
-    leg = leg_between(facts, frm["name"], to["name"])
+    leg = leg_for(facts, segment_key(frm["index"], frm["name"], to["name"]), frm["name"], to["name"],
+                  visit_date, departure(frm))
     result = _travel(frm, to, leg, policy, closed_statuses, visit_date)
     taxi = ((leg or {}).get("alternatives") or [None])[0]
     if taxi is None or result["status"] != UNKNOWN:
@@ -834,7 +857,8 @@ class _Deadline:
 
 def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
     """필수 조건 하나. 대중교통으로 '된다' 가 안 나오면 붙어 있는 택시 대안을 본다(check_travel 과 같다)."""
-    leg = leg_between(facts, stops[-1]["name"], hc["place"])
+    leg = leg_for(facts, segment_key(hc["id"], stops[-1]["name"], hc["place"]), stops[-1]["name"], hc["place"],
+                  visit_date, departure(stops[-1]))
     result = _hard_constraint(hc, stops, leg, policy, visit_date)
     taxi = ((leg or {}).get("alternatives") or [None])[0]
     if taxi is None or result["policy"]["status"] != UNKNOWN:
@@ -1232,7 +1256,7 @@ def _prepare_stop(i: int, s: dict, facts: dict, policy: dict, assumptions: list[
             "ask_user": f"{s['place']}에서 얼마나 머무르실 예정인가요?",
         })
         dwell = {"value": value, "source": "system_default", "assumption_id": aid}
-    return {"name": s["place"], "place": place, "start": s["start"], "entry": s["start"],
+    return {"index": i, "name": s["place"], "place": place, "start": s["start"], "entry": s["start"],
             "start_source": start_source, "start_dep": start_dep, "scope": scope, "support": support,
             "scope_note": s.get("scope_note"), "dwell": dwell}
 

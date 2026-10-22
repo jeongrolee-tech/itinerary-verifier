@@ -21,7 +21,7 @@ import urllib.request
 from datetime import date, datetime, timedelta
 
 from spend import count_tmap
-from verdict import judge
+from verdict import judge, segment_key
 
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
@@ -185,17 +185,18 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
             if evidence.get("entry_at"):
                 entry_times[i] = evidence["entry_at"]
 
-    pairs = [(i, a, b) for i, (a, b) in enumerate(zip(stops, stops[1:]))] + [
-        (len(stops) - 1, stops[-1], {"place": hc["place"]})
-        for hc in itinerary.get("hard_constraints", [])]
+    # 구간마다 따로 붙인다(segment_key). 같은 장소 사이를 두 번 가도 출발 시각이 달라 값이 다르다
+    pairs = [(i, segment_key(i, a["place"], b["place"]), a, b) for i, (a, b) in enumerate(zip(stops, stops[1:]))] + [
+        (len(stops) - 1, segment_key(hc.get("id") or f"HC{n}", stops[-1]["place"], hc["place"]),
+         stops[-1], {"place": hc["place"]})
+        for n, hc in enumerate(itinerary.get("hard_constraints", []), 1)]
     day = date.fromisoformat(itinerary["date"])
     at, legs, misses = {}, {}, {}
-    for i, a, b in pairs:
+    for i, k, a, b in pairs:
         if not a.get("start"):
             continue  # 시각이 없으면 판정 코어도 이 구간을 판정하지 않는다
         if "area" in (a.get("scope"), b.get("scope")):
             continue  # 구역은 대표 지점으로 길을 찾지 않는다. 판정 코어도 이 구간을 판정하지 않는다
-        k = f"{a['place']}|{b['place']}"
         try:
             for name in (a["place"], b["place"]):
                 if name not in at:
@@ -208,7 +209,9 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
             entry_at = entry_times.get(i, a["start"])
             depart = (datetime.combine(day, datetime.strptime(entry_at, "%H:%M").time())
                       + timedelta(minutes=a.get("dwell_minutes") or 0))
-            legs[k] = leg(a["place"], at[a["place"]], b["place"], at[b["place"]], depart, key)
+            # 받은 날짜 · 출발 시각을 붙인다. 판정 코어는 이것이 판정과 같을 때만 이 값을 쓴다(verdict.leg_for)
+            legs[k] = {**leg(a["place"], at[a["place"]], b["place"], at[b["place"]], depart, key),
+                       "depart_at": depart.strftime("%Y-%m-%dT%H:%M")}
         except Miss as e:
             misses[k] = e
             continue

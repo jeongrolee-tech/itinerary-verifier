@@ -264,14 +264,15 @@ function evidenceLine(found) {
 function extraLines(data) {
   const lines = (data.notes || []).map((t) => "추출 메모 · " + t);
   for (const [k, leg] of Object.entries(data.legs || {})) {
-    let line = `TMAP 예상 · ${k.replace("|", " → ")} ${MODES[leg.mode] || leg.mode} ${leg.minutes}분`;
+    // 구간 이름은 '번호:출발|도착' 이다(verdict.segment_key). 화면에는 출발 → 도착만 보인다
+    let line = `TMAP 예상 · ${k.replace(/^[^:]*:/, "").replace("|", " → ")} ${MODES[leg.mode] || leg.mode} ${leg.minutes}분`;
     for (const t of leg.alternatives || []) {
       line += ` · 택시 ${t.minutes}분` + (t.fare ? ` (약 ${t.fare.toLocaleString("ko-KR")}원)` : "");
     }
     lines.push(line);
   }
   for (const [k, why] of Object.entries(data.leg_misses || {})) {
-    lines.push(`TMAP 받지 못함 · ${k.replace("|", " → ")} [${why}]`);
+    lines.push(`TMAP 받지 못함 · ${k.replace(/^[^:]*:/, "").replace("|", " → ")} [${why}]`);
   }
   lines.push(data.tmap ? "TMAP 이동시간은 이 판정에만 쓰고 저장하지 않습니다"
                        : "TMAP 키가 없어 이동시간은 저장해 둔 지하철 최소 이동시간으로만 판정했습니다");
