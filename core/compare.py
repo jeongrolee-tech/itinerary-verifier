@@ -9,6 +9,8 @@
     python core/compare.py --case T05       한 건만         → last-compare-subset.json
     python core/compare.py --model claude-sonnet-5-5
     python core/compare.py --reference-date 2026-10-01   기준 날짜를 바꿔서 (기본은 tests.json)
+    python core/compare.py --repeat 5       판정 규칙이 여럿 겹치는 문제를 'LLM에 사실 데이터 줌' 으로 다섯 번씩
+                                            새로 불러 답이 흔들리는지 잰다 → last-compare-stability.json (돈이 든다)
 
 arm 을 나눈 이유는 **개선이 어디서 왔는지 구분**하기 위해서다.
 
@@ -44,6 +46,7 @@ LLM arm 은 돈이 든다. 모델이 받는 것이 같은 요청은 응답 캐�
 
 import json
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -70,16 +73,23 @@ args = sys.argv[1:]
 flag = lambda name, d: next(
     (args[i + 1] for i, a in enumerate(args) if a == name and i + 1 < len(args)), d)
 only = flag("--case", None)
+REPEAT = int(flag("--repeat", "0"))
+# 반복 실행의 기본 — 판정 규칙이 여럿 겹치는 문제(3차 피드백 "새 호출은 복합 조건 일부에 한정해도 된다")
+#   T15 공휴일 시간표 우선 · T17 장소 여섯 곳 중간 겹침 · T27 열차 권장 여유 부족(검사와 판정이 어긋난 답이 있었다)
+#   · T28 동네와 궁궐(전체는 맞고 검사가 틀린 답이 있었다)
+STABILITY_CASES = "T15,T17,T27,T28"
+only = only or (STABILITY_CASES if REPEAT else None)
 MODEL = flag("--model", DEFAULT_MODEL)
 EFFORT = effort_for(MODEL, flag("--effort", "low"))
 ALL_ARMS = ["llm_naive", "llm_only", "llm_with_facts", "code"]
-ARMS = flag("--arms", ",".join(ALL_ARMS)).split(",")
+# 반복 실행은 기본으로 'LLM에 사실 데이터 줌' 만 부른다 — 판정 코드와 비교하는 방식이다
+ARMS = flag("--arms", "llm_with_facts" if REPEAT else ",".join(ALL_ARMS)).split(",")
 
 LINE = "═" * 78
 CHECK_TYPES = ["CLOSED_DAY", "ADMISSION_NOT_POSSIBLE",
                "DWELL_NOT_COMPLETABLE", "INSUFFICIENT_TRAVEL_TIME"]
 
-cases = [c for c in suite["cases"] if not only or c["id"].startswith(only)]
+cases = [c for c in suite["cases"] if not only or c["id"].startswith(tuple(only.split(",")))]
 
 
 # ── 라벨 유효성 (run.py 와 같은 규칙) ────────────────────────────────
@@ -261,21 +271,26 @@ def llm_requests(case: dict, case_f: dict) -> dict[str, dict]:
                   "schema": Judgment} for arm in ARMS if arm in SYSTEMS}
 
 
+def ask_fresh(req: dict) -> tuple[dict, dict]:
+    """모델을 한 번 부른다. (답, 사용량). 거부와 형식 오류도 답으로 돌려준다 — 지표가 판정과 따로 센다."""
+    try:
+        j, usage = ask(client, **req)
+        return j.model_dump(), usage
+    except Refusal as e:
+        # 거부는 판정이 아니다. 지표가 따로 세도록 verdict 를 "refused" 로 남긴다
+        return {"verdict": "refused", "checks": [], "message": "",
+                "stop_details": {"category": e.usage["refusal_category"],
+                                 "explanation": e.usage["refusal_explanation"]}}, e.usage
+    except InvalidOutput as e:
+        # 형식이 틀린 응답도 판정이 아니다. 따로 세고, 청구된 사용량은 비용에 넣는다
+        return {"verdict": "invalid", "checks": [], "message": str(e)}, e.usage
+
+
 def answer(arm: str, req: dict, key: str, case_id: str) -> dict:
     """LLM 방식 하나의 답. 받아 둔 응답이 있으면 그것을 쓰고, 없으면 불러서 받는 즉시 응답 캐시에 넣는다."""
     if key in stored:
         return stored[key]
-    try:
-        j, usage = ask(client, **req)
-        result = j.model_dump()
-    except Refusal as e:
-        # 거부는 판정이 아니다. 지표가 따로 세도록 verdict 를 "refused" 로 남긴다
-        result, usage = {"verdict": "refused", "checks": [], "message": "",
-                         "stop_details": {"category": e.usage["refusal_category"],
-                                          "explanation": e.usage["refusal_explanation"]}}, e.usage
-    except InvalidOutput as e:
-        # 형식이 틀린 응답도 판정이 아니다. 따로 세고, 청구된 사용량은 비용에 넣는다
-        result, usage = {"verdict": "invalid", "checks": [], "message": str(e)}, e.usage
+    result, usage = ask_fresh(req)
     if DRY:  # 가짜 응답은 응답 캐시에 넣지 않는다. 돈도 나가지 않았다
         return {"label": arm, "run": RUN_ID, "result": result, "usage": usage}
     hit = cache.put(key, run=RUN_ID, label=arm, result=result, usage=usage)
@@ -353,6 +368,44 @@ def metrics(scored: list[dict]) -> dict:
     }
 
 
+def repeat_runs(n: int) -> None:
+    """같은 요청을 n 번 새로 불러 답이 흔들리는지 잰다. 응답 캐시는 읽지도 쓰지도 않는다.
+
+    3차 피드백 — 받아 둔 응답을 지금 코드로 다시 채점한 숫자(last-compare.json)와, 모델을 새로 불렀을 때 같은 답이
+    나오는지는 다른 질문이다. 공식 기록에 쓴 응답은 바꾸지 않고 따로 부른다. 기록은 last-compare-stability.json.
+    """
+    rows = []
+    for case, _, reqs, _ in plan:
+        for arm, req in reqs.items():
+            answers = []
+            for _ in range(n):
+                try:
+                    result, usage = ask_fresh(req)
+                except APIError as e:
+                    raise SystemExit(f"\n  ❌ API 호출 실패: {type(e).__name__} {e}\n{meter.summary()}") from e
+                if not DRY:  # 가짜 응답은 돈이 나가지 않았다
+                    meter.claude(f"{ARM_NAMES[arm]} 반복", usage)
+                g = graded(case, result)
+                answers.append({"verdict": result["verdict"], "checks_wrong": g["checks_wrong"],
+                                "consistent": g["consistent"], "result": result})
+            verdicts = Counter(a["verdict"] for a in answers)
+            rows.append({"id": case["id"], "arm": arm, "expect": case["expect"], "verdicts": dict(verdicts),
+                         "answers": answers})
+            print(f"  {pad(case['id'], 26)}{ARM_NAMES[arm]}  정답 {ANSWER_NAMES[case['expect']]} → "
+                  + " · ".join(f"{ANSWER_NAMES.get(v, v)} {k}번" for v, k in verdicts.most_common())
+                  + f" · 틀린 검사 수 {'/'.join(str(len(a['checks_wrong'])) for a in answers)}"
+                  + f" · 검사와 판정이 어긋남 {sum(a['consistent'] is False for a in answers)}번")
+    name = "last-compare-stability-dryrun.json" if DRY else "last-compare-stability.json"
+    out = {"_역할": "비교 실험 반복 기록. 같은 요청을 여러 번 새로 불러 답이 흔들리는지 잰다. "
+                    "공식 기록(last-compare.json)과 따로 둔다. compare.py --repeat 이 덮어쓴다.",
+           "run_id": RUN_ID.replace("cmp-", "cmp-repeat-"), "ran_at": datetime.now(timezone.utc).isoformat(),
+           "facts_snapshot": facts["snapshot_id"], "model": MODEL, "effort": EFFORT, "repeat": n,
+           "conditions": CONDITIONS, "spent_usd": round(meter.claude_usd, 4), "rows": rows}
+    (HERE / name).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\n  기록: core/{name}  ({out['run_id']})")
+    print(meter.summary())
+
+
 # ── 실행 ────────────────────────────────────────────────────────────
 class StubClient:
     """
@@ -422,12 +475,13 @@ elif need_llm:
     #    새로 부를 것이 있을 때만 비용을 보여 주고 물은 뒤에 키를 받는다. 받은 응답은 바로 캐시에 들어가므로
     #    도중에 멈춰도 다시 돌리면 남은 것만 부른다.
     cache = ResponseCache()
-    if "--fresh" not in args:  # --fresh 면 받아 둔 응답을 쓰지 않고 전부 새로 받아 바꿔 넣는다
+    if "--fresh" not in args and not REPEAT:  # --fresh 와 반복 실행은 받아 둔 응답을 쓰지 않고 전부 새로 부른다
         stored = {key: hit for _, _, _, keys in plan for key in keys.values() if (hit := cache.get(key))}
-    counts = {arm: sum(1 for _, _, _, keys in plan if arm in keys and keys[arm] not in stored) for arm in SYSTEMS}
+    counts = {arm: (REPEAT or 1) * sum(1 for _, _, _, keys in plan if arm in keys and keys[arm] not in stored)
+              for arm in SYSTEMS}
     new = {ARM_NAMES[arm]: n for arm, n in counts.items()}
     new_calls = sum(new.values())
-    confirm_spend(new, sum(len(keys) for _, _, _, keys in plan) - new_calls,
+    confirm_spend(new, len(stored),
                   {ARM_NAMES[arm]: cache.estimate_usd(MODEL, arm, n) for arm, n in counts.items()})
     if new_calls:
         import os
@@ -452,6 +506,10 @@ CONDITIONS = run_meta(reference_date=REFERENCE_DATE, libraries=library_versions(
 FULL_RUN = set(ARMS) == set(ALL_ARMS) and not only
 OUT_NAME = ("last-compare-dryrun.json" if DRY else
             "last-compare.json" if FULL_RUN else "last-compare-subset.json")
+
+if REPEAT:  # 반복 실행은 공식 기록과 따로 남기고 끝낸다
+    repeat_runs(REPEAT)
+    raise SystemExit
 
 rows, used = [], {}  # used — LLM 방식마다 이번 기록에 쓴 응답
 for case, case_f, reqs, keys in plan:

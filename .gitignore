@@ -15,6 +15,7 @@ travel-times.json
 
 # dry-run 산출물
 core/last-compare-dryrun.json
+core/last-compare-stability-dryrun.json
 
 # 일부 실행 산출물 — 공식 비교 기록은 last-compare.json 하나다
 core/last-compare-subset.json
