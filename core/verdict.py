@@ -1432,6 +1432,11 @@ def _midday_result(hc: dict) -> dict:
         "notice": f"{name}은 하루 중간이라 아직 검사하지 않아요. 앞 장소에서 제때 닿는지는 직접 확인해 주세요"}}
 
 
+def verdict_of(statuses: list[str]) -> str:
+    """검사 상태들로 전체 판정을 정한다 — 위반이 하나라도 있으면 불가능, 없고 미확인이 있으면 보류, 아니면 가능."""
+    return "infeasible" if FAIL in statuses else "undetermined" if UNKNOWN in statuses else "feasible"
+
+
 def _summary(checks: list[dict], hard: list[dict]) -> dict:
     """전체 판정과 사용자에게 보여 줄 문장, 상태별 개수."""
     # ⭐ 전체 판정은 '가장 나쁜 상태' 순서로 정한다. 다수결이 아니다.
@@ -1441,8 +1446,7 @@ def _summary(checks: list[dict], hard: list[dict]) -> dict:
     #    이 검증기는 확인하지 않은 것을 확인했다고 말하는 서비스가 된다.
     statuses = [c["status"] for c in checks] + [h["policy"]["status"] for h in hard]
     counts = {s: statuses.count(s) for s in (PASS, FAIL, UNKNOWN, NA)}
-    verdict = ("infeasible" if counts[FAIL] else
-               "undetermined" if counts[UNKNOWN] else "feasible")
+    verdict = verdict_of(statuses)
 
     # ⭐ 사용자에게 "실행 가능한 일정입니다" 라고 말하지 않는다.
     #    예약·날씨·혼잡도는 검사 범위 밖이므로 그건 보장할 수 없는 말이다.

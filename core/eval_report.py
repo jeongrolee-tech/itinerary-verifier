@@ -149,7 +149,27 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
            "정답이 불가능인데 가능이라고 답한 건수 — "
            + " · ".join(f"{ARM_NAMES.get(a, a)} {kinds[a][false_pass]}" for a in arms) + ".", ""]
 
-    # ── 3. 보류 비율과 원인 (판정 코드) ───────────────────────────────
+    # ── 3. 검사별 채점 ────────────────────────────────────────────────
+    m = cmp["metrics"]
+    md += ["## 3. 검사별 채점", "",
+           "전체 판정이 맞아도 검사가 틀릴 수 있다. 정답의 기대 검사(`expect_checks`)마다 상태를 맞춰 보고, "
+           "검사 상태와 전체 판정이 서로 맞물리는지(위반이 있으면 불가능, 없고 미확인이 있으면 보류) 본다. "
+           "필수 일정은 판정 코드만 따로 낸다 — LLM 방식은 마지막 장소에서 가는 이동 검사로 적는다.", ""]
+    md += table(["", *(ARM_NAMES.get(a, a) for a in arms)],
+                [["검사별 정확도", *(m[a]["check_accuracy"] for a in arms)],
+                 ["기대 검사를 답하지 않음 (개)", *(m[a]["checks_missing"] for a in arms)],
+                 ["검사와 전체 판정이 어긋남 (건)", *(m[a]["verdict_inconsistent"] for a in arms)]])
+    md += ["", "어느 문제였나 — 전체 판정은 맞았는데 검사가 틀린 문제와, 검사와 전체 판정이 어긋난 문제", ""]
+    for arm in arms:
+        right_but = [short(r["id"]) for r in rows if r["graded"][arm]["verdict_ok"] and r["graded"][arm]["checks_wrong"]]
+        odd = [short(r["id"]) for r in rows if r["graded"][arm]["consistent"] is False]
+        if right_but:
+            md.append(f"- {ARM_NAMES.get(arm, arm)} — 판정은 맞고 검사가 틀림: " + " · ".join(right_but))
+        if odd:
+            md.append(f"- {ARM_NAMES.get(arm, arm)} — 검사와 전체 판정이 어긋남: " + " · ".join(odd))
+    md.append("")
+
+    # ── 4. 보류 비율과 원인 (판정 코드) ───────────────────────────────
     res = [r for r in run["results"] if r.get("label_current", True)]
     held = [r for r in res if r["summary"]["verdict"] == "undetermined"]
     by_reason, case_count = Counter(), Counter()
@@ -166,7 +186,7 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
             case_count[reason] += 1
         who = sorted({SOLVER.get(x, "?") for x in reasons})
         who_per_case[" + ".join(who)] += 1
-    md += ["## 3. 보류 비율과 원인 — 판정 코드", "",
+    md += ["## 4. 보류 비율과 원인 — 판정 코드", "",
            f"보류 {len(held)}건 / {len(res)}건 ({len(held) / max(len(res), 1):.3f}). 보류한 문제에서 확인하지 못한 검사의 이유다.", ""]
     md += table(["이유", "나온 문제", "검사 수", "누가 푸나"],
                 [[f"`{k}`", case_count[k], v, SOLVER.get(k, "?")] for k, v in by_reason.most_common()])
@@ -175,17 +195,17 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
     if silent:
         md += ["사용자에게 물어야 풀리는데 물을 말(`how_to_resolve.user`)이 없는 검사 — " + " · ".join(silent) + ".", ""]
 
-    # ── 4. 추출 ───────────────────────────────────────────────────────
+    # ── 5. 추출 ───────────────────────────────────────────────────────
     ex_rows = ext["results"]
     graded = [r for r in ex_rows if "extraction_fields" in r]
-    md += ["## 4. 구조화 추출과 끝까지 돌린 결과", "",
+    md += ["## 5. 구조화 추출과 끝까지 돌린 결과", "",
            f"구조화 추출 {sum(bool(r.get('extraction_ok')) for r in ex_rows)}/{len(ex_rows)}. 항목별 —", ""]
     md += table(["항목", "맞음"], [[label, f"{sum(r['extraction_fields'][k] for r in graded)}/{len(ex_rows)}"]
                                   for k, label in EXTRACTION_FIELDS.items()])
     blame = Counter(attribution(r) for r in ex_rows)
     md += ["", "끝까지 돌린 결과 — " + " · ".join(f"{k} {v}건" for k, v in blame.most_common()) + ".", ""]
 
-    # ── 5. 비용과 지연 ───────────────────────────────────────────────
+    # ── 6. 비용과 지연 ───────────────────────────────────────────────
     lat = [r["usage"]["latency_ms"] for r in ex_rows if r.get("usage")]
     judge_ms = [r["elapsed_ms"] for r in res]
     usd = lambda v: "—" if v is None else f"${v}"  # 단가를 모르는 모델이거나 사용량이 남아 있지 않은 응답
@@ -195,7 +215,7 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
                   for arm, v in cmp.get("cost", {}).items()]
     judge = median(judge_ms)  # run.py 가 0.01ms 단위로 반올림해 적는다
     cost_rows.append(["판정 코드", "$0", "1ms 미만" if judge < 1 else f"{judge:.0f}ms"])
-    md += ["## 5. 비용과 지연", "",
+    md += ["## 6. 비용과 지연", "",
            "건당 비용과 지연 중앙값이다. LLM 쪽은 응답을 받을 때 잰 값이다. 판정 코드는 외부를 부르지 않는다.", ""]
     md += table(["", "건당 비용", "지연 중앙값"], cost_rows)
     return "\n".join(md) + "\n"

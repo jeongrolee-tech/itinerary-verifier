@@ -33,6 +33,10 @@ arm 0 이 따로 있는 이유: 1차 실험에서 arm1 이 15건 전부 undeterm
 채점은 라벨이 현재 데이터 스냅샷 기준으로 검토된 케이스에만 한다.
 미검토 라벨로 점수를 내면 세 arm 전부 틀린 점수가 나온다.
 
+전체 판정과 검사를 따로 채점한다(3차 피드백). 전체 판정이 맞아도 검사가 틀릴 수 있다 — T28 은 전체가 보류라
+맞았지만 삼청동 휴무 · 입장을 unknown 대신 not_applicable 로 답했다. 검사와 전체 판정이 서로 어긋난 답도 센다 —
+T27 에는 검사 하나가 fail 인데 전체가 feasible 인 답이 있었다. 사용자는 어느 검사가 틀렸는지를 보고 일정을 고친다.
+
 LLM arm 은 돈이 든다. 모델이 받는 것이 같은 요청은 응답 캐시(response_cache.py)에 받아 둔 응답을 쓰고,
 새로 부를 것이 있으면 몇 건이고 얼마쯤인지 보여 준 뒤 y 를 받아야 부른다. 부를 때마다 그 호출 비용과
 누적을 찍고, 끝에 이번 실행에서 나간 돈을 찍어 기록(responses.spent_usd)에도 남긴다(spend.py).
@@ -45,12 +49,12 @@ from pathlib import Path
 from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).parent))
-from labels import case_facts, stale_reason  # noqa: E402
+from labels import case_facts, check_mismatches, stale_reason  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, effort_for  # noqa: E402
 from report import ARM_NAMES, VERDICT_NAMES, pad, width  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
 from spend import Spend  # noqa: E402
-from verdict import judge  # noqa: E402
+from verdict import judge, verdict_of  # noqa: E402
 
 # 비교 방식의 답 — 판정 세 가지 밖에 거부 · 형식 오류가 있다
 ANSWER_NAMES = {**VERDICT_NAMES, "refused": "거부", "invalid": "형식 오류"}
@@ -282,6 +286,17 @@ def answer(arm: str, req: dict, key: str, case_id: str) -> dict:
     return hit
 
 
+# ── 채점 ────────────────────────────────────────────────────────────
+def graded(case: dict, ans: dict) -> dict:
+    """한 방식의 답 하나를 정답과 대조한다 — 전체 판정, 기대 검사마다 상태, 검사와 전체 판정이 맞물리나."""
+    wrong = check_mismatches(case.get("expect_checks", []), ans["checks"])
+    # 거부 · 형식 오류는 판정이 아니라 앞뒤를 맞춰 볼 것이 없다. 판정 코드는 필수 일정 상태도 함께 본다
+    statuses = [c["status"] for c in ans["checks"]] + [h["status"] for h in ans.get("hard_constraints", [])]
+    return {"verdict_ok": ans["verdict"] == case["expect"],
+            "checks_expected": len(case.get("expect_checks", [])), "checks_wrong": wrong,
+            "consistent": verdict_of(statuses) == ans["verdict"] if ans["verdict"] in VERDICT_NAMES else None}
+
+
 # ── 지표 ────────────────────────────────────────────────────────────
 def metrics(scored: list[dict]) -> dict:
     """
@@ -306,9 +321,14 @@ def metrics(scored: list[dict]) -> dict:
     actual_ok = [r for r in scored if want(r) == "feasible"]
 
     tp = sum(1 for r in flagged if want(r) == "infeasible")
+    expected = sum(r["checks_expected"] for r in scored)
     return {
         "n": n,
         "verdict_accuracy": round(sum(1 for r in scored if got(r) == want(r)) / n, 3),
+        # 기대 검사 중 상태가 맞은 비율 · 아예 답하지 않은 검사 · 검사와 전체 판정이 어긋난 답
+        "check_accuracy": round(1 - sum(len(r["checks_wrong"]) for r in scored) / expected, 3) if expected else None,
+        "checks_missing": sum(1 for r in scored for w in r["checks_wrong"] if w["got"] is None),
+        "verdict_inconsistent": sum(1 for r in scored if r["consistent"] is False),
         # 오류로 표시한 것 중 실제 오류 비율
         "precision_on_infeasible": round(tp / len(flagged), 3) if flagged else None,
         # 실제 오류 중 찾아낸 비율
@@ -442,7 +462,9 @@ for case, case_f, reqs, keys in plan:
         out = judge(itinerary_for(case), case_f, policy)
         rec["arms"]["code"] = {"verdict": out["summary"]["verdict"],
                                "checks": [{"type": c["type"], "target": c["target"],
-                                           "status": c["status"]} for c in out["checks"]]}
+                                           "status": c["status"]} for c in out["checks"]],
+                               "hard_constraints": [{"id": h["id"], "status": h["policy"]["status"]}
+                                                    for h in out["hard_constraints"]]}
 
     for arm, req in reqs.items():
         try:
@@ -455,6 +477,7 @@ for case, case_f, reqs, keys in plan:
         rec["arms"][arm] = hit["result"]
         used.setdefault(arm, []).append(hit)
 
+    rec["graded"] = {arm: graded(case, ans) for arm, ans in rec["arms"].items()}
     rows.append(rec)
     print(f"  {pad(case['id'], 26)}" + "  ".join(
         f"{ARM_NAMES.get(a, a)} {ANSWER_NAMES.get(rec['arms'][a]['verdict'], rec['arms'][a]['verdict'])}"
@@ -470,13 +493,16 @@ print(f"  채점 대상 {len(scorable)}건 / 전체 {len(rows)}건"
 
 report = {}
 for arm in ARMS:
-    sub = [{"expect": r["expect"], "verdict": r["arms"][arm]["verdict"]}
+    sub = [{"expect": r["expect"], "verdict": r["arms"][arm]["verdict"], **r["graded"][arm]}
            for r in scorable if arm in r["arms"]]
     report[arm] = metrics(sub)
 
 if scorable:
     LABELS = [
         ("verdict_accuracy", "전체 정확도"),
+        ("check_accuracy", "검사별 정확도 — 기대 검사 중 상태가 맞은 비율"),
+        ("checks_missing", "기대 검사를 답하지 않음 (개)"),
+        ("verdict_inconsistent", "검사와 전체 판정이 어긋남 (건)"),
         ("precision_on_infeasible", "정밀도 — 불가능이라고 한 것 중 맞은 비율"),
         ("recall_on_infeasible", "재현율 — 정답이 불가능인 것 중 찾은 비율"),
         ("false_alarm_on_feasible", "가능인데 불가능 (건)"),
@@ -499,6 +525,10 @@ if scorable:
 
     c = report[ARMS[0]]['counts']
     print(f"\n  정답 분포: 불가능 {c['actual_infeasible']} · 가능 {c['actual_feasible']} · 보류 {c['actual_undetermined']}")
+    for a in ARMS:
+        odd = [r["id"].split("-")[0] for r in scorable if a in r["graded"] and r["graded"][a]["consistent"] is False]
+        if odd:
+            print(f"  검사와 전체 판정이 어긋난 답 — {ARM_NAMES.get(a, a)}: {' · '.join(odd)}")
     print(f"\n  ⚠ 표본 {len(scorable)}건이다. 정밀도·재현율은 신뢰구간이 넓다.")
     print("    '불가능인데 가능' 과 '보류인데 가능' 은 0이냐 아니냐가 의미 있고,")
     print("    보류 비율과 답을 준 비율은 비율로 읽을 수 있다.")

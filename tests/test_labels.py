@@ -6,7 +6,7 @@
 
 import pytest
 
-from labels import case_facts, stale_reason
+from labels import case_facts, check_mismatches, stale_reason
 
 SUITE = {"labeled_against_snapshot": "s1"}
 MUSEUM, PALACE, MARKET = "서울시립미술관 서소문본관", "경복궁", "광장시장"
@@ -85,3 +85,26 @@ def test_case_legs_must_be_marked_as_test_values():
     """실제 API 값이 평가셋에 섞여 들어오지 않게, 테스트용 표시가 없는 구간은 받지 않는다."""
     with pytest.raises(ValueError, match="synthetic_fixture"):
         case_facts({"id": "T99", "legs": {f"{MUSEUM}|{PALACE}": leg(20, "api_runtime")}}, {"legs": {}})
+
+
+# ── 검사별 대조 — 판정 코드의 검사와 LLM 의 답을 같은 규칙으로 맞춘다 (3차 피드백) ──────────
+
+def adm(target, status):
+    return {"type": "ADMISSION_NOT_POSSIBLE", "target": target, "status": status}
+
+
+def test_repeat_visit_checks_pair_in_order():
+    """경복궁을 두 번 가면 입장 검사가 둘이다. 두 번째 기대를 첫 번째 검사와 맞추면 맞는 답을 틀렸다고 한다."""
+    want = [adm(PALACE, "pass"), adm(PALACE, "fail")]
+    assert check_mismatches(want, [adm(PALACE, "pass"), adm(PALACE, "fail")]) == []
+    assert check_mismatches(want, [adm(PALACE, "pass"), adm(PALACE, "pass")]) == [{**want[1], "got": "pass"}]
+
+
+def test_spacing_in_target_does_not_matter():
+    """LLM 은 'A→B' 와 'A → B' 를 섞어 쓴다. 띄어쓰기 때문에 답하지 않은 검사로 세지 않는다."""
+    want = [{"type": "INSUFFICIENT_TRAVEL_TIME", "target": "삼청동 → 경복궁", "status": "unknown"}]
+    assert check_mismatches(want, [{**want[0], "target": "삼청동→경복궁"}]) == []
+
+
+def test_missing_check_is_reported_with_no_status():
+    assert check_mismatches([adm(PALACE, "pass")], []) == [{**adm(PALACE, "pass"), "got": None}]

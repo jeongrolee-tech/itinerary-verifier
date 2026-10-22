@@ -79,19 +79,31 @@ def case_facts(case: dict, facts: dict) -> dict:
     return {**facts, "legs": {**facts["legs"], **legs}}
 
 
+def check_mismatches(expected: list[dict], checks: list[dict]) -> list[dict]:
+    """기대 검사(expect_checks)마다 같은 종류 · 대상의 검사를 찾아 상태를 맞춰 본다. 틀린 것만 돌려준다 —
+    기대한 것에 실제 상태(got, 검사가 없으면 None)를 붙여서. 판정 코드의 검사든 LLM 의 답이든 같이 쓴다."""
+    # 같은 장소를 두 번 가면 종류 · 대상이 같은 검사가 둘이다. 일정 순서대로 하나씩 짝을 지어 앞의 것을 두 번 쓰지 않는다.
+    # 대상 이름의 띄어쓰기는 보지 않는다 — LLM 은 'A→B' 와 'A → B' 를 섞어 쓴다
+    pending = list(checks)
+    wrong = []
+    for want in expected:
+        got = next((c for c in pending if c["type"] == want["type"]
+                    and c["target"].replace(" ", "") == want["target"].replace(" ", "")), None)
+        if got is not None:
+            pending.remove(got)
+        if got is None or got["status"] != want["status"]:
+            wrong.append({**want, "got": got and got["status"]})
+    return wrong
+
+
 def grade(case, out):
     """기대 판정과 기대 검사 결과를 라벨과 대조한다. run.py 와 pytest(tests/test_golden.py)가 같이 쓴다."""
     problems = []
     if out["summary"]["verdict"] != case["expect"]:
         problems.append(f"판정 기대 {VERDICT_NAMES[case['expect']]} → 실제 {VERDICT_NAMES[out['summary']['verdict']]}")
-    for want in case.get("expect_checks", []):
-        got = next((c for c in out["checks"]
-                    if c["type"] == want["type"] and c["target"] == want["target"]), None)
-        if got is None:
-            problems.append(f"{want['type']} / {want['target']} 검사가 아예 없다")
-        elif got["status"] != want["status"]:
-            problems.append(f"{want['type']} / {want['target']} 기대 {STATUS_NAMES[want['status']]} "
-                            f"→ 실제 {STATUS_NAMES[got['status']]}")
+    for m in check_mismatches(case.get("expect_checks", []), out["checks"]):
+        problems.append(f"{m['type']} / {m['target']} 검사가 아예 없다" if m["got"] is None else
+                        f"{m['type']} / {m['target']} 기대 {STATUS_NAMES[m['status']]} → 실제 {STATUS_NAMES[m['got']]}")
     for want in case.get("expect_hard_constraints", []):
         got = next((h for h in out["hard_constraints"] if h["id"] == want["id"]), None)
         if got is None:
