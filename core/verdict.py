@@ -654,12 +654,19 @@ def _with_taxi(result: dict, taxi: dict, assess) -> dict:
     return result
 
 
-def check_travel(frm, to, facts, policy, closed_statuses, visit_date) -> dict:
-    """구간 하나의 이동 검사. 대중교통으로 '된다' 가 안 나오면 붙어 있는 택시 대안을 본다."""
+def taxi_alternative(leg: dict | None, avoid_taxi: bool) -> dict | None:
+    """구간에 붙은 택시 대안. 사용자가 택시를 안 탄다고 했으면 보지 않는다."""
+    # ⭐ 이동수단은 묻지 않지만, 사용자가 먼저 "택시는 안 타요" 라고 했으면 그 말은 지킨다(3차 피드백).
+    #    택시로만 닿는 구간을 통과시키고 "택시로 가야 한다" 고 안내하면 사용자가 뺀 수단으로 된다고 한 셈이다
+    return None if avoid_taxi else ((leg or {}).get("alternatives") or [None])[0]
+
+
+def check_travel(frm, to, facts, policy, closed_statuses, visit_date, avoid_taxi=False) -> dict:
+    """구간 하나의 이동 검사. 대중교통으로 '된다' 가 안 나오면 붙어 있는 택시 대안을 본다(택시를 안 탄다고 했으면 안 본다)."""
     leg = leg_for(facts, segment_key(frm["index"], frm["name"], to["name"]), frm["name"], to["name"],
                   visit_date, departure(frm))
     result = _travel(frm, to, leg, policy, closed_statuses, visit_date)
-    taxi = ((leg or {}).get("alternatives") or [None])[0]
+    taxi = taxi_alternative(leg, avoid_taxi)
     if taxi is None or result["status"] != UNKNOWN:
         return result
     return _with_taxi(result, taxi, lambda: _travel(frm, to, taxi, policy, closed_statuses, visit_date))
@@ -757,7 +764,7 @@ def _travel_by_leg(label, frm, to, leg, policy, target, by, stated_dwell) -> dic
     #    지하철로 늦는다는 것은 "지하철로는 못 간다" 이지 "못 간다" 가 아니다. 택시로는
     #    갈 수 있을 수도 있다. 항공 최소 환승시간(MCT)도 수단이 정해진 연결에만 "불가능" 을
     #    적용하고, TripIt 은 수단을 모를 때 위험 경고만 한다. 사용자가 고른 수단으로 되는지는
-    #    결과의 '검사하지 않는 것' 에 적는다 (report.NOT_CHECKED).
+    #    결과의 '검사하지 않는 것' 에 적는다 (report.NOT_CHECKED). 택시를 안 탄다고 했으면 택시만 뺀다(taxi_alternative)
     if not stated_dwell:
         return _travel_without_dwell(label, frm, to, leg, mode_name, target, by, base, arrival, evidence)
 
@@ -869,12 +876,12 @@ class _Deadline:
         return arrival_min >= self.minutes if self.departs else arrival_min > self.minutes
 
 
-def evaluate_hard_constraint(hc, stops, facts, policy, visit_date) -> dict:
+def evaluate_hard_constraint(hc, stops, facts, policy, visit_date, avoid_taxi=False) -> dict:
     """필수 조건 하나. 대중교통으로 '된다' 가 안 나오면 붙어 있는 택시 대안을 본다(check_travel 과 같다)."""
     leg = leg_for(facts, segment_key(hc["id"], stops[-1]["name"], hc["place"]), stops[-1]["name"], hc["place"],
                   visit_date, departure(stops[-1]))
     result = _hard_constraint(hc, stops, leg, policy, visit_date)
-    taxi = ((leg or {}).get("alternatives") or [None])[0]
+    taxi = taxi_alternative(leg, avoid_taxi)
     if taxi is None or result["policy"]["status"] != UNKNOWN:
         return result
     result["policy"] = _with_taxi(result["policy"], taxi,
@@ -1157,7 +1164,8 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     # ④ 장소 검사 ⑤ 구간 검사 — 화면 줄과 맞도록 일정 순서로 잇는다(같은 장소를 두 번 가도 섞이지 않게)
     place_checks, closed_statuses = _place_checks([st for st in seq if st], visit_date, facts, policy, date_dep)
     checks = _in_itinerary_order(seq, stop_inputs, place_checks)
-    checks += _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date)
+    checks += _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date,
+                             itinerary.get("avoid_taxi", False))
     for n, c in enumerate(checks, 1):
         c["id"] = f"chk-{n:03d}"
 
@@ -1315,7 +1323,7 @@ def _in_itinerary_order(seq, stop_inputs, place_checks) -> list[dict]:
     return out
 
 
-def _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date) -> list[dict]:
+def _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date, avoid_taxi) -> list[dict]:
     """이웃한 장소 사이 구간마다 이동 검사. 마지막 장소 뒤는 구간이 없어 not_applicable 이다.
     한쪽 장소의 입력이 빠졌으면(None) 그 구간은 판정하지 않고 같은 질문으로 묻는다."""
     checks = []
@@ -1326,7 +1334,7 @@ def _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date)
                                     reason="마지막 장소라 다음 구간이 없다"))
         elif st and seq[i + 1]:
             checks.append(unconfirmed(
-                check_travel(st, seq[i + 1], facts, policy, closed_statuses, visit_date),
+                check_travel(st, seq[i + 1], facts, policy, closed_statuses, visit_date, avoid_taxi),
                 st["start_dep"] + seq[i + 1]["start_dep"]))
         elif any(s and closed_statuses.get(s["name"]) == FAIL for s in (st, seq[i + 1])):
             # 한쪽이 쉬는 날이면 입력이 빠졌어도 구간이 성립하지 않는다(_travel 과 같은 규칙)
@@ -1373,7 +1381,7 @@ def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date, as
                 "detail": "마지막 장소의 입력이 빠져 필수 일정에 제때 닿는지 판정하지 못한다",
                 "how_to_resolve": missing.get("how_to_resolve")}})
             continue
-        h = evaluate_hard_constraint(hc, stops, facts, policy, visit_date)
+        h = evaluate_hard_constraint(hc, stops, facts, policy, visit_date, itinerary.get("avoid_taxi", False))
         h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"] + hc_dep)
         hard.append(h)
     return hard

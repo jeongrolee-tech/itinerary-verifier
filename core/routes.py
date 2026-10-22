@@ -175,8 +175,8 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
     체류를 모르면 0분으로 보고, 0분으로도 늦을 때만 확정한다.
 
     대중교통 구간에는 같은 출발 시각의 택시를 대안(alternatives)으로 붙인다. 판정 코어가 대중교통으로
-    '된다' 가 안 나올 때 본다. 걸어갈 만큼 가까운 구간에는 붙이지 않는다. 택시를 받지 못해도 대중교통
-    판정은 그대로 하고, 이유는 구간의 taxi_miss 에 남긴다.
+    '된다' 가 안 나올 때 본다. 걸어갈 만큼 가까운 구간과 택시를 안 탄다고 한 일정에는 붙이지 않는다.
+    택시를 받지 못해도 대중교통 판정은 그대로 하고, 이유는 구간의 taxi_miss 에 남긴다.
     """
     stops = itinerary["stops"]
     if not itinerary.get("date") or not stops:
@@ -222,7 +222,7 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
         except Miss as e:
             misses[k] = e
             continue
-        if legs[k]["mode"] == "transit":
+        if legs[k]["mode"] == "transit" and not itinerary.get("avoid_taxi"):
             try:
                 legs[k]["alternatives"] = [taxi(a["place"], at[a["place"]], b["place"], at[b["place"]],
                                                 depart, key)]

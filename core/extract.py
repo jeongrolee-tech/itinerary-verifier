@@ -86,6 +86,7 @@ class Extraction(BaseModel):
     hard_constraints: list[HardConstraint] = Field(
         description="'꼭 타야 해요' 처럼 사용자가 반드시 지켜야 한다고 말한 조건만. 일반 스톱은 넣지 않는다"
     )
+    avoid_taxi: bool = Field(description="사용자가 택시를 타지 않는다고 말했으면 true. 말하지 않았으면 false")
     notes: list[str] = Field(description="옮기면서 애매했던 점. 없으면 빈 배열")
 
     @model_validator(mode="after")
@@ -142,6 +143,7 @@ class Itinerary(BaseModel):
     weekday_stated: Weekday | None = None
     stops: list[ItineraryStop]
     hard_constraints: list[ItineraryConstraint] = []
+    avoid_taxi: bool = False  # 사용자가 택시를 안 탄다고 했나. 말하지 않았으면 택시도 되는 수단으로 본다
 
     @field_validator("date")
     @classmethod
@@ -207,6 +209,9 @@ SYSTEM = """너는 여행 일정 텍스트를 구조화하는 추출기다. 판�
 7. 사용자가 요일을 말했으면 weekday_stated 에 그대로 옮긴다 (목요일 → THU).
    날짜와 요일이 맞는지는 네가 확인하지 않는다. 판정 단계에서 교차검증한다.
 
+8. 사용자가 택시를 타지 않는다고 말했으면 avoid_taxi 를 true 로 적는다.
+   "택시는 안 타요", "대중교통으로만 다녀요" 가 그렇다. 말하지 않았으면 false 다.
+
 형식이 맞는 것과 의미가 맞는 것은 다르다. 확실하지 않으면 null 과 notes 를 쓴다."""
 
 
@@ -243,6 +248,7 @@ def to_itinerary(ex: Extraction) -> dict:
         "date": ex.date.isoformat() if ex.date else None,
         "date_source": ex.date_source,
         "weekday_stated": ex.weekday_stated,
+        "avoid_taxi": ex.avoid_taxi,
         "stops": [
             {k: v for k, v in {
                 "place": s.place,

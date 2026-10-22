@@ -19,7 +19,7 @@ from extract import Extraction, extract, to_itinerary
 
 SUITE = json.loads((Path(__file__).parent.parent / "core" / "tests.json").read_text(encoding="utf-8"))
 EMPTY = {"date": None, "date_source": "missing", "weekday_stated": None,
-         "stops": [], "hard_constraints": [], "notes": []}
+         "stops": [], "hard_constraints": [], "avoid_taxi": False, "notes": []}
 
 
 class Claude:
@@ -67,7 +67,7 @@ def test_expected_dates_resolve_from_the_suite_reference_date():
 # ── 받자마자 형식을 검증한다 (2차 피드백 4번) ─────────────────────────
 
 VALID = {
-    "date": "2026-10-08", "date_source": "inferred", "weekday_stated": "THU", "notes": [],
+    "date": "2026-10-08", "date_source": "inferred", "weekday_stated": "THU", "notes": [], "avoid_taxi": False,
     "stops": [{"raw": "오후 1시 경복궁 두 시간", "place": "경복궁", "start": "13:00", "start_source": "explicit",
                "dwell_minutes": 120, "scope": "place", "scope_note": None}],
     "hard_constraints": [{"raw": "20:30 서울역 KTX", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30",

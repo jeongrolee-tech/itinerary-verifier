@@ -159,7 +159,7 @@ def test_train_without_time_is_kept_and_asked(facts, policy):
 
 
 def test_extraction_with_null_train_time_is_asked():
-    extraction = {"date": THURSDAY, "date_source": "explicit", "weekday_stated": "THU", "notes": [],
+    extraction = {"date": THURSDAY, "date_source": "explicit", "weekday_stated": "THU", "notes": [], "avoid_taxi": False,
                   "hard_constraints": [{"raw": "서울역에서 KTX 를 꼭 타야 해요", "type": "TRAIN_DEPARTURE",
                                         "place": "서울역", "time": None, "time_source": "missing"}],
                   "stops": [{"raw": "광장시장 6시", "place": "광장시장", "start": "18:00", "start_source": "explicit",
@@ -185,7 +185,6 @@ def museum_then_palace(avoid_taxi):
         {"place": PALACE, "start": "15:00", "dwell_minutes": 60}]}
 
 
-@pytest.mark.xfail(strict=True, reason="택시를 안 탄다는 조건을 받지 않아 택시 대안으로 통과시킨다")
 def test_no_taxi_is_kept(facts, policy):
     """대중교통 65분이면 늦을 가능성이 높고 택시 20분이면 닿는다 — 택시를 안 탄다고 했으면 통과가 아니다."""
     facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)

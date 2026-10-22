@@ -341,6 +341,14 @@ def test_walking_leg_gets_no_taxi(tmap, facts, policy):
     assert not any("/prediction" in u for u, _ in fake.sent)
 
 
+def test_no_taxi_is_not_asked(tmap, facts, policy):
+    """택시를 안 탄다고 한 일정에는 택시를 묻지 않는다. 판정 코어도 보지 않으니 호출만 쓰게 된다."""
+    fake = tmap(transit(1200))
+    leg = live_legs({**t01(), "avoid_taxi": True}, "key", facts, policy)[0][f"0:{MUSEUM}|{PALACE}"]
+    assert "alternatives" not in leg
+    assert not any("/prediction" in u for u, _ in fake.sent)
+
+
 def test_taxi_miss_keeps_the_transit_leg(tmap, facts, policy):
     """택시를 받지 못해도 대중교통 구간은 그대로 쓴다. 못 받은 이유만 남긴다."""
     tmap(transit(1200), taxi_reply={})

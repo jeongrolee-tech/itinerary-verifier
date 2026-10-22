@@ -153,6 +153,7 @@
       <input id="date" type="date">
       <label class="small" id="date-ok-wrap" hidden><input type="checkbox" id="date-ok"><span id="date-ok-text"></span></label>
     </div>
+    <div class="row"><label class="small"><input type="checkbox" id="avoid-taxi">택시는 안 타요</label></div>
     <h3>장소</h3>
     <div class="table-wrap">
       <table>
@@ -190,7 +191,7 @@ const WEEKDAYS = { MON: "월", TUE: "화", WED: "수", THU: "목", FRI: "금", S
 const WEEKDAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];  // Date.getDay() 는 일요일이 0
 const FIELDS = { date: "날짜", date_source: "날짜 출처", weekday_stated: "말한 요일", place: "장소", start: "시작 시각",
                  start_source: "시각 출처", dwell_minutes: "체류시간", scope: "동네 여부", scope_note: "동네 메모",
-                 type: "종류", time: "시각", time_source: "시각 출처", raw: "원문", id: "번호",
+                 avoid_taxi: "택시 안 탐", type: "종류", time: "시각", time_source: "시각 출처", raw: "원문", id: "번호",
                  buffer_rule: "권장 여유 기준" };
 
 let original = null;  // 처음 추출한 일정. 다시 검사할 때마다 이것과 비교한다 — 무엇을 바꿨나, 꼭 지킨다던 것을 바꿨나
@@ -395,6 +396,7 @@ function fillTable(it) {
   $("date-ok-text").textContent = conflict
     ? `말한 요일(${WEEKDAYS[it.weekday_stated] || it.weekday_stated}요일)이 아니라 이 날짜가 맞아요`
     : "추측한 날짜가 맞아요";
+  $("avoid-taxi").checked = Boolean(it.avoid_taxi);
   $("stops").replaceChildren(...it.stops.map((s, i) => stopRow(s, i)));
   $("hcs").replaceChildren(...(it.hard_constraints || []).map((h) => hcRow(h)));
 }
@@ -417,6 +419,7 @@ function readTable() {
     date,
     date_source: !date ? "missing" : settled ? "explicit" : original.date_source,
     weekday_stated: settled ? null : original.weekday_stated,
+    avoid_taxi: $("avoid-taxi").checked,
     stops: [],
     hard_constraints: [],
   };
