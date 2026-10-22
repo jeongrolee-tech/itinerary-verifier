@@ -210,6 +210,10 @@ async function post(url, body) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
                                  body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
+  if (!res.ok && Array.isArray(data.detail)) {  // 일정 모델에 맞지 않는 값(422) — 어느 칸인지 알린다
+    const where = data.detail.map((d) => (d.loc || []).filter((x) => x !== "body").join(".")).join(", ");
+    throw new Error(`고친 일정에 받을 수 없는 값이 있어요 — ${where}`);
+  }
   if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : `서버 오류 (${res.status})`);
   return data;
 }

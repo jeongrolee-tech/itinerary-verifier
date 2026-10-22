@@ -15,7 +15,7 @@ import datetime as dt
 from typing import Annotated, Literal
 
 import anthropic
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 from llm import ask
 from model_info import DEFAULT_MODEL
@@ -83,6 +83,70 @@ class Extraction(BaseModel):
         if (self.date is None) != (self.date_source == "missing"):
             raise ValueError(f"date 가 {self.date} 인데 date_source 가 {self.date_source} 다")
         return self
+
+
+# ── 판정 코어에 넣는 일정 ───────────────────────────────────────────
+# ⭐ 추출 결과(to_itinerary)와 사용자가 화면 표에서 고친 일정(/api/recheck)은 같은 모델을 지난다(3차 피드백).
+#    전에는 재검사 API 가 일정을 dict 로 받아 체류 -60 이 15:30 종료로 계산되어 '가능' 이 나왔고, 문자열 "60" 은
+#    서버 오류 500 이었다. 체류를 모르는 것(null)은 잘못이 아니라 추가 질문과 보류다. 음수 · 0 · 하루를 넘는 값과
+#    숫자가 아닌 값은 잘못된 요청이다. 숫자 문자열("60")을 숫자로 바꿔 받아 주지도 않는다(strict)
+
+StrictMinutes = Annotated[int, Field(ge=1, le=24 * 60, strict=True)]
+
+
+class ItineraryStop(BaseModel):
+    place: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    start: Clock | None = None
+    start_source: Source
+    dwell_minutes: StrictMinutes | None = None
+    scope: Literal["place", "area"] = "place"
+    scope_note: str | None = None
+
+    @model_validator(mode="after")
+    def _start_matches_source(self) -> ItineraryStop:
+        if (self.start is None) != (self.start_source == "missing"):
+            raise ValueError(f"start 가 {self.start!r} 인데 start_source 가 {self.start_source} 다")
+        return self
+
+
+class ItineraryConstraint(BaseModel):
+    id: str | None = None
+    type: Literal["TRAIN_DEPARTURE", "FLIGHT_DEPARTURE", "ARRIVE_BY", "OTHER"]
+    place: str | None = None
+    time: Clock | None = None
+    raw: str | None = None
+    source: Literal["user_stated"] = "user_stated"
+    buffer_rule: str | None = None
+
+
+class Itinerary(BaseModel):
+    date: Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")] | None = None
+    date_source: Source
+    weekday_stated: Weekday | None = None
+    stops: list[ItineraryStop]
+    hard_constraints: list[ItineraryConstraint] = []
+
+    @field_validator("date")
+    @classmethod
+    def _real_date(cls, value: str | None) -> str | None:
+        if value is not None:
+            dt.date.fromisoformat(value)  # 2026-02-30 같은 없는 날짜를 막는다
+        return value
+
+    @model_validator(mode="after")
+    def _date_matches_source(self) -> Itinerary:
+        if (self.date is None) != (self.date_source == "missing"):
+            raise ValueError(f"date 가 {self.date} 인데 date_source 가 {self.date_source} 다")
+        return self
+
+
+def as_dict(it: Itinerary) -> dict:
+    """판정 코어가 읽는 dict. 장소 · 필수 일정에서 값이 없는 칸은 키를 뺀다 — 처음 일정과 고친 일정의 모양이 같아야
+    바뀐 칸을 바르게 센다(recheck.recheck_revision)."""
+    d = it.model_dump(mode="json")
+    d["stops"] = [{k: v for k, v in s.items() if v is not None} for s in d["stops"]]
+    d["hard_constraints"] = [{k: v for k, v in h.items() if v is not None} for h in d["hard_constraints"]]
+    return d
 
 
 # ⭐ LLM 에게 판정을 시키지 않는다. 옮겨 적는 일만 시킨다.
@@ -155,8 +219,8 @@ BUFFER_RULES = {"TRAIN_DEPARTURE": "rail_boarding", "FLIGHT_DEPARTURE": "flight_
 
 
 def to_itinerary(ex: Extraction) -> dict:
-    """판정 코어가 읽는 모양으로 옮긴다. 값을 채우지 않는다."""
-    return {
+    """판정 코어가 읽는 모양으로 옮긴다. 값을 채우지 않는다. 사용자가 고친 일정과 같은 일정 모델(Itinerary)을 지난다."""
+    return as_dict(Itinerary.model_validate({
         "date": ex.date.isoformat() if ex.date else None,
         "date_source": ex.date_source,
         "weekday_stated": ex.weekday_stated,
@@ -177,4 +241,4 @@ def to_itinerary(ex: Extraction) -> dict:
              "source": "user_stated", "raw": hc.raw}
             for i, hc in enumerate(ex.hard_constraints)
         ],
-    }
+    }))

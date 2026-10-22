@@ -154,15 +154,20 @@ ORIGINAL = {"date": "2026-10-08", "date_source": "explicit", "weekday_stated": "
                        "dwell_minutes": 120, "scope": "place"}]}
 
 
-@pytest.mark.parametrize("change", [
-    {"stops": [{"place": "경복궁", "start": "25:00", "start_source": "explicit", "scope": "place"}]},
-    {"weekday_stated": "WED"},
-], ids=["unreadable-time", "weekday-conflict"])
-def test_no_route_lookup_when_the_judge_stops_first(monkeypatch, change):
-    """판정 코어가 입력이나 요일부터 묻는 일정이면 길찾기를 부르지 않는다. 표 밖에서 온 틀린 시각에도 죽지 않는다."""
+def test_no_route_lookup_when_the_judge_stops_first(monkeypatch):
+    """판정 코어가 요일부터 묻는 일정이면 길찾기를 부르지 않는다."""
     sent = tmap(monkeypatch, 20)
-    again = recheck(client(tmap_key="key"), ORIGINAL, {**ORIGINAL, **change})
+    again = recheck(client(tmap_key="key"), ORIGINAL, {**ORIGINAL, "weekday_stated": "WED"})
     assert sent == [] and again["verdict_after"] == "undetermined"
+
+
+def test_unreadable_time_is_a_bad_request(monkeypatch):
+    """표 밖에서 온 틀린 시각("25:00")은 판정 전에 잘못된 요청(422)이다 — 추출 결과와 같은 일정 모델을 지난다.
+    길찾기도 부르지 않는다."""
+    sent = tmap(monkeypatch, 20)
+    stops = [{"place": "경복궁", "start": "25:00", "start_source": "explicit", "scope": "place"}]
+    res = client(tmap_key="key").post("/api/recheck", json={"original": ORIGINAL, "revised": {**ORIGINAL, "stops": stops}})
+    assert res.status_code == 422 and sent == []
 
 
 def test_recheck_works_without_keys():

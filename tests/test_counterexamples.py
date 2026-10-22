@@ -124,7 +124,6 @@ def recheck(revised):
     return client.post("/api/recheck", json={"original": palace_at(120), "revised": revised})
 
 
-@pytest.mark.xfail(strict=True, reason="/api/recheck 가 일정을 dict 로 받아 검증하지 않는다")
 @pytest.mark.parametrize("dwell", [-60, "60", 0, 2000])
 def test_recheck_rejects_bad_dwell(dwell):
     assert recheck(palace_at(dwell)).status_code == 422

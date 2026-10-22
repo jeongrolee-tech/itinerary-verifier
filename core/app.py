@@ -32,7 +32,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
 from fastapi.responses import FileResponse  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
-from extract import BUFFER_RULES, extract, to_itinerary  # noqa: E402
+from extract import BUFFER_RULES, Itinerary, as_dict, extract, to_itinerary  # noqa: E402
 from llm import InvalidOutput, Refusal  # noqa: E402
 from recheck import recheck_revision  # noqa: E402
 from report import questions, report, timeline  # noqa: E402
@@ -110,8 +110,9 @@ class CheckIn(BaseModel):
 
 
 class RecheckIn(BaseModel):
-    original: dict  # 처음 추출한 일정 — 사용자가 말한 것. 바뀐 칸과 '꼭 지킨다던 것' 을 이것과 비교한다
-    revised: dict   # 사용자가 표에서 고친 일정
+    # 둘 다 추출 결과와 같은 일정 모델을 지난다 — 체류 -60 · "60" 같은 값은 판정 전에 422 로 거절한다
+    original: Itinerary  # 처음 추출한 일정 — 사용자가 말한 것. 바뀐 칸과 '꼭 지킨다던 것' 을 이것과 비교한다
+    revised: Itinerary   # 사용자가 표에서 고친 일정
     legs: dict = {}  # 처음 검사에서 받은 이동시간 — 원래 일정을 처음과 같은 조건으로 다시 판정한다
 
 
@@ -198,13 +199,13 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
         # ⭐ 원래 일정은 처음 검사에서 받은 이동시간으로, 고친 일정은 고친 출발 시각으로 새로 받은 이동시간으로
         #    판정한다. 둘을 섞으면 같은 구간을 다른 시각의 이동시간으로 판정해 '수정 전' 판정이 처음 본 것과
         #    달라질 수 있고, 새로 받지 못한 구간에 다른 출발 시각의 값이 들어간다.
-        revised = normalized(body.revised)
+        original, revised = as_dict(body.original), normalized(as_dict(body.revised))
         meter = Spend()
         try:
             legs, misses = judged_legs(revised, meter)
         finally:
             tally("/api/recheck", meter)
-        r = recheck_revision(body.original, revised, with_legs(first_legs(body.legs)), POLICY,
+        r = recheck_revision(original, revised, with_legs(first_legs(body.legs)), POLICY,
                              revised_facts=with_legs(legs))
         return {"legs": legs, "leg_misses": misses, "tmap": bool(tmap_key),
                 "changed_fields": r["changed_fields"],
