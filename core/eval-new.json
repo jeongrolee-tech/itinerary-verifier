@@ -1,0 +1,146 @@
+{
+  "note": "새 평가 문제 — 기존 33건(tests.json, 회귀셋)과 따로 둔다. 3차 피드백: '기존 33건은 유지하고, 새 일정 몇 건은 사람이 공식 근거를 확인해 기대 결과를 먼저 정한 뒤 실행해 주세요. 최초 결과를 그대로 남기고, 수정한 사례는 회귀셋에 편입하면 됩니다.' 입력(자연어 · 기대 추출값 · 테스트용 이동시간)은 Claude 가 썼고, 기대 판정(expect · expect_checks · expect_hard_constraints)은 사용자가 공식 근거로 정한다(docs/new-eval-worksheet.md). 판정 코드를 돌리기 전에 정답을 먼저 커밋한다.",
+  "reference_date": "2026-10-22",
+  "reference_date_note": "입력의 '오늘'. 연도가 빠진 날짜는 이 날 기준 가장 가까운 미래로 푼다(tests.json 과 같은 규칙).",
+  "time_rule": "tests.json 의 time_rule 과 같다. 기댈 앞 시각이 없는 시각만 inferred 다.",
+  "sets": {"new": "새 평가. 정답을 먼저 정하고 처음 돌린 결과를 그대로 남긴다. 고친 문제는 tests.json 으로 옮긴다"},
+  "situations": {
+    "N01": "같은 장소 재방문 — 같은 방향 구간을 오전 · 오후에 두 번 간다. 이동시간이 출발 시각마다 다르다",
+    "N02": "입력 일부 누락 — 한 장소의 시각이 없고, 다른 장소에는 확인할 수 있는 문제가 있다",
+    "N03": "필수 일정 시각 모름 — 꼭 타야 하는 열차의 시각을 아직 모른다",
+    "N04": "필수 일정 시각 추정 — 열차 시각에 오전 · 오후가 없고 기댈 앞 시각도 없다",
+    "N05": "택시 안 탐 — 대중교통으로는 늦을 것 같고 택시로는 닿는 구간이 있다",
+    "N06": "하루 중간 필수 일정 — 정오 무렵 약속이 있고 그 뒤에도 일정이 이어진다. 장소 넷"
+  },
+  "cases": [
+    {
+      "id": "N01-재방문",
+      "set": "new",
+      "raw": "11월 12일 목요일에 아이들이랑 다녀요. 오전 9시 반에 경복궁 들어가서 한 시간 보고, 11시에 덕수궁에서 한 시간 볼게요. 오후 1시에 다시 경복궁 가서 한 시간 반 보고, 저녁 5시에 덕수궁 다시 가서 한 시간 걸을게요.",
+      "date": "2026-11-12",
+      "date_source": "inferred",
+      "weekday_stated": "THU",
+      "stops": [
+        {"place": "경복궁", "start": "09:30", "dwell_minutes": 60},
+        {"place": "덕수궁", "start": "11:00", "dwell_minutes": 60},
+        {"place": "경복궁", "start": "13:00", "dwell_minutes": 90},
+        {"place": "덕수궁", "start": "17:00", "dwell_minutes": 60}
+      ],
+      "hard_constraints": [],
+      "legs": {
+        "0:경복궁|덕수궁": {"minutes": 35, "mode": "transit", "is_lower_bound": false, "depart_at": "2026-11-12T10:30",
+                         "source": "synthetic_fixture", "method": "synthetic_fixture"},
+        "1:덕수궁|경복궁": {"minutes": 20, "mode": "transit", "is_lower_bound": false, "depart_at": "2026-11-12T12:00",
+                         "source": "synthetic_fixture", "method": "synthetic_fixture"},
+        "2:경복궁|덕수궁": {"minutes": 15, "mode": "transit", "is_lower_bound": false, "depart_at": "2026-11-12T14:30",
+                         "source": "synthetic_fixture", "method": "synthetic_fixture"}
+      }
+    },
+    {
+      "id": "N02-시각하나빠짐",
+      "set": "new",
+      "raw": "11월 17일 화요일이에요. 오전 10시에 덕수궁 들어가서 한 시간 보고, 그다음 창덕궁에서 한 시간 반, 오후 3시 반에 경복궁 들어가서 한 시간 볼게요.",
+      "date": "2026-11-17",
+      "date_source": "inferred",
+      "weekday_stated": "TUE",
+      "stops": [
+        {"place": "덕수궁", "start": "10:00", "dwell_minutes": 60},
+        {"place": "창덕궁", "dwell_minutes": 90},
+        {"place": "경복궁", "start": "15:30", "dwell_minutes": 60}
+      ],
+      "hard_constraints": []
+    },
+    {
+      "id": "N03-열차시각모름",
+      "set": "new",
+      "raw": "11월 19일 목요일이에요. 오후 2시에 창덕궁 들어가서 한 시간 반 보고, 4시에 덕수궁에서 한 시간 볼게요. 그다음 서울역에서 KTX를 꼭 타야 하는데 기차 시간은 아직 안 정했어요.",
+      "date": "2026-11-19",
+      "date_source": "inferred",
+      "weekday_stated": "THU",
+      "stops": [
+        {"place": "창덕궁", "start": "14:00", "dwell_minutes": 90},
+        {"place": "덕수궁", "start": "16:00", "dwell_minutes": 60}
+      ],
+      "hard_constraints": [
+        {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time_source": "missing",
+         "buffer_rule": "rail_boarding", "source": "user_stated",
+         "raw": "서울역에서 KTX를 꼭 타야 하는데 기차 시간은 아직 안 정했어요"}
+      ],
+      "legs": {
+        "창덕궁|덕수궁": {"minutes": 25, "mode": "transit", "is_lower_bound": false,
+                       "source": "synthetic_fixture", "method": "synthetic_fixture"}
+      }
+    },
+    {
+      "id": "N04-열차시각추정",
+      "set": "new",
+      "raw": "12월 4일 금요일이에요. 8시 반에 서울역에서 KTX를 꼭 타야 해서, 그 전에 오후 2시에 경복궁 들어가서 두 시간 보고 4시 반에 서울시립미술관 서소문본관에서 한 시간 반 볼게요.",
+      "date": "2026-12-04",
+      "date_source": "inferred",
+      "weekday_stated": "FRI",
+      "stops": [
+        {"place": "경복궁", "start": "14:00", "dwell_minutes": 120},
+        {"place": "서울시립미술관 서소문본관", "start": "16:30", "dwell_minutes": 90}
+      ],
+      "hard_constraints": [
+        {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30", "time_source": "inferred",
+         "buffer_rule": "rail_boarding", "source": "user_stated", "raw": "8시 반에 서울역에서 KTX를 꼭 타야 해서"}
+      ],
+      "legs": {
+        "경복궁|서울시립미술관 서소문본관": {"minutes": 20, "mode": "transit", "is_lower_bound": false,
+                                    "source": "synthetic_fixture", "method": "synthetic_fixture"},
+        "서울시립미술관 서소문본관|서울역": {"minutes": 15, "mode": "transit", "is_lower_bound": false,
+                                    "source": "synthetic_fixture", "method": "synthetic_fixture"}
+      }
+    },
+    {
+      "id": "N05-택시안탐",
+      "set": "new",
+      "raw": "11월 26일 목요일이에요. 택시는 안 타고 대중교통으로만 다닐 거예요. 오전 10시에 창덕궁 들어가서 한 시간 반 보고, 낮 12시에 덕수궁 한 시간, 오후 1시 반에 서울시립미술관 서소문본관에서 한 시간 볼게요.",
+      "date": "2026-11-26",
+      "date_source": "inferred",
+      "weekday_stated": "THU",
+      "avoid_taxi": true,
+      "stops": [
+        {"place": "창덕궁", "start": "10:00", "dwell_minutes": 90},
+        {"place": "덕수궁", "start": "12:00", "dwell_minutes": 60},
+        {"place": "서울시립미술관 서소문본관", "start": "13:30", "dwell_minutes": 60}
+      ],
+      "hard_constraints": [],
+      "legs": {
+        "창덕궁|덕수궁": {"minutes": 35, "mode": "transit", "is_lower_bound": false,
+                       "source": "synthetic_fixture", "method": "synthetic_fixture",
+                       "alternatives": [{"minutes": 15, "mode": "taxi", "fare": 9000, "is_lower_bound": false,
+                                         "source": "synthetic_fixture", "method": "synthetic_fixture"}]},
+        "덕수궁|서울시립미술관 서소문본관": {"minutes": 5, "mode": "walk", "is_lower_bound": false,
+                                    "source": "synthetic_fixture", "method": "synthetic_fixture"}
+      }
+    },
+    {
+      "id": "N06-정오약속",
+      "set": "new",
+      "raw": "11월 21일 토요일이에요. 오전 9시 반에 경복궁 들어가서 한 시간 보고, 11시에 창덕궁 한 시간 볼게요. 오후 1시까지는 광화문 앞에서 친구를 꼭 만나야 해요. 그다음 오후 2시에 덕수궁 한 시간, 오후 4시에 서울시립미술관 서소문본관에서 한 시간 반 볼게요.",
+      "date": "2026-11-21",
+      "date_source": "inferred",
+      "weekday_stated": "SAT",
+      "stops": [
+        {"place": "경복궁", "start": "09:30", "dwell_minutes": 60},
+        {"place": "창덕궁", "start": "11:00", "dwell_minutes": 60},
+        {"place": "덕수궁", "start": "14:00", "dwell_minutes": 60},
+        {"place": "서울시립미술관 서소문본관", "start": "16:00", "dwell_minutes": 90}
+      ],
+      "hard_constraints": [
+        {"id": "HC1", "type": "ARRIVE_BY", "place": "광화문", "time": "13:00", "time_source": "explicit",
+         "buffer_rule": "transit_leg", "source": "user_stated", "raw": "오후 1시까지는 광화문 앞에서 친구를 꼭 만나야 해요"}
+      ],
+      "legs": {
+        "경복궁|창덕궁": {"minutes": 15, "mode": "transit", "is_lower_bound": false,
+                       "source": "synthetic_fixture", "method": "synthetic_fixture"},
+        "창덕궁|덕수궁": {"minutes": 20, "mode": "transit", "is_lower_bound": false,
+                       "source": "synthetic_fixture", "method": "synthetic_fixture"},
+        "덕수궁|서울시립미술관 서소문본관": {"minutes": 5, "mode": "walk", "is_lower_bound": false,
+                                    "source": "synthetic_fixture", "method": "synthetic_fixture"}
+      }
+    }
+  ]
+}
