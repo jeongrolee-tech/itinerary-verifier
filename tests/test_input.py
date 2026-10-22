@@ -28,7 +28,9 @@ def test_unreadable_train_time_is_asked_not_crashed(facts, policy):
                                 "buffer_rule": "rail_boarding", "source": "user_stated"}]}
     out = judge(it, facts, policy)
     assert out["summary"]["verdict"] == "undetermined"
-    assert reasons(out) == ["INVALID_TIME"]
+    # 열차 시각만 묻고, 광장시장 검사는 계속한다(3차 피드백 — 확인할 수 있는 검사는 멈추지 않는다)
+    assert "INVALID_TIME" in reasons(out) and out["hard_constraints"] == []
+    assert any(c["type"] == "CLOSED_DAY" and c["target"] == "광장시장" for c in out["checks"])
 
 
 def test_missing_start_time_is_asked(facts, policy):

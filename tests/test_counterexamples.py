@@ -70,7 +70,6 @@ def test_revisit_keeps_each_legs_own_travel_time(monkeypatch, facts, policy):
 # ── 2. 입력이 일부 빠져도 확인할 수 있는 검사는 계속한다 ──────────────────
 # 2026-01-01 미술관은 고정일 휴관이다. 덕수궁에 시각이 없어도 미술관 휴관은 확인할 수 있다.
 
-@pytest.mark.xfail(strict=True, reason="입력 검사에서 바로 반환해 미술관 휴관 위반이 사라진다")
 def test_missing_time_elsewhere_keeps_confirmed_violation(facts, policy):
     result = judge({"date": "2026-01-01", "stops": [
         {"place": MUSEUM, "start": "11:00", "dwell_minutes": 60},

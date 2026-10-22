@@ -38,7 +38,7 @@ from recheck import recheck_revision  # noqa: E402
 from report import questions, report, timeline  # noqa: E402
 from routes import live_legs  # noqa: E402
 from spend import Spend, counting  # noqa: E402
-from verdict import FAIL, PASS, input_checks, judge, weekday_of  # noqa: E402
+from verdict import FAIL, PASS, WHOLE_ITINERARY_INPUTS, input_checks, judge, weekday_of  # noqa: E402
 
 HERE = Path(__file__).parent
 load = lambda n: json.loads((HERE / n).read_text(encoding="utf-8"))  # noqa: E731
@@ -65,7 +65,7 @@ def needs_routes(itinerary: dict) -> bool:
     """판정 코어가 구간을 보는 일정인가. 입력이 모자라거나 날짜와 요일이 어긋나면 판정 코어는 거기서 멈추고 묻는다."""
     # 그럴 때 길찾기를 부르면 쓰지 않을 이동시간에 호출만 쓴다. 표에서 고친 일정은 추출의 형식 검증을 거치지
     # 않으므로, 읽을 수 없는 날짜 · 시각이 길찾기까지 가서 멈추지 않게 막는 것도 이 확인이다
-    if input_checks(itinerary):
+    if any(c["unknown_reason"] in WHOLE_ITINERARY_INPUTS for c in input_checks(itinerary)):
         return False
     stated = itinerary.get("weekday_stated")
     return not stated or stated == weekday_of(itinerary["date"])

@@ -82,6 +82,10 @@ def check(type_: str, target: str, status: str, **extra: Any) -> dict:
 
 
 # ── 입력 확인 ───────────────────────────────────────────────────────
+# 이 입력이 빠지면 일정 전체를 볼 수 없다 — 휴무일 · 운영시간을 하나도 확인할 수 없어 판정 전에 묻는다
+WHOLE_ITINERARY_INPUTS = {"MISSING_DATE", "INVALID_DATE", "MISSING_STOPS"}
+
+
 def input_checks(itinerary: dict) -> list[dict]:
     """
     판정을 시작하기 전에 반드시 있어야 하는 입력을 확인한다.
@@ -130,28 +134,35 @@ def _stops_input(stops: list[dict]) -> list[dict]:
         ))
 
     for i, stop in enumerate(stops):
-        name = stop.get("place") or f"stops[{i}]"
-        if not stop.get("place"):
-            missing.append(check(
-                "INPUT_REQUIRED", name, UNKNOWN,
-                unknown_reason="MISSING_PLACE",
-                detail="방문 장소가 없다",
-                how_to_resolve={"user": "방문할 장소를 알려주세요"},
-            ))
-        if not stop.get("start"):
-            missing.append(check(
-                "INPUT_REQUIRED", name, UNKNOWN,
-                unknown_reason="MISSING_START_TIME",
-                detail="방문 시작 시각이 없어 입장과 이동시간을 계산할 수 없다",
-                how_to_resolve={"user": f"{name}에 몇 시에 도착할 예정인가요?"},
-            ))
-        elif not re.fullmatch(HHMM, str(stop["start"])):
-            missing.append(check(
-                "INPUT_REQUIRED", name, UNKNOWN,
-                unknown_reason="INVALID_TIME",
-                detail=f"방문 시작 시각({stop['start']})을 HH:MM(24시간)으로 해석할 수 없다",
-                how_to_resolve={"user": f"{name}에 몇 시에 도착할 예정인가요?"},
-            ))
+        missing += _stop_input(i, stop)
+    return missing
+
+
+def _stop_input(i: int, stop: dict) -> list[dict]:
+    """장소 하나에 이름과 HH:MM 시작 시각이 있나. 빠진 것마다 미확인 입력 검사 하나."""
+    missing: list[dict] = []
+    name = stop.get("place") or f"stops[{i}]"
+    if not stop.get("place"):
+        missing.append(check(
+            "INPUT_REQUIRED", name, UNKNOWN,
+            unknown_reason="MISSING_PLACE",
+            detail="방문 장소가 없다",
+            how_to_resolve={"user": "방문할 장소를 알려주세요"},
+        ))
+    if not stop.get("start"):
+        missing.append(check(
+            "INPUT_REQUIRED", name, UNKNOWN,
+            unknown_reason="MISSING_START_TIME",
+            detail="방문 시작 시각이 없어 입장과 이동시간을 계산할 수 없다",
+            how_to_resolve={"user": f"{name}에 몇 시에 도착할 예정인가요?"},
+        ))
+    elif not re.fullmatch(HHMM, str(stop["start"])):
+        missing.append(check(
+            "INPUT_REQUIRED", name, UNKNOWN,
+            unknown_reason="INVALID_TIME",
+            detail=f"방문 시작 시각({stop['start']})을 HH:MM(24시간)으로 해석할 수 없다",
+            how_to_resolve={"user": f"{name}에 몇 시에 도착할 예정인가요?"},
+        ))
     return missing
 
 
@@ -1106,8 +1117,11 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     # ① ⭐ 입력이 비어 있을 때 시간 계산 예외를 내지 않는다.
     #    날짜·시각을 모르는 것은 "검사할 필요가 없다"가 아니라
     #    필요한 검사를 끝내지 못한 상태이므로 unknown 으로 남긴다.
+    #    ⭐ 입력이 일부 빠져도 확인할 수 있는 검사는 계속한다(3차 피드백 — 시각 없는 덕수궁 하나 때문에 2026-01-01
+    #    미술관 휴관 위반이 사라졌다). 날짜가 없거나 읽을 수 없거나 장소가 하나도 없을 때만 여기서 묻는다 — 휴무일과
+    #    운영시간을 하나도 볼 수 없다. 장소 하나의 이름 · 시각이 빠지면 그 장소와 앞뒤 구간만 미확인으로 둔다
     missing_inputs = input_checks(itinerary)
-    if missing_inputs:
+    if any(c["unknown_reason"] in WHOLE_ITINERARY_INPUTS for c in missing_inputs):
         return _missing_input_result(itinerary, missing_inputs)
 
     # ② 날짜를 추정했으면 기록하고, 말한 요일이 날짜와 다르면 어느 날인지 묻는다
@@ -1127,19 +1141,22 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     #    채웠을 때만 추정으로 본다.
     date_dep = [] if stated_weekday else [a for a in assumptions if a["field"] == "date"]
 
-    # ③ 장소마다 지원 범위 · 시작 시각 · 체류시간을 정리한다. 추정 시각과 기본 체류시간은 assumptions 에 남는다
-    stops = []
-    for i, s in enumerate(itinerary["stops"]):
-        stops.append(_prepare_stop(i, s, facts, policy, assumptions))
+    # ③ 장소마다 지원 범위 · 시작 시각 · 체류시간을 정리한다. 추정 시각과 기본 체류시간은 assumptions 에 남는다.
+    #    이름이나 시각이 빠진 장소는 정리하지 않고(None) 입력 검사로 묻는다
+    stop_inputs = [_stop_input(i, s) for i, s in enumerate(itinerary["stops"])]
+    seq = [None if stop_inputs[i] else _prepare_stop(i, s, facts, policy, assumptions)
+           for i, s in enumerate(itinerary["stops"])]
 
-    # ④ 장소 검사 ⑤ 구간 검사
-    checks, closed_statuses = _place_checks(stops, visit_date, facts, policy, date_dep)
-    checks += _travel_checks(stops, facts, policy, closed_statuses, visit_date)
+    # ④ 장소 검사 ⑤ 구간 검사 — 화면 줄과 맞도록 일정 순서로 잇는다(같은 장소를 두 번 가도 섞이지 않게)
+    place_checks, closed_statuses = _place_checks([st for st in seq if st], visit_date, facts, policy, date_dep)
+    checks = _in_itinerary_order(seq, stop_inputs, place_checks)
+    checks += _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date)
+    checks += _hard_constraints_input(itinerary.get("hard_constraints") or [])
     for n, c in enumerate(checks, 1):
         c["id"] = f"chk-{n:03d}"
 
     # ⑥ 필수 조건 ⑦ 전체 판정
-    hard = _hard_constraints(itinerary, stops, facts, policy, visit_date)
+    hard = _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date)
     return {
         "date": visit_date,
         "date_source": itinerary.get("date_source", "explicit"),
@@ -1284,24 +1301,64 @@ def _place_checks(stops, visit_date, facts, policy, date_dep) -> tuple[list[dict
     return checks, closed_statuses
 
 
-def _travel_checks(stops, facts, policy, closed_statuses, visit_date) -> list[dict]:
-    """이웃한 장소 사이 구간마다 이동 검사. 마지막 장소 뒤는 구간이 없어 not_applicable 이다."""
+def _in_itinerary_order(seq, stop_inputs, place_checks) -> list[dict]:
+    """장소 검사(입력이 갖춰진 장소마다 휴무 · 입장 · 체류 셋)와 입력 검사를 일정 순서로 잇는다."""
+    out, it = [], iter(place_checks)
+    for st, inputs in zip(seq, stop_inputs):
+        out += inputs if st is None else [next(it), next(it), next(it)]
+    return out
+
+
+def _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date) -> list[dict]:
+    """이웃한 장소 사이 구간마다 이동 검사. 마지막 장소 뒤는 구간이 없어 not_applicable 이다.
+    한쪽 장소의 입력이 빠졌으면(None) 그 구간은 판정하지 않고 같은 질문으로 묻는다."""
     checks = []
-    for i, st in enumerate(stops):
-        if i == len(stops) - 1:
-            checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{st['name']} → (없음)", NA,
-                                reason="마지막 장소라 다음 구간이 없다"))
-        else:
+    for i, st in enumerate(seq):
+        if i == len(seq) - 1:
+            if st:
+                checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{st['name']} → (없음)", NA,
+                                    reason="마지막 장소라 다음 구간이 없다"))
+        elif st and seq[i + 1]:
             checks.append(unconfirmed(
-                check_travel(st, stops[i + 1], facts, policy, closed_statuses, visit_date),
-                st["start_dep"] + stops[i + 1]["start_dep"]))
+                check_travel(st, seq[i + 1], facts, policy, closed_statuses, visit_date),
+                st["start_dep"] + seq[i + 1]["start_dep"]))
+        elif any(s and closed_statuses.get(s["name"]) == FAIL for s in (st, seq[i + 1])):
+            # 한쪽이 쉬는 날이면 입력이 빠졌어도 구간이 성립하지 않는다(_travel 과 같은 규칙)
+            checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{_stop_name(seq, stop_inputs, i)} → "
+                                f"{_stop_name(seq, stop_inputs, i + 1)}", NA,
+                                reason="양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다"))
+        else:
+            missing = (stop_inputs[i] or stop_inputs[i + 1])[0]
+            checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{_stop_name(seq, stop_inputs, i)} → "
+                                f"{_stop_name(seq, stop_inputs, i + 1)}", UNKNOWN,
+                                unknown_reason=missing["unknown_reason"],
+                                detail="앞이나 뒤 장소의 입력이 빠져 이동을 판정하지 못한다",
+                                how_to_resolve=missing.get("how_to_resolve")))
     return checks
 
 
-def _hard_constraints(itinerary, stops, facts, policy, visit_date) -> list[dict]:
-    """필수 조건마다 마지막 장소에서 제때 닿는지. 마지막 장소의 시각이 추정이면 결과를 확정하지 않는다."""
+def _stop_name(seq, stop_inputs, i) -> str:
+    """구간 이름에 쓸 장소 이름 — 정리한 장소면 그 이름, 입력이 빠진 장소면 입력 검사의 대상 이름."""
+    return seq[i]["name"] if seq[i] else stop_inputs[i][0]["target"]
+
+
+def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date) -> list[dict]:
+    """필수 조건마다 마지막 장소에서 제때 닿는지. 마지막 장소의 시각이 추정이면 결과를 확정하지 않는다.
+    장소 · 시각이 빠진 필수 조건은 입력 검사가 묻고, 마지막 장소의 입력이 빠졌으면 같은 질문으로 미확인이다."""
     hard = []
+    stops = [st for st in seq if st]
     for hc in itinerary.get("hard_constraints", []):
+        if _hard_constraints_input([hc]):
+            continue
+        if seq[-1] is None:
+            missing = stop_inputs[-1][0]
+            event = {"type": hc["type"], "place": hc["place"], "time": hc["time"],
+                     "source": hc.get("source", "user_stated"), "raw": hc.get("raw")}
+            hard.append({"id": hc["id"], "event": event, "policy": {
+                "status": UNKNOWN, "unknown_reason": missing["unknown_reason"], "severity": "blocking",
+                "detail": "마지막 장소의 입력이 빠져 필수 일정에 제때 닿는지 판정하지 못한다",
+                "how_to_resolve": missing.get("how_to_resolve")}})
+            continue
         h = evaluate_hard_constraint(hc, stops, facts, policy, visit_date)
         h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"])
         hard.append(h)

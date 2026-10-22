@@ -13,6 +13,7 @@ from __future__ import annotations
 import http.client
 import json
 import math
+import re
 import socket
 import time
 import urllib.error
@@ -21,7 +22,7 @@ import urllib.request
 from datetime import date, datetime, timedelta
 
 from spend import count_tmap
-from verdict import judge, segment_key
+from verdict import HHMM, judge, segment_key
 
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
@@ -161,6 +162,11 @@ def taxi(frm: str, frm_at: tuple[float, float], to: str, to_at: tuple[float, flo
     return {**estimate(props["totalTime"], "taxi", "tmap_prediction"), "fare": props.get("taxiFare")}
 
 
+def _readable(stop: dict) -> bool:
+    """장소의 시작 시각이 HH:MM 으로 있나 — 판정 코어가 그 장소와 앞뒤 구간을 판정하는 조건과 같다."""
+    return bool(re.fullmatch(HHMM, str(stop.get("start") or "")))
+
+
 def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dict, dict]:
     """일정의 구간마다 예상 이동시간을 받는다. (판정 코어의 legs 에 덮어쓸 구간, 받지 못한 구간 → Miss)
 
@@ -193,8 +199,8 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
     day = date.fromisoformat(itinerary["date"])
     at, legs, misses = {}, {}, {}
     for i, k, a, b in pairs:
-        if not a.get("start"):
-            continue  # 시각이 없으면 판정 코어도 이 구간을 판정하지 않는다
+        if not _readable(a) or (not k.startswith("HC") and not _readable(b)):
+            continue  # 양 끝 장소의 시각이 없거나 읽을 수 없으면 판정 코어도 이 구간을 판정하지 않는다
         if "area" in (a.get("scope"), b.get("scope")):
             continue  # 구역은 대표 지점으로 길을 찾지 않는다. 판정 코어도 이 구간을 판정하지 않는다
         try:
