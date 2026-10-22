@@ -740,6 +740,14 @@ def _mode_name(leg: dict) -> str:
     return MODE_NAMES.get(leg.get("mode"), leg.get("mode") or "이동")
 
 
+def _pass_basis(leg: dict, buffer: int, goal: str) -> str:
+    """통과의 근거 한 줄 — 어떤 이동시간에 권장 여유를 얼마 더했나. TMAP 에서 받은 값은 예상이라고 적는다."""
+    # ⭐ 예상 이동시간으로도 통과를 낸다(3차 피드백 2단계에서 정함). 대신 통과가 무엇에 기댔는지 숨기지 않는다.
+    #    TMAP 값은 그 출발 시각의 교통으로 계산한 예상이라 당일과 다를 수 있다. 권장 여유는 그 차이를 받아 줄 몫이다
+    estimate = "TMAP 예상 " if leg.get("source") == "api_runtime" else ""
+    return f"{estimate}{_mode_name(leg)} {leg['minutes']}분에 권장 여유 {buffer}분을 더해도 {goal}"
+
+
 def _travel_by_leg(label, frm, to, leg, policy, target, by, stated_dwell) -> dict:
     """확보한 이동시간(leg)으로 판정한다. 늦음 · 체류시간 모름 · 여유 부족 · 하한선뿐 · 통과 중 하나다."""
     mode_name = _mode_name(leg)
@@ -811,7 +819,8 @@ def _travel_by_leg(label, frm, to, leg, policy, target, by, stated_dwell) -> dic
                             f"도착하지만 {missing}이 빠져 있어 확정할 수 없다",
                      how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
                      reference=evidence)
-    return check("INSUFFICIENT_TRAVEL_TIME", label, PASS, evidence=evidence)
+    return check("INSUFFICIENT_TRAVEL_TIME", label, PASS, evidence=evidence,
+                 detail=_pass_basis(leg, buffer, f"{by}까지 닿는다"))
 
 
 def _travel_without_dwell(label, frm, to, leg, mode_name, target, by, base, arrival, evidence) -> dict:
@@ -1041,7 +1050,8 @@ def _hc_by_leg(policy_eval, last, leg, buffer, required, deadline, stated_dwell)
             how_to_resolve={"system": "역 출입구 보행 경로·환승 이동시간·배차간격 확보"},
         )
     else:
-        policy_eval["status"] = PASS
+        policy_eval.update(status=PASS, detail=_pass_basis(
+            leg, buffer, f"{deadline.name} 전에 닿는다" if deadline.departs else f"{deadline.name}까지 닿는다"))
     return policy_eval
 
 

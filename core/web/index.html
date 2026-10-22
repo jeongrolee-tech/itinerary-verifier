@@ -280,7 +280,7 @@ function extraLines(data) {
   for (const [k, why] of Object.entries(data.leg_misses || {})) {
     lines.push(`TMAP 받지 못함 · ${k.replace(/^[^:]*:/, "").replace("|", " → ")} [${why}]`);
   }
-  lines.push(data.tmap ? "TMAP 이동시간은 이 판정에만 쓰고 저장하지 않습니다"
+  lines.push(data.tmap ? "TMAP 이동시간은 출발 시각 기준 예상값이라 당일 교통에 따라 달라질 수 있습니다. 이 판정에만 쓰고 저장하지 않습니다"
                        : "TMAP 키가 없어 이동시간은 저장해 둔 지하철 최소 이동시간으로만 판정했습니다");
   return lines;
 }
@@ -300,8 +300,12 @@ function timelineRow(row, result) {
   }
   const passed = row.lines.filter((x) => x.status === "pass");
   if (row.kind === "travel" || row.kind === "hard") {
-    // 이동 · 필수 일정 줄은 검사가 하나라 표시만으로 통과를 안다. 무엇으로 판정했는지(이동시간 · 도착 예상)만 적는다
-    if (row.status === "pass") details.push(evidenceLine(evidenceOf(result, passed[0].id)));
+    // 이동 · 필수 일정 줄은 검사가 하나라 표시만으로 통과를 안다. 무엇에 기대 통과했는지(예상 이동시간 + 권장 여유)와
+    // 무엇으로 판정했는지(이동시간 · 도착 예상)를 적는다
+    if (row.status === "pass") {
+      if (passed[0].reason) details.push(el("div", { class: "tl-line", text: "통과 기준 · " + passed[0].reason }));
+      details.push(evidenceLine(evidenceOf(result, passed[0].id)));
+    }
   } else if (passed.length) {
     details.push(el("div", { class: "tl-line", text: `✓ ${passed.map((x) => x.name).join(" · ")} 통과` }));
   }

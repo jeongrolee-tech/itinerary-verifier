@@ -162,6 +162,23 @@ def test_transit_ok_needs_no_taxi(facts, policy):
     assert c["status"] == PASS and not c.get("notice")
 
 
+# ── D-2. 예상으로 낸 통과는 무엇에 기댔는지 적는다 (3차 피드백 2단계) ─────────────
+
+def test_pass_by_estimate_tells_its_basis(facts, policy):
+    """TMAP 예상 25분 + 권장 여유 10분으로 낸 통과 — 사실처럼 보이지 않게 예상과 여유를 함께 적는다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = {**estimate(25), "source": "api_runtime", "method": "tmap_prediction"}
+    c = travel(judge(t01(), facts, policy), MUSEUM, PALACE)
+    assert c["status"] == PASS
+    assert c["detail"] == "TMAP 예상 대중교통 25분에 권장 여유 10분을 더해도 15:00까지 닿는다"
+
+
+def test_train_pass_tells_its_basis(facts, policy):
+    """열차는 권장 여유가 15분이다. 20:00 에 나와 10분이면 20:10 — 20:30 출발 15분 전보다 이르다."""
+    facts["legs"][f"{MARKET}|서울역"] = {**estimate(10), "source": "api_runtime", "method": "tmap_prediction"}
+    p = train(judge(market_then_ktx("20:30"), facts, policy))
+    assert p["status"] == PASS and p["detail"] == "TMAP 예상 대중교통 10분에 권장 여유 15분을 더해도 열차 출발(20:30) 전에 닿는다"
+
+
 # ── E. 구역 일정 ────────────────────────────────────────────────────
 # 구역은 대표 지점으로 판정하지 않는다. 구간 값이 있어도 이동을 판정하지 않고 어디로 가는지 묻는다.
 
