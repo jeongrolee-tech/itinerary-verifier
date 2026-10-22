@@ -134,3 +134,68 @@ def test_recheck_asks_when_dwell_is_unknown():
     res = recheck(palace_at(...))
     assert res.status_code == 200
     assert res.json()["verdict_after"] == "undetermined" and res.json()["questions"]
+
+
+# ── 5. 필수 시각을 모르거나 추정한 경우 · 택시를 안 탄다는 조건 (3차 피드백 2단계) ────────────
+# "서울역에서 KTX 를 꼭 타야 하지만 출발 시각은 모른다" — KTX 조건을 버리지 않고 시각을 묻는다. 추정한 시각은
+# 사용자가 확인하기 전까지 확정된 입력이 아니다. 택시를 안 탄다고 했으면 택시 대안으로 통과시키지 않는다.
+
+from test_travel_estimate import with_taxi  # noqa: E402
+from test_verify import Claude  # noqa: E402
+
+
+def ktx(time, time_source):
+    return {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": time, "time_source": time_source,
+            "buffer_rule": "rail_boarding", "source": "user_stated"}
+
+
+@pytest.mark.xfail(strict=True, reason="필수 일정 시각이 없으면 입력 검사로만 남고 KTX 조건이 결과에서 빠진다")
+def test_train_without_time_is_kept_and_asked(facts, policy):
+    result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}],
+                    "hard_constraints": [ktx(None, "missing")]}, facts, policy)
+    (hc,) = result["hard_constraints"]
+    assert hc["event"]["place"] == "서울역" and hc["event"]["time"] is None
+    assert hc["policy"]["status"] == UNKNOWN and "시각" in hc["policy"]["how_to_resolve"]["user"]
+    assert result["summary"]["verdict"] == "undetermined"
+
+
+@pytest.mark.xfail(strict=True, reason="추출 형식이 필수 일정 시각 null 을 받지 못해 422 가 난다")
+def test_extraction_with_null_train_time_is_asked():
+    extraction = {"date": THURSDAY, "date_source": "explicit", "weekday_stated": "THU", "notes": [],
+                  "hard_constraints": [{"raw": "서울역에서 KTX 를 꼭 타야 해요", "type": "TRAIN_DEPARTURE",
+                                        "place": "서울역", "time": None, "time_source": "missing"}],
+                  "stops": [{"raw": "광장시장 6시", "place": "광장시장", "start": "18:00", "start_source": "explicit",
+                             "dwell_minutes": 60, "scope": "place", "scope_note": None}]}
+    client = TestClient(create_app(Claude(extraction), None, today="2026-10-01"), base_url="http://127.0.0.1")
+    res = client.post("/api/check", json={"text": "10월 8일 목요일 6시 광장시장, 서울역에서 KTX 를 꼭 타야 해요"})
+    assert res.status_code == 200, res.text
+    assert any("시각" in q for q in res.json()["questions"])
+
+
+@pytest.mark.xfail(strict=True, reason="필수 일정 시각의 출처를 남기지 않아 추정 시각으로 위반을 확정한다")
+def test_inferred_train_time_does_not_confirm(facts, policy):
+    """19:00 에 광장시장을 나와 19:00 KTX — 시각이 사용자가 말한 것이면 위반이지만, 추정한 시각이면 확정하지 않는다."""
+    result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}],
+                    "hard_constraints": [ktx("19:00", "inferred")]}, facts, policy)
+    assert result["hard_constraints"][0]["policy"]["status"] == UNKNOWN
+
+
+def museum_then_palace(avoid_taxi):
+    return {"date": THURSDAY, "avoid_taxi": avoid_taxi, "stops": [
+        {"place": MUSEUM, "start": "13:00", "dwell_minutes": 60},
+        {"place": PALACE, "start": "15:00", "dwell_minutes": 60}]}
+
+
+@pytest.mark.xfail(strict=True, reason="택시를 안 탄다는 조건을 받지 않아 택시 대안으로 통과시킨다")
+def test_no_taxi_is_kept(facts, policy):
+    """대중교통 65분이면 늦을 가능성이 높고 택시 20분이면 닿는다 — 택시를 안 탄다고 했으면 통과가 아니다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
+    c = travel_checks(judge(museum_then_palace(True), facts, policy), f"{MUSEUM} → {PALACE}")[0]
+    assert c["status"] == UNKNOWN and c["unknown_reason"] == "LATE_BY_ESTIMATE"
+
+
+def test_taxi_is_used_when_not_excluded(facts, policy):
+    """대조군: 말하지 않았으면 지금처럼 택시 대안으로 통과시키고 '택시로 가야 한다' 를 알린다."""
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
+    c = travel_checks(judge(museum_then_palace(False), facts, policy), f"{MUSEUM} → {PALACE}")[0]
+    assert c["status"] != UNKNOWN and "택시" in c.get("notice", "")
