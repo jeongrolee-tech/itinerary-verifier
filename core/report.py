@@ -86,7 +86,7 @@ def _rows(result: dict) -> list[tuple[str, dict]]:
         e, p = h["event"], h["policy"]
         kind = EVENT_NAMES.get(e["type"], "필수 일정")
         name = "필수 일정" if kind == "필수 일정" else f"필수 일정 {kind}"
-        rows.append((p["status"], _item(h.get("id"), f"{name} {e['time']} {e['place']}", p)))
+        rows.append((p["status"], _item(h.get("id"), f"{name} {e['time'] or '시각 모름'} {e['place'] or '장소 모름'}", p)))
     return rows
 
 
@@ -153,7 +153,8 @@ def timeline(itinerary: dict, result: dict) -> list[dict]:
     for h in result["hard_constraints"]:
         e, p = h["event"], h["policy"]
         kind = EVENT_NAMES.get(e["type"], "필수 일정")
-        rows.append(_row("hard", e["time"], f"필수 일정 · {kind} {e['place']}", [_line({**p, "id": h.get("id")}, kind)]))
+        rows.append(_row("hard", e["time"], f"필수 일정 · {kind} {e['place'] or '장소 모름'}",
+                         [_line({**p, "id": h.get("id")}, kind)]))
     return rows
 
 

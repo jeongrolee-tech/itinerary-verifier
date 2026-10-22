@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 import routes
 from app import create_app
+from report import render, report, timeline
 from routes import live_legs
 from verdict import FAIL, UNKNOWN, judge
 
@@ -156,6 +157,9 @@ def test_train_without_time_is_kept_and_asked(facts, policy):
     assert hc["event"]["place"] == "서울역" and hc["event"]["time"] is None
     assert hc["policy"]["status"] == UNKNOWN and "시각" in hc["policy"]["how_to_resolve"]["user"]
     assert result["summary"]["verdict"] == "undetermined"
+    # 화면 · 터미널 글에 빈 값(None)을 찍지 않는다
+    assert "None" not in render(report(result))
+    assert all("None" not in row["title"] for row in timeline({"stops": []}, result))
 
 
 def test_extraction_with_null_train_time_is_asked():
