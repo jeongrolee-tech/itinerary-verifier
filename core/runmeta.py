@@ -43,8 +43,14 @@ def uncommitted(porcelain: str) -> list[str]:
                   if not Path(p).name.startswith("last-") and Path(p).name != "response-cache.json")
 
 
-def run_meta(**extra) -> dict:
-    """실행 조건. extra 에는 스크립트마다 다른 조건(기준 날짜 · 프롬프트 지문)을 넣는다."""
+def record_name(name: str, suite: str) -> str:
+    """실행 기록 파일 이름. 회귀셋(tests.json) 기록은 그대로 두고, 다른 문제 묶음은 이름을 붙여 따로 둔다 —
+    last-run.json → last-run-eval-new.json. 새 평가를 돌려도 회귀셋 기록을 덮어쓰지 않는다(3차 피드백)."""
+    return name if suite == "tests.json" else name.replace(".json", f"-{Path(suite).stem}.json")
+
+
+def run_meta(suite: str = "tests.json", **extra) -> dict:
+    """실행 조건. suite 는 돌린 문제 묶음, extra 에는 스크립트마다 다른 조건(기준 날짜 · 프롬프트 지문)을 넣는다."""
     commit = _git("rev-parse", "HEAD")
     status = _git("status", "--porcelain", "--", ".")
     changed = None if status is None else uncommitted(status)
@@ -55,7 +61,8 @@ def run_meta(**extra) -> dict:
         #    대신 그 실행은 커밋만으로 다시 만들 수 없다고 적어 둔다. 숫자를 인용할 때는
         #    reproducible 이 true 인 기록만 쓴다.
         "reproducible": bool(commit) and changed == [],
-        "fingerprints": {name: fingerprint((HERE / name).read_bytes()) for name in INPUT_FILES},
+        "fingerprints": {name: fingerprint((HERE / name).read_bytes())
+                         for name in (suite, *INPUT_FILES[1:])},
         **extra,
     }
 

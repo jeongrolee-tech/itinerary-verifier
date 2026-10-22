@@ -21,6 +21,7 @@ core/last-compare-stability-dryrun.json
 core/last-compare-subset.json
 core/last-run-subset.json
 core/last-extract-run-subset.json
+core/last-*-subset-*.json
 
 # 개인용 Claude Code 설정 (공유하지 않는다)
 CLAUDE.local.md

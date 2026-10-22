@@ -1,5 +1,5 @@
 """
-평가셋 케이스와 라벨 — 라벨 노후화, 케이스별 테스트용 이동시간, 라벨과 판정 결과 대조, 기대 추출값의 채점 항목.
+평가셋 케이스와 라벨 — 라벨 노후화, 케이스별 테스트용 이동시간, 라벨과 판정 결과 대조, 기대 추출값의 채점 항목과 채점.
 
 라벨 노후화: 라벨을 검토한 뒤 데이터가 바뀌어, 그 라벨을 더는 정답으로 믿을 수 없는지 본다.
 
@@ -11,14 +11,14 @@ facts.json 버전에 따라 달라지기 때문이다 — T10 이 그 증거다.
 from __future__ import annotations
 
 from report import SEVERITY_NAMES, STATUS_NAMES, VERDICT_NAMES
-from verdict import UNKNOWN
+from verdict import UNKNOWN, support_scope
 
 # 기대 추출값을 채점하는 항목 — run_extract.py 가 채점하고 eval_report.py 가 보고한다.
 # 2차 피드백 3번 "날짜/장소/시각뿐 아니라 추론한 연도의 출처와 지원 범위 분류까지". 시각 출처는 같은 이유로
 # 더했다(2026-10-07 사용자 결정): 출처가 틀리면 판정이 물어야 할 시각을 확정해 버린다
 EXTRACTION_FIELDS = {"date": "날짜·요일", "date_source": "연도 출처", "place": "장소", "start": "시각",
                      "start_source": "시각 출처", "dwell": "체류시간", "support": "지원 범위 분류",
-                     "hard_constraints": "필수 일정"}
+                     "hard_constraints": "필수 일정", "avoid_taxi": "택시 안 탐"}
 
 
 def stale_reason(case: dict, suite: dict, facts: dict) -> str | None:
@@ -94,6 +94,56 @@ def check_mismatches(expected: list[dict], checks: list[dict]) -> list[dict]:
         if got is None or got["status"] != want["status"]:
             wrong.append({**want, "got": got and got["status"]})
     return wrong
+
+
+def grade_extraction(case: dict, got: dict, facts: dict) -> dict[str, list[str]]:
+    """tests.json 의 date / date_source / weekday_stated / stops / hard_constraints 가 기대 추출값이다.
+
+    항목(EXTRACTION_FIELDS)마다 어긋난 점을 모은다. 지원 범위 분류는 판정 코드와 같은 함수(verdict.support_scope)로
+    기대값과 추출값을 각각 나눠 비교한다 — 장소 이름이나 구역 여부를 틀리면 여기서 드러난다.
+    """
+    p = {k: [] for k in EXTRACTION_FIELDS}
+    if got.get("date") != case["date"]:
+        p["date"].append(f"date 기대 {case['date']} → 추출값 {got.get('date')}")
+    if got.get("weekday_stated") != case.get("weekday_stated"):
+        p["date"].append(f"weekday_stated 기대 {case.get('weekday_stated')} → 추출값 {got.get('weekday_stated')}")
+    if got.get("date_source") != case.get("date_source"):
+        p["date_source"].append(f"date_source 기대 {case.get('date_source')} → 추출값 {got.get('date_source')}")
+
+    want_stops, got_stops = case["stops"], got.get("stops", [])
+    if len(want_stops) != len(got_stops):
+        p["place"].append(f"장소 개수 기대 {len(want_stops)} → 추출값 {len(got_stops)}")
+    for i, (want, g) in enumerate(zip(want_stops, got_stops)):
+        if want["place"] != g.get("place"):
+            p["place"].append(f"stops[{i}].place 기대 {want['place']} → 추출값 {g.get('place')}")
+        if want.get("start") != g.get("start"):
+            p["start"].append(f"stops[{i}].start 기대 {want.get('start')} → 추출값 {g.get('start')}")
+        # 라벨에 출처가 없으면 사용자가 말한 시각이다 (tests.json time_rule)
+        want_src = want.get("start_source", "explicit" if want.get("start") else "missing")
+        if want_src != g.get("start_source"):
+            p["start_source"].append(f"stops[{i}].start_source 기대 {want_src} → 추출값 {g.get('start_source')}")
+        # 입력에 없던 체류시간을 채워 넣었는지 — 가장 중요한 항목
+        if "dwell_minutes" not in want and "dwell_minutes" in g:
+            p["dwell"].append(f"stops[{i}] 입력에 없는 체류시간 {g['dwell_minutes']}분을 추가했다")
+        elif want.get("dwell_minutes") != g.get("dwell_minutes"):
+            p["dwell"].append(f"stops[{i}].dwell_minutes 기대 {want.get('dwell_minutes')} → 추출값 {g.get('dwell_minutes')}")
+        want_sup, got_sup = support_scope(want, facts), support_scope(g, facts)
+        if want_sup != got_sup:
+            p["support"].append(f"stops[{i}] 지원 범위 기대 {want_sup} → 추출값 {got_sup}")
+
+    want_hc, got_hc = case.get("hard_constraints", []), got.get("hard_constraints", [])
+    if len(want_hc) != len(got_hc):
+        p["hard_constraints"].append(f"필수 일정 개수 기대 {len(want_hc)} → 추출값 {len(got_hc)}")
+    for i, (want, g) in enumerate(zip(want_hc, got_hc)):
+        # 라벨에 시각 출처가 없으면 사용자가 말한 시각이다(장소 시각과 같은 규칙). 시각을 모르면 키가 없다
+        want = {**want, "time_source": want.get("time_source", "explicit" if want.get("time") else "missing")}
+        for k in ("type", "place", "time", "time_source"):
+            if want.get(k) != g.get(k):
+                p["hard_constraints"].append(f"HC[{i}].{k} 기대 {want.get(k)} → 추출값 {g.get(k)}")
+    # 택시를 안 탄다는 말을 옮겼나 — 놓치면 사용자가 뺀 택시로 통과시킨다(3차 피드백)
+    if case.get("avoid_taxi", False) != got.get("avoid_taxi", False):
+        p["avoid_taxi"].append(f"avoid_taxi 기대 {case.get('avoid_taxi', False)} → 추출값 {got.get('avoid_taxi')}")
+    return p
 
 
 def grade(case, out):

@@ -9,6 +9,7 @@
     python core/compare.py --case T05       한 건만         → last-compare-subset.json
     python core/compare.py --model claude-sonnet-5-5
     python core/compare.py --reference-date 2026-10-01   기준 날짜를 바꿔서 (기본은 tests.json)
+    python core/compare.py --suite eval-new.json   새 평가 문제(회귀셋과 따로) → last-compare-eval-new.json
     python core/compare.py --repeat 5       판정 규칙이 여럿 겹치는 문제를 'LLM에 사실 데이터 줌' 으로 다섯 번씩
                                             새로 불러 답이 흔들리는지 잰다 → last-compare-stability.json (돈이 든다)
 
@@ -55,7 +56,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from labels import case_facts, check_mismatches, stale_reason  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, effort_for  # noqa: E402
 from report import ARM_NAMES, VERDICT_NAMES, pad, width  # noqa: E402
-from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
+from runmeta import describe, fingerprint, library_versions, record_name, reference_date, run_meta  # noqa: E402
 from spend import Spend  # noqa: E402
 from verdict import judge, verdict_of  # noqa: E402
 
@@ -67,11 +68,14 @@ if hasattr(sys.stdout, "reconfigure"):
 
 HERE = Path(__file__).parent
 load = lambda n: json.loads((HERE / n).read_text(encoding="utf-8"))
-facts, policy, suite = load("facts.json"), load("policy.json"), load("tests.json")
+facts, policy = load("facts.json"), load("policy.json")
 
 args = sys.argv[1:]
 flag = lambda name, d: next(
     (args[i + 1] for i, a in enumerate(args) if a == name and i + 1 < len(args)), d)
+# 문제 묶음 — 기본은 회귀셋(tests.json). 새 평가(eval-new.json)는 기록도 따로 남는다(runmeta.record_name)
+SUITE_FILE = flag("--suite", "tests.json")
+suite = load(SUITE_FILE)
 only = flag("--case", None)
 REPEAT = int(flag("--repeat", "0"))
 # 반복 실행의 기본 — 판정 규칙이 여럿 겹치는 문제(3차 피드백 "새 호출은 복합 조건 일부에 한정해도 된다")
@@ -205,15 +209,19 @@ RULES = """판정 규칙 — 판정 코드가 쓰는 규칙과 같다. 이 규�
      (policy.buffer_minutes.transit_leg)를 못 채우면 unknown, 여유까지 채우면 pass 다. 앞 장소의 체류를 사용자가
      말하지 않았으면 바로 나와도 늦을 때만 늦다고 보고, 그 밖에는 unknown 이다.
   9. 대중교통으로 pass 가 안 나오고 구간에 택시 대안(alternatives)이 있으면 택시 시간으로 같은 규칙을 적용한다.
+     일정의 avoid_taxi 가 true 면(사용자가 택시를 안 탄다고 했다) 택시 대안을 보지 않는다.
   10. 양 끝 중 한 곳이 쉬는 날이면 이동은 not_applicable 이다. 구역(area)이 끼거나 구간 이동시간(legs)이 없으면
-      unknown 이다. 마지막 장소 뒤에는 이동이 없다.
+      unknown 이다. 마지막 장소 뒤에는 이동이 없다. 구간 이동시간은 legs 에서 '출발|도착' 으로 찾는다.
+      '번호:출발|도착' 키(번호는 0부터 센 출발 장소 순번)는 그 구간에만 쓰고, depart_at 이 그 구간을 나서는 시각과
+      같을 때만 쓴다. 같은 장소 사이라도 출발 시각이 다르면 이동시간이 다르다.
 
 필수 일정(hard_constraints)
   11. 마지막 장소에서 필수 일정 장소로 가는 이동으로 보고, 그 구간의 INSUFFICIENT_TRAVEL_TIME 검사로 적는다.
       출발 시각(열차 · 항공편)은 그 시각에 닿아도 놓친 것이다. 권장 여유는 buffer_rule 이 가리키는 policy 값이다.
       이동 0분으로도 놓치면 fail, 이동시간으로 놓치거나 여유가 모자라면 unknown 이다. buffer_rule 의 값이 policy 에
       없으면(항공편) pass 를 내지 않는다. 필수 일정 시각보다 늦게 시작하는 장소가 있으면 하루 중간의 일정이라
-      unknown 이다."""
+      unknown 이다. 필수 일정에 시각이 없으면 unknown 이고, time_source 가 inferred 인 시각에 기대는 결과는
+      pass 도 fail 도 확정하지 않는다."""
 
 SYSTEM_LLM_FACTS = f"""너는 여행 일정의 실행 가능성을 검증한다.
 
@@ -238,7 +246,7 @@ facts 에 없는 운영시간·휴무일·이동시간을 네 지식으로 메�
 
 def itinerary_for(case: dict) -> dict:
     return {"date": case["date"], "stops": case["stops"],
-            "hard_constraints": case.get("hard_constraints", [])}
+            "hard_constraints": case.get("hard_constraints", []), "avoid_taxi": case.get("avoid_taxi", False)}
 
 
 def facts_for_llm(f: dict) -> dict:
@@ -395,7 +403,7 @@ def repeat_runs(n: int) -> None:
                   + " · ".join(f"{ANSWER_NAMES.get(v, v)} {k}번" for v, k in verdicts.most_common())
                   + f" · 틀린 검사 수 {'/'.join(str(len(a['checks_wrong'])) for a in answers)}"
                   + f" · 검사와 판정이 어긋남 {sum(a['consistent'] is False for a in answers)}번")
-    name = "last-compare-stability-dryrun.json" if DRY else "last-compare-stability.json"
+    name = record_name("last-compare-stability-dryrun.json" if DRY else "last-compare-stability.json", SUITE_FILE)
     out = {"_역할": "비교 실험 반복 기록. 같은 요청을 여러 번 새로 불러 답이 흔들리는지 잰다. "
                     "공식 기록(last-compare.json)과 따로 둔다. compare.py --repeat 이 덮어쓴다.",
            "run_id": RUN_ID.replace("cmp-", "cmp-repeat-"), "ran_at": datetime.now(timezone.utc).isoformat(),
@@ -496,7 +504,7 @@ elif need_llm:
         client = anthropic.Anthropic(api_key=key)
 
 # 프롬프트 지문 — llm_with_facts 의 지문에 판정 규칙(RULES)도 들어 있다
-CONDITIONS = run_meta(reference_date=REFERENCE_DATE, libraries=library_versions(), prompts={
+CONDITIONS = run_meta(SUITE_FILE, reference_date=REFERENCE_DATE, libraries=library_versions(), prompts={
     "llm_naive": fingerprint(SYSTEM_LLM_NAIVE), "llm_only": fingerprint(SYSTEM_LLM_ONLY),
     "llm_with_facts": fingerprint(SYSTEM_LLM_FACTS), "judgment_schema": JUDGMENT_SCHEMA})
 # ⭐ last-compare.json 에는 모든 arm · 모든 케이스를 한 조건에서 돌린 결과만 둔다.
@@ -504,8 +512,8 @@ CONDITIONS = run_meta(reference_date=REFERENCE_DATE, libraries=library_versions(
 #    판정이 섞였다 — 옛 기대값이 남은 행이 멘토 피드백 3번에서 지적됐다. 일부 실행은
 #    따로 적는다.
 FULL_RUN = set(ARMS) == set(ALL_ARMS) and not only
-OUT_NAME = ("last-compare-dryrun.json" if DRY else
-            "last-compare.json" if FULL_RUN else "last-compare-subset.json")
+OUT_NAME = record_name("last-compare-dryrun.json" if DRY else
+                       "last-compare.json" if FULL_RUN else "last-compare-subset.json", SUITE_FILE)
 
 if REPEAT:  # 반복 실행은 공식 기록과 따로 남기고 끝낸다
     repeat_runs(REPEAT)

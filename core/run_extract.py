@@ -7,6 +7,7 @@
     python core/run_extract.py --extract-only   추출만 채점 (판정 생략)
     python core/run_extract.py --fresh    받아 둔 응답을 쓰지 않고 전부 새로 받는다 (돈이 든다)
     python core/run_extract.py --reference-date 2026-10-01   기준 날짜를 바꿔서 (기본은 tests.json)
+    python core/run_extract.py --suite eval-new.json   새 평가 문제(회귀셋과 따로) → last-extract-run-eval-new.json
     python core/run_extract.py --repeat 5   모호한 시각 · 필수 일정 문제를 다섯 번씩 새로 불러 답이 흔들리는지 잰다
                                             → last-extract-stability.json (돈이 든다. --case T22,T23 으로 문제를 고른다)
 
@@ -30,26 +31,29 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import anthropic  # noqa: E402
 from extract import SYSTEM, Extraction, request, to_itinerary  # noqa: E402
-from labels import EXTRACTION_FIELDS, case_facts, stale_reason  # noqa: E402
+from labels import EXTRACTION_FIELDS, case_facts, grade_extraction, stale_reason  # noqa: E402
 from llm import InvalidOutput, Refusal, ask  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from report import INPUT_SOURCE_NAMES, SET_NAMES, VERDICT_NAMES, pad  # noqa: E402
 from response_cache import ResponseCache, confirm_spend, request_key  # noqa: E402
-from runmeta import describe, fingerprint, library_versions, reference_date, run_meta  # noqa: E402
+from runmeta import describe, fingerprint, library_versions, record_name, reference_date, run_meta  # noqa: E402
 from spend import Spend  # noqa: E402
-from verdict import EVENT_NAMES, judge, support_scope  # noqa: E402
+from verdict import EVENT_NAMES, judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 HERE = Path(__file__).parent
 load = lambda n: json.loads((HERE / n).read_text(encoding="utf-8"))
-facts, policy, suite = load("facts.json"), load("policy.json"), load("tests.json")
+facts, policy = load("facts.json"), load("policy.json")
 
 args = sys.argv[1:]
 extract_only = "--extract-only" in args
 flag = lambda name, default: next(
     (args[i + 1] for i, a in enumerate(args) if a == name and i + 1 < len(args)), default)
+# 문제 묶음 — 기본은 회귀셋(tests.json). 새 평가(eval-new.json)는 기록도 따로 남는다(runmeta.record_name)
+SUITE_FILE = flag("--suite", "tests.json")
+suite = load(SUITE_FILE)
 only = flag("--case", None)
 REPEAT = int(flag("--repeat", "0"))
 # 반복 실행의 기본 문제 — 3차 피드백 "새 호출은 모호한 시각이나 복합 조건 일부에 한정해도 된다"
@@ -65,56 +69,13 @@ cases = [c for c in suite["cases"] if not only or c["id"].startswith(tuple(only.
 REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
 # 모델이 받는 것은 시스템 프롬프트와 출력 스키마다. 스키마도 지문으로 남기고, 스키마를 만드는 SDK 버전도 적는다
 SCHEMA = json.dumps(anthropic.transform_schema(Extraction), ensure_ascii=False, sort_keys=True)
-CONDITIONS = run_meta(reference_date=REFERENCE_DATE, libraries=library_versions(),
+CONDITIONS = run_meta(SUITE_FILE, reference_date=REFERENCE_DATE, libraries=library_versions(),
                       prompts={"extract": fingerprint(SYSTEM), "extract_schema": fingerprint(SCHEMA)})
 
 LINE = "═" * 78
 MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
 
 
-def grade_extraction(case, got: dict) -> dict[str, list[str]]:
-    """tests.json 의 date / date_source / weekday_stated / stops / hard_constraints 가 기대 추출값이다.
-
-    항목(labels.EXTRACTION_FIELDS)마다 어긋난 점을 모은다. 지원 범위 분류는 판정 코드와 같은 함수(verdict.support_scope)로
-    기대값과 추출값을 각각 나눠 비교한다 — 장소 이름이나 구역 여부를 틀리면 여기서 드러난다.
-    """
-    p = {k: [] for k in EXTRACTION_FIELDS}
-    if got.get("date") != case["date"]:
-        p["date"].append(f"date 기대 {case['date']} → 추출값 {got.get('date')}")
-    if got.get("weekday_stated") != case.get("weekday_stated"):
-        p["date"].append(f"weekday_stated 기대 {case.get('weekday_stated')} → 추출값 {got.get('weekday_stated')}")
-    if got.get("date_source") != case.get("date_source"):
-        p["date_source"].append(f"date_source 기대 {case.get('date_source')} → 추출값 {got.get('date_source')}")
-
-    want_stops, got_stops = case["stops"], got.get("stops", [])
-    if len(want_stops) != len(got_stops):
-        p["place"].append(f"장소 개수 기대 {len(want_stops)} → 추출값 {len(got_stops)}")
-    for i, (want, g) in enumerate(zip(want_stops, got_stops)):
-        if want["place"] != g.get("place"):
-            p["place"].append(f"stops[{i}].place 기대 {want['place']} → 추출값 {g.get('place')}")
-        if want.get("start") != g.get("start"):
-            p["start"].append(f"stops[{i}].start 기대 {want.get('start')} → 추출값 {g.get('start')}")
-        # 라벨에 출처가 없으면 사용자가 말한 시각이다 (tests.json time_rule)
-        want_src = want.get("start_source", "explicit" if want.get("start") else "missing")
-        if want_src != g.get("start_source"):
-            p["start_source"].append(f"stops[{i}].start_source 기대 {want_src} → 추출값 {g.get('start_source')}")
-        # 입력에 없던 체류시간을 채워 넣었는지 — 가장 중요한 항목
-        if "dwell_minutes" not in want and "dwell_minutes" in g:
-            p["dwell"].append(f"stops[{i}] 입력에 없는 체류시간 {g['dwell_minutes']}분을 추가했다")
-        elif want.get("dwell_minutes") != g.get("dwell_minutes"):
-            p["dwell"].append(f"stops[{i}].dwell_minutes 기대 {want.get('dwell_minutes')} → 추출값 {g.get('dwell_minutes')}")
-        want_sup, got_sup = support_scope(want, facts), support_scope(g, facts)
-        if want_sup != got_sup:
-            p["support"].append(f"stops[{i}] 지원 범위 기대 {want_sup} → 추출값 {got_sup}")
-
-    want_hc, got_hc = case.get("hard_constraints", []), got.get("hard_constraints", [])
-    if len(want_hc) != len(got_hc):
-        p["hard_constraints"].append(f"필수 일정 개수 기대 {len(want_hc)} → 추출값 {len(got_hc)}")
-    for i, (want, g) in enumerate(zip(want_hc, got_hc)):
-        for k in ("type", "place", "time"):
-            if want[k] != g.get(k):
-                p["hard_constraints"].append(f"HC[{i}].{k} 기대 {want[k]} → 추출값 {g.get(k)}")
-    return p
 
 
 def ask_key() -> str:
@@ -151,7 +112,7 @@ def repeat_runs(n: int) -> None:
                 ex, usage = ask(client, **requests[case["id"]])
                 got = to_itinerary(ex)
                 runs.append({"extracted": got,
-                             "wrong_fields": [k for k, msgs in grade_extraction(case, got).items() if msgs]})
+                             "wrong_fields": [k for k, msgs in grade_extraction(case, got, facts).items() if msgs]})
             except (Refusal, InvalidOutput) as e:
                 usage = e.usage
                 runs.append({"error": f"{type(e).__name__}: {e}"})
@@ -171,8 +132,9 @@ def repeat_runs(n: int) -> None:
            "run_id": RUN_ID.replace("extract-", "extract-repeat-"), "ran_at": datetime.now(timezone.utc).isoformat(),
            "model": MODEL, "effort": EFFORT, "repeat": n, "conditions": CONDITIONS,
            "spent_usd": round(meter.claude_usd, 4), "rows": rows}
-    (HERE / "last-extract-stability.json").write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"  기록: core/last-extract-stability.json  ({out['run_id']})")
+    name = record_name("last-extract-stability.json", SUITE_FILE)
+    (HERE / name).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"  기록: core/{name}  ({out['run_id']})")
     print(describe(CONDITIONS))
 
 # ⭐ API 를 부르기 전에 요청을 다 만들어 응답 캐시와 맞춰 본다. 모델이 받는 것이 같은 요청은 받아 둔 응답을 쓰고,
@@ -240,11 +202,14 @@ for case in cases:
         area = f"  ⚠ 동네 — {s.get('scope_note')}" if s["scope"] == "area" else ""
         print(f"  {s.get('start') or '--:--'}  {s['place']}  체류 {dwell}  ({INPUT_SOURCE_NAMES[s['start_source']]}){area}")
     for hc in got["hard_constraints"]:
-        print(f"  [필수 일정] {hc['time']}  {hc['place']}  {EVENT_NAMES.get(hc['type'], hc['type'])}")
+        print(f"  [필수 일정] {hc.get('time') or '시각 모름'}  {hc['place']}  {EVENT_NAMES.get(hc['type'], hc['type'])}"
+              + ("  (추정)" if hc.get("time_source") == "inferred" else ""))
+    if got.get("avoid_taxi"):
+        print("  택시 안 탐")
     for n in notes:
         print(f"  메모: {n}")
 
-    ex_fields = grade_extraction(case, got)
+    ex_fields = grade_extraction(case, got, facts)
     ex_problems = [m for msgs in ex_fields.values() for m in msgs]
     print(f"\n[구조화 추출 채점]  {'✅ 정답과 일치' if not ex_problems else '❌'}")
     for p in ex_problems:
@@ -342,7 +307,7 @@ run = {
     "results": results,
 }
 # 일부만 돌린 결과(--case · --extract-only)는 공식 기록을 덮어쓰지 않는다 — compare.py 와 같은 규칙
-RECORD = "last-extract-run-subset.json" if only or extract_only else "last-extract-run.json"
+RECORD = record_name("last-extract-run-subset.json" if only or extract_only else "last-extract-run.json", SUITE_FILE)
 (HERE / RECORD).write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
 print(f"  기록: core/{RECORD}  ({run['run_id']})")
 print(describe(CONDITIONS))

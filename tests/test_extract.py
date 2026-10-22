@@ -16,6 +16,7 @@ from anthropic.types import Message
 from pydantic import ValidationError
 
 from extract import Extraction, extract, to_itinerary
+from labels import grade_extraction
 
 SUITE = json.loads((Path(__file__).parent.parent / "core" / "tests.json").read_text(encoding="utf-8"))
 EMPTY = {"date": None, "date_source": "missing", "weekday_stated": None,
@@ -123,3 +124,54 @@ def test_flight_gets_no_buffer_rule_from_policy():
     """항공편은 flight_boarding 으로 옮긴다. 정책에 그 기준이 없어서 판정 코어가 pass 를 내지 않는다."""
     ex = Extraction.model_validate(changed(("hard_constraints", 0, "type"), "FLIGHT_DEPARTURE"))
     assert to_itinerary(ex)["hard_constraints"][0]["buffer_rule"] == "flight_boarding"
+
+
+# ── 기대 추출값 채점 (labels.grade_extraction) ─────────────────────────────
+# 3차 피드백으로 필수 일정 시각 출처와 '택시 안 탐' 을 옮기게 했다. 둘 다 채점한다 — 놓치면 사용자가 모른다고 한
+# 열차 시각을 확정하거나, 사용자가 뺀 택시로 통과시킨다
+
+NEW = json.loads((Path(__file__).parent.parent / "core" / "eval-new.json").read_text(encoding="utf-8"))
+
+
+def as_extracted(case, **change):
+    """정답을 구조화 추출 결과 모양(extract.to_itinerary)으로 옮긴다. 라벨에 출처가 없으면 말한 시각이다."""
+    got = {"date": case["date"], "date_source": case["date_source"], "weekday_stated": case.get("weekday_stated"),
+           "avoid_taxi": case.get("avoid_taxi", False),
+           "stops": [{**s, "start_source": s.get("start_source", "explicit" if s.get("start") else "missing"),
+                      "scope": s.get("scope", "place")} for s in case["stops"]],
+           "hard_constraints": [{**h, "time_source": h.get("time_source", "explicit" if h.get("time") else "missing")}
+                                for h in case.get("hard_constraints", [])]}
+    return {**got, **change}
+
+
+def wrong(case, got, facts):
+    return {k: msgs for k, msgs in grade_extraction(case, got, facts).items() if msgs}
+
+
+@pytest.mark.parametrize("case", SUITE["cases"] + NEW["cases"], ids=lambda c: c["id"])
+def test_extraction_equal_to_the_label_has_nothing_wrong(case, facts):
+    """정답 그대로 옮긴 추출은 어느 항목도 틀리지 않는다 — 새 평가 문제의 정답 모양도 채점기와 맞는지 본다."""
+    assert wrong(case, as_extracted(case), facts) == {}
+
+
+def by_id(prefix):
+    return next(c for c in NEW["cases"] if c["id"].startswith(prefix))
+
+
+def test_guessing_an_unknown_train_time_is_wrong(facts):
+    """N03 은 열차 시각을 모른다. 시각을 지어 넣으면 필수 일정이 틀린다."""
+    case = by_id("N03")
+    hc = {**case["hard_constraints"][0], "time": "20:00", "time_source": "inferred"}
+    assert set(wrong(case, as_extracted(case, hard_constraints=[hc]), facts)) == {"hard_constraints"}
+
+
+def test_inferred_train_time_taken_as_stated_is_wrong(facts):
+    """N04 의 '8시 반' 은 기댈 앞 시각이 없어 추정이다. 말한 시각으로 옮기면 판정이 확정해 버린다."""
+    case = by_id("N04")
+    hc = {**case["hard_constraints"][0], "time_source": "explicit"}
+    assert set(wrong(case, as_extracted(case, hard_constraints=[hc]), facts)) == {"hard_constraints"}
+
+
+def test_missing_the_no_taxi_wish_is_wrong(facts):
+    case = by_id("N05")
+    assert set(wrong(case, as_extracted(case, avoid_taxi=False), facts)) == {"avoid_taxi"}

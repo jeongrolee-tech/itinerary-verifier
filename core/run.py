@@ -6,6 +6,7 @@
     python core/run.py --all           전부 상세
     python core/run.py --case T05      한 케이스만 상세
     python core/run.py --json          결과 JSON
+    python core/run.py --suite eval-new.json   새 평가 문제(회귀셋과 따로) → last-run-eval-new.json
 
 화면 완성도보다 중간 결과와 실패 원인을 확인할 수 있는 실행 기록이 먼저다.
 최종 판정만 남기지 않고 어떤 값이 추출됐고, 어떤 기본값을 적용했으며,
@@ -21,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from labels import case_facts, grade, grade_applied, stale_reason  # noqa: E402
 from report import (RESOLVER_NAMES, SET_NAMES, SEVERITY_NAMES, SOURCE_NAMES, STATUS_NAMES,  # noqa: E402
                     VERDICT_NAMES, pad, render, report)
-from runmeta import describe, run_meta  # noqa: E402
+from runmeta import describe, record_name, run_meta  # noqa: E402
 from verdict import EVENT_NAMES, judge  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -31,12 +32,15 @@ HERE = Path(__file__).parent
 VERSION = "core-0.2"
 load = lambda name: json.loads((HERE / name).read_text(encoding="utf-8"))
 
-facts, policy, suite = load("facts.json"), load("policy.json"), load("tests.json")
+facts, policy = load("facts.json"), load("policy.json")
 
 args = sys.argv[1:]
 json_only = "--json" in args
 show_all = "--all" in args
 only = next((args[i + 1] for i, a in enumerate(args) if a == "--case" and i + 1 < len(args)), None)
+# 문제 묶음 — 기본은 회귀셋(tests.json). 새 평가(eval-new.json)는 기록도 따로 남는다(runmeta.record_name)
+SUITE_FILE = next((args[i + 1] for i, a in enumerate(args) if a == "--suite" and i + 1 < len(args)), "tests.json")
+suite = load(SUITE_FILE)
 
 # --case 를 주면 해당 접두사로 시작하는 케이스만 실행한다.
 # 예전에는 상세 출력만 줄이고 전체 케이스를 계속 돌려서,
@@ -66,9 +70,9 @@ def detail(case, out, problems):
     print("[추출한 일정]")
     for s in case["stops"]:
         d = f"체류 {s['dwell_minutes']}분 (사용자)" if s.get("dwell_minutes") else "체류 미입력"
-        print(f"  {s['start']}  {s['place']}  {d}")
+        print(f"  {s.get('start') or '--:--'}  {s['place']}  {d}")
     for hc in case.get("hard_constraints", []):
-        print(f"  [필수 일정] {hc['time']}  {hc['place']}  {EVENT_NAMES.get(hc['type'], hc['type'])}  (사용자)")
+        print(f"  [필수 일정] {hc.get('time') or '시각 모름'}  {hc['place']}  {EVENT_NAMES.get(hc['type'], hc['type'])}  (사용자)")
 
     print("\n[적용한 기본값]")
     print("  없음 — 사용자가 다 말했다" if not out["assumptions"] else "", end="")
@@ -101,10 +105,11 @@ def detail(case, out, problems):
     for h in out["hard_constraints"]:
         e, p = h["event"], h["policy"]
         print(f"\n[필수 일정 {h['id']}]  \"{e['raw']}\"")
-        print(f"  사용자가 말한 것   {EVENT_NAMES.get(e['type'], e['type'])} {e['place']} {e['time']}  "
+        print(f"  사용자가 말한 것   {EVENT_NAMES.get(e['type'], e['type'])} {e['place']} {e['time'] or '시각 모름'}  "
               f"({SOURCE_NAMES.get(e['source'], e['source'])})")
-        print(f"  서비스 권장 기준   도착 {p['required_arrival']} (여유 {p['buffer_minutes']}분, "
-              f"{SOURCE_NAMES.get(p['buffer_source'], p['buffer_source'])})")
+        if "required_arrival" in p:  # 시각을 모르거나 하루 중간인 필수 일정은 권장 기준을 계산하지 않는다
+            print(f"  서비스 권장 기준   도착 {p['required_arrival']} (여유 {p['buffer_minutes']}분, "
+                  f"{SOURCE_NAMES.get(p['buffer_source'], p['buffer_source'])})")
         if p.get("estimated_arrival"):
             basis = "  ← 기본값 체류시간으로 계산한 참고값" if p.get("depends_on_assumptions") else ""
             print(f"  계산한 예상 도착   {p['estimated_arrival']}  "
@@ -158,7 +163,7 @@ if not json_only:
     scored = [r for r in results if r["label_current"]]
     stale = [r for r in results if not r["label_current"]]
 
-    for name in ("dev", "holdout"):
+    for name in sorted({r["set"] for r in results}, key=list(SET_NAMES).index):
         sub = [r for r in scored if r["set"] == name]
         hit = sum(1 for r in sub if r["match"])
         label = SET_NAMES[name]
@@ -189,12 +194,13 @@ run = {
     "ran_at": datetime.now(timezone.utc).isoformat(),
     "facts_snapshot": facts["snapshot_id"],
     "holidays_verified": facts["holidays"]["verified"],
-    "labeled_at": suite["labeled_at"],
-    "conditions": run_meta(),
+    "suite": SUITE_FILE,
+    "labeled_at": suite.get("labeled_at"),
+    "conditions": run_meta(SUITE_FILE),
     "results": results,
 }
 # 일부만 돌린 결과(--case)는 공식 기록을 덮어쓰지 않는다 — compare.py 와 같은 규칙. README 가 인용하는 것은 전체 실행이다
-RECORD = "last-run-subset.json" if only else "last-run.json"
+RECORD = record_name("last-run-subset.json" if only else "last-run.json", SUITE_FILE)
 (HERE / RECORD).write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
 
 all_match = all(r["match"] for r in results)

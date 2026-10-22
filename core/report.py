@@ -27,7 +27,7 @@ CHECK_NAMES = {
 VERDICT_NAMES = {"feasible": "가능", "infeasible": "불가능", "undetermined": "보류"}
 STATUS_NAMES = {PASS: "통과", FAIL: "위반", UNKNOWN: "미확인", NA: "해당 없음"}
 SEVERITY_NAMES = {"blocking": "치명", "warning": "주의"}
-SET_NAMES = {"dev": "연습용", "holdout": "시험용"}
+SET_NAMES = {"dev": "연습용", "holdout": "시험용", "new": "새 평가"}
 ARM_NAMES = {"llm_naive": "LLM에 그냥 물음", "llm_only": "LLM에 '모르면 모른다' 지시",
              "llm_with_facts": "LLM에 사실 데이터 줌", "code": "판정 코드"}
 SOURCE_NAMES = {"curated": "공식 페이지에서 옮김", "public_data": "공공데이터", "api_runtime": "TMAP 실시간 조회",

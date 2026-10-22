@@ -9,7 +9,7 @@
 import pytest
 
 import runmeta
-from runmeta import fingerprint, library_versions, reference_date, run_meta, uncommitted
+from runmeta import fingerprint, library_versions, record_name, reference_date, run_meta, uncommitted
 
 
 def test_fingerprint_ignores_line_endings():
@@ -66,3 +66,14 @@ def test_library_versions_are_recorded():
     versions = library_versions()
     assert set(versions) == {"anthropic", "pydantic"}
     assert all(versions.values())  # 테스트 환경에는 둘 다 설치돼 있다
+
+
+def test_new_evaluation_records_do_not_overwrite_the_regression_records():
+    """새 평가(eval-new.json)를 돌려도 README 가 인용하는 회귀셋 기록(last-run.json)은 그대로다."""
+    assert record_name("last-run.json", "tests.json") == "last-run.json"
+    assert record_name("last-run.json", "eval-new.json") == "last-run-eval-new.json"
+    assert record_name("last-compare-subset.json", "eval-new.json") == "last-compare-subset-eval-new.json"
+
+
+def test_conditions_fingerprint_the_suite_that_ran():
+    assert "eval-new.json" in run_meta("eval-new.json")["fingerprints"]
