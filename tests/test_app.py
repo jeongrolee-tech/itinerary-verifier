@@ -25,7 +25,8 @@ PALACE = {"date": "2026-10-08", "date_source": "inferred", "weekday_stated": "TH
           "stops": [{"raw": "오후 4시 반에 경복궁", "place": "경복궁", "start": "16:30", "start_source": "explicit",
                      "dwell_minutes": None, "scope": "place", "scope_note": None}]}
 PALACE_KTX = {**PALACE, "hard_constraints": [
-    {"raw": "20:30 서울역 KTX 는 꼭 타야 해요", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30"}]}
+    {"raw": "20:30 서울역 KTX 는 꼭 타야 해요", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30",
+     "time_source": "explicit"}]}
 
 
 def client(extraction=None, tmap_key=None):

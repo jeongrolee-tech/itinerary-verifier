@@ -149,7 +149,6 @@ def ktx(time, time_source):
             "buffer_rule": "rail_boarding", "source": "user_stated"}
 
 
-@pytest.mark.xfail(strict=True, reason="필수 일정 시각이 없으면 입력 검사로만 남고 KTX 조건이 결과에서 빠진다")
 def test_train_without_time_is_kept_and_asked(facts, policy):
     result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}],
                     "hard_constraints": [ktx(None, "missing")]}, facts, policy)
@@ -159,7 +158,6 @@ def test_train_without_time_is_kept_and_asked(facts, policy):
     assert result["summary"]["verdict"] == "undetermined"
 
 
-@pytest.mark.xfail(strict=True, reason="추출 형식이 필수 일정 시각 null 을 받지 못해 422 가 난다")
 def test_extraction_with_null_train_time_is_asked():
     extraction = {"date": THURSDAY, "date_source": "explicit", "weekday_stated": "THU", "notes": [],
                   "hard_constraints": [{"raw": "서울역에서 KTX 를 꼭 타야 해요", "type": "TRAIN_DEPARTURE",
@@ -172,12 +170,13 @@ def test_extraction_with_null_train_time_is_asked():
     assert any("시각" in q for q in res.json()["questions"])
 
 
-@pytest.mark.xfail(strict=True, reason="필수 일정 시각의 출처를 남기지 않아 추정 시각으로 위반을 확정한다")
 def test_inferred_train_time_does_not_confirm(facts, policy):
     """19:00 에 광장시장을 나와 19:00 KTX — 시각이 사용자가 말한 것이면 위반이지만, 추정한 시각이면 확정하지 않는다."""
     result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}],
                     "hard_constraints": [ktx("19:00", "inferred")]}, facts, policy)
-    assert result["hard_constraints"][0]["policy"]["status"] == UNKNOWN
+    policy_eval = result["hard_constraints"][0]["policy"]
+    assert policy_eval["status"] == UNKNOWN and policy_eval["unknown_reason"] == "INFERRED_INPUT"
+    assert any(a["field"] == "hard_constraints[0].time" for a in result["assumptions"])
 
 
 def museum_then_palace(avoid_taxi):

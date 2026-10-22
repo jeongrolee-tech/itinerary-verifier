@@ -63,7 +63,17 @@ class HardConstraint(BaseModel):
     raw: str = Field(description="해당 입력 원문 조각")
     type: Literal["TRAIN_DEPARTURE", "FLIGHT_DEPARTURE", "ARRIVE_BY", "OTHER"]
     place: str
-    time: Clock = Field(description="HH:MM (24시간)")
+    # ⭐ 시각을 몰라도 조건은 남긴다(3차 피드백). "서울역에서 KTX 를 꼭 타야 해요" 에 시각이 없다고 형식에서 막으면
+    #    추출이 통째로 실패하거나 KTX 가 결과에서 사라진다. 시각은 null 로 두고 판정 단계가 묻는다.
+    #    문맥에서 짐작한 시각은 장소 시각처럼 inferred 로 남긴다 — 판정 단계가 그 시각으로 확정하지 않는다
+    time: Clock | None = Field(description="HH:MM (24시간). 입력에 시각이 없으면 null")
+    time_source: Source = Field(description="explicit=입력에 적힌 시각 / inferred=문맥에서 추정 / missing=없음")
+
+    @model_validator(mode="after")
+    def _time_matches_source(self) -> HardConstraint:
+        if (self.time is None) != (self.time_source == "missing"):
+            raise ValueError(f"time 이 {self.time!r} 인데 time_source 가 {self.time_source} 다")
+        return self
 
 
 class Extraction(BaseModel):
@@ -114,9 +124,16 @@ class ItineraryConstraint(BaseModel):
     type: Literal["TRAIN_DEPARTURE", "FLIGHT_DEPARTURE", "ARRIVE_BY", "OTHER"]
     place: str | None = None
     time: Clock | None = None
+    time_source: Source
     raw: str | None = None
     source: Literal["user_stated"] = "user_stated"
     buffer_rule: str | None = None
+
+    @model_validator(mode="after")
+    def _time_matches_source(self) -> ItineraryConstraint:
+        if (self.time is None) != (self.time_source == "missing"):
+            raise ValueError(f"time 이 {self.time!r} 인데 time_source 가 {self.time_source} 다")
+        return self
 
 
 class Itinerary(BaseModel):
@@ -180,6 +197,8 @@ SYSTEM = """너는 여행 일정 텍스트를 구조화하는 추출기다. 판�
    예: "20:30 서울역에서 KTX를 탑니다. 이 기차는 꼭 타야 해요"
        → 서울역은 hard_constraints 에만. stops 에는 그 앞 일정까지만 넣는다.
    역·공항처럼 관람 대상이 아니라 교통편을 타러 가는 곳은 스톱이 아니다.
+   필수 조건의 시각이 안 적혀 있어도 조건은 넣는다. time 은 null, time_source 는 missing 이다.
+   시각을 문맥에서 추정했으면 time_source 를 inferred 로 적는다(2번과 같다).
 
 6. 연도가 안 적혀 있으면 오늘 날짜를 기준으로 **가장 가까운 미래의 해당 날짜**로 적고,
    date_source 를 inferred 로 표시한다. 오늘 날짜는 입력 앞에 준다.
@@ -236,7 +255,7 @@ def to_itinerary(ex: Extraction) -> dict:
             for s in ex.stops
         ],
         "hard_constraints": [
-            {"id": f"HC{i + 1}", "type": hc.type, "place": hc.place, "time": hc.time,
+            {"id": f"HC{i + 1}", "type": hc.type, "place": hc.place, "time": hc.time, "time_source": hc.time_source,
              "buffer_rule": BUFFER_RULES[hc.type],
              "source": "user_stated", "raw": hc.raw}
             for i, hc in enumerate(ex.hard_constraints)

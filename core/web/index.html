@@ -190,7 +190,8 @@ const WEEKDAYS = { MON: "월", TUE: "화", WED: "수", THU: "목", FRI: "금", S
 const WEEKDAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];  // Date.getDay() 는 일요일이 0
 const FIELDS = { date: "날짜", date_source: "날짜 출처", weekday_stated: "말한 요일", place: "장소", start: "시작 시각",
                  start_source: "시각 출처", dwell_minutes: "체류시간", scope: "동네 여부", scope_note: "동네 메모",
-                 type: "종류", time: "시각", raw: "원문", id: "번호", buffer_rule: "권장 여유 기준" };
+                 type: "종류", time: "시각", time_source: "시각 출처", raw: "원문", id: "번호",
+                 buffer_rule: "권장 여유 기준" };
 
 let original = null;  // 처음 추출한 일정. 다시 검사할 때마다 이것과 비교한다 — 무엇을 바꿨나, 꼭 지킨다던 것을 바꿨나
 let firstLegs = {};   // 처음 검사에서 받은 TMAP 이동시간. 원래 일정을 같은 조건으로 다시 판정하라고 돌려보낸다. 저장하지 않는다
@@ -370,9 +371,14 @@ function hcRow(h = {}) {
   type.value = h.type || "TRAIN_DEPARTURE";
   const place = el("input", { type: "text", value: h.place || "", "aria-label": "장소" });
   const time = el("input", { type: "time", value: h.time || "", "aria-label": "시각" });
+  const timeCell = el("td", {}, time);
+  if (h.time_source === "inferred") {
+    timeCell.append(" ", el("label", { class: "small" }, el("input", { type: "checkbox", class: "time-ok" }),
+                            "추측한 시각이 맞아요"));
+  }
   const remove = el("button", { type: "button", class: "ghost", text: "빼기" });
   remove.onclick = () => tr.remove();
-  tr.append(el("td", {}, type), el("td", {}, place), el("td", {}, time), el("td", {}, remove));
+  tr.append(el("td", {}, type), el("td", {}, place), timeCell, el("td", {}, remove));
   return tr;
 }
 
@@ -438,8 +444,13 @@ function readTable() {
   for (const tr of rows) {
     const [place, time] = tr.querySelectorAll("td > input");
     if (!time.checkValidity()) throw new Error("필수 일정의 시각을 끝까지 적어 주세요");
+    // 추측한 시각을 그대로 두고 맞다고 체크하지 않았으면 여전히 추측이다(장소 시각과 같다)
+    const before = (original.hard_constraints || []).find((h) => h.id === tr.dataset.id);
+    const guessKept = before?.time_source === "inferred" && time.value === before.time
+                      && !tr.querySelector(".time-ok")?.checked;
     revised.hard_constraints.push({ id: tr.dataset.id || freshId(used), type: tr.querySelector("select").value,
                                     place: place.value.trim() || null, time: time.value || null,
+                                    time_source: !time.value ? "missing" : guessKept ? "inferred" : "explicit",
                                     raw: tr.dataset.raw || "화면에서 더함" });
   }
   return revised;

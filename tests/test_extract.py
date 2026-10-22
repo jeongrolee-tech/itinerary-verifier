@@ -70,7 +70,8 @@ VALID = {
     "date": "2026-10-08", "date_source": "inferred", "weekday_stated": "THU", "notes": [],
     "stops": [{"raw": "오후 1시 경복궁 두 시간", "place": "경복궁", "start": "13:00", "start_source": "explicit",
                "dwell_minutes": 120, "scope": "place", "scope_note": None}],
-    "hard_constraints": [{"raw": "20:30 서울역 KTX", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30"}]}
+    "hard_constraints": [{"raw": "20:30 서울역 KTX", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30",
+                          "time_source": "explicit"}]}
 
 
 def changed(path, value):
@@ -109,6 +110,8 @@ def test_malformed_values_are_rejected(path, value):
     (("date_source",), "missing"),              # 날짜가 있는데 출처가 missing
     (("stops", 0, "start"), None),              # 시각이 없는데 출처가 explicit
     (("stops", 0, "start_source"), "missing"),  # 시각이 있는데 출처가 missing
+    (("hard_constraints", 0, "time"), None),               # 필수 일정도 같다
+    (("hard_constraints", 0, "time_source"), "missing"),
 ])
 def test_value_and_its_source_must_agree(path, value):
     """시각이 있는데 출처가 missing 이면 판정 코어가 그 시각을 사용자가 말한 값처럼 쓴다."""

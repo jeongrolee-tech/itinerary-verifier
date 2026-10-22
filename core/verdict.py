@@ -171,11 +171,14 @@ def _hard_constraints_input(constraints: list[dict]) -> list[dict]:
     missing: list[dict] = []
     for i, constraint in enumerate(constraints, 1):
         if not constraint.get("place") or not constraint.get("time"):
+            name = EVENT_NAMES.get(constraint.get("type"), "필수 일정")
+            ask = (f"{constraint['place']} {name} 시각을 알려주세요" if constraint.get("place")
+                   else f"{name}의 장소와 시각을 알려주세요")
             missing.append(check(
                 "INPUT_REQUIRED", f"필수 일정 HC{i}", UNKNOWN,
                 unknown_reason="INCOMPLETE_HARD_CONSTRAINT",
                 detail="필수 일정에 장소 또는 시각이 없다",
-                how_to_resolve={"user": "필수 일정의 장소와 시각을 알려주세요"},
+                how_to_resolve={"user": ask},
             ))
         elif not re.fullmatch(HHMM, str(constraint["time"])):
             missing.append(check(
@@ -896,9 +899,13 @@ def _hard_constraint(hc, stops, leg, policy, visit_date) -> dict:
     #    policy = "15분 전에 도착하는 게 좋다"   우리가 정한 것. 사실이 아니다
     #    이걸 합쳐서 "20:30 서울역 도착" 을 사용자 조건으로 저장하면, 나중에
     #    무엇이 사용자 요구였는지 알 수 없게 된다.
-    event = {"type": hc["type"], "place": hc["place"], "time": hc["time"],
-             "source": hc.get("source", "user_stated"), "raw": hc.get("raw")}
-    return {"id": hc["id"], "event": event, "policy": _hc_policy(hc, stops[-1], leg, policy, visit_date)}
+    return {"id": hc["id"], "event": event_of(hc), "policy": _hc_policy(hc, stops[-1], leg, policy, visit_date)}
+
+
+def event_of(hc: dict) -> dict:
+    """사용자가 말한 필수 일정 그대로 — 무엇을, 어디서, 몇 시에. 시각을 모르면 None 이다."""
+    return {"type": hc["type"], "place": hc.get("place"), "time": hc.get("time"),
+            "source": hc.get("source", "user_stated"), "raw": hc.get("raw")}
 
 
 def _hc_policy(hc, last, leg, policy, visit_date) -> dict:
@@ -1151,12 +1158,11 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     place_checks, closed_statuses = _place_checks([st for st in seq if st], visit_date, facts, policy, date_dep)
     checks = _in_itinerary_order(seq, stop_inputs, place_checks)
     checks += _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date)
-    checks += _hard_constraints_input(itinerary.get("hard_constraints") or [])
     for n, c in enumerate(checks, 1):
         c["id"] = f"chk-{n:03d}"
 
-    # ⑥ 필수 조건 ⑦ 전체 판정
-    hard = _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date)
+    # ⑥ 필수 조건 ⑦ 전체 판정. 장소 · 시각이 빠진 필수 조건도 여기서 남기고 묻는다. 추정한 시각은 assumptions 에 남는다
+    hard = _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date, assumptions)
     return {
         "date": visit_date,
         "date_source": itinerary.get("date_source", "explicit"),
@@ -1342,30 +1348,50 @@ def _stop_name(seq, stop_inputs, i) -> str:
     return seq[i]["name"] if seq[i] else stop_inputs[i][0]["target"]
 
 
-def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date) -> list[dict]:
-    """필수 조건마다 마지막 장소에서 제때 닿는지. 마지막 장소의 시각이 추정이면 결과를 확정하지 않는다.
-    장소 · 시각이 빠진 필수 조건은 입력 검사가 묻고, 마지막 장소의 입력이 빠졌으면 같은 질문으로 미확인이다."""
+def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date, assumptions) -> list[dict]:
+    """필수 조건마다 마지막 장소에서 제때 닿는지. 마지막 장소의 시각이나 필수 조건의 시각이 추정이면 확정하지 않는다.
+    장소 · 시각이 빠진 필수 조건은 남겨서 묻고, 마지막 장소의 입력이 빠졌으면 같은 질문으로 미확인이다."""
     hard = []
     stops = [st for st in seq if st]
-    for hc in itinerary.get("hard_constraints", []):
-        if _hard_constraints_input([hc]):
+    for n, hc in enumerate(itinerary.get("hard_constraints", [])):
+        # ⭐ 시각을 몰라도 필수 조건을 결과에서 빼지 않는다(3차 피드백). 전에는 입력 검사 한 줄("필수 일정 HC1")로만
+        #    남아 결과의 필수 일정에서 KTX 가 사라졌다. 사용자가 꼭 지킨다고 한 것은 판정하지 못해도 보여 주고 묻는다
+        missing = _hard_constraints_input([hc])
+        if missing:
+            hard.append({"id": hc["id"], "event": event_of(hc), "policy": {
+                "status": UNKNOWN, "unknown_reason": missing[0]["unknown_reason"], "severity": "blocking",
+                "detail": missing[0]["detail"], "how_to_resolve": missing[0]["how_to_resolve"]}})
             continue
+        hc_dep = _hard_constraint_assumption(n, hc, assumptions)
         if is_midday(hc, itinerary["stops"]):
             hard.append(_midday_result(hc))
             continue
         if seq[-1] is None:
             missing = stop_inputs[-1][0]
-            event = {"type": hc["type"], "place": hc["place"], "time": hc["time"],
-                     "source": hc.get("source", "user_stated"), "raw": hc.get("raw")}
-            hard.append({"id": hc["id"], "event": event, "policy": {
+            hard.append({"id": hc["id"], "event": event_of(hc), "policy": {
                 "status": UNKNOWN, "unknown_reason": missing["unknown_reason"], "severity": "blocking",
                 "detail": "마지막 장소의 입력이 빠져 필수 일정에 제때 닿는지 판정하지 못한다",
                 "how_to_resolve": missing.get("how_to_resolve")}})
             continue
         h = evaluate_hard_constraint(hc, stops, facts, policy, visit_date)
-        h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"])
+        h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"] + hc_dep)
         hard.append(h)
     return hard
+
+
+def _hard_constraint_assumption(n: int, hc: dict, assumptions: list[dict]) -> list[dict]:
+    """필수 조건의 시각을 추정했으면 assumptions 에 남기고 돌려준다. 말한 시각이면 빈 목록이다."""
+    # ⭐ 장소의 추정 시각과 같은 원칙이다. "저녁 기차" 를 19:00 으로 읽어 위반이나 통과를 내면 짐작으로 단정한 것이다
+    if hc.get("time_source") != "inferred":
+        return []
+    name = EVENT_NAMES.get(hc["type"], "필수 일정")
+    assumptions.append({
+        "id": f"A{len(assumptions) + 1}", "field": f"hard_constraints[{n}].time", "value": hc["time"],
+        "source": "llm_inferred", "rule": "extract.inferred_hard_constraint_time",
+        "reason": "입력의 문맥에서 필수 일정 시각을 추정했다",
+        "ask_user": f"{hc['place']} {name} 시각이 {hc['time']}이 맞나요?",
+    })
+    return [assumptions[-1]]
 
 
 def is_midday(hc: dict, stops: list[dict]) -> bool:
@@ -1380,10 +1406,8 @@ def is_midday(hc: dict, stops: list[dict]) -> bool:
 
 def _midday_result(hc: dict) -> dict:
     """하루 중간의 필수 일정 — 판정하지 않고 미확인으로 알린다. 위반으로 확정하지 않는다."""
-    event = {"type": hc["type"], "place": hc["place"], "time": hc["time"],
-             "source": hc.get("source", "user_stated"), "raw": hc.get("raw")}
     name = f"{EVENT_NAMES.get(hc['type'], '필수 일정')}({hc['time']} {hc['place']})"
-    return {"id": hc["id"], "event": event, "policy": {
+    return {"id": hc["id"], "event": event_of(hc), "policy": {
         "status": UNKNOWN, "unknown_reason": "MIDDAY_HARD_CONSTRAINT", "severity": "blocking",
         "detail": f"{name}이 하루 중간에 있다. 필수 일정은 아직 하루 마지막 교통편만 판정한다",
         "how_to_resolve": {"system": "필수 일정을 그 시각 앞뒤 장소와 잇는 검사 구현"},
