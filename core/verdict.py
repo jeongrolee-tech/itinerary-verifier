@@ -560,7 +560,7 @@ def check_dwell(name, place, visit_date, start, dwell, admission, policy, holida
         return check("DWELL_NOT_COMPLETABLE", name, NA,
                      reason="들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다")
 
-    # ⭐ 9월 22일 비교 실험에서 이 프로젝트가 이긴 지점이다 (README '비교 실험').
+    # ⭐ 9월 22일 비교 실험에서 이 프로젝트가 이긴 지점이다 (docs/평가-기록.md '비교 실험').
     #    "16:30 에 경복궁" — 입장마감 17:00 전이라 들어갈 수는 있다. 그런데 몇 시간
     #    볼 건지 사용자가 말하지 않았다. 기본값 90분을 넣으면 18:00 폐장을 넘는다.
     #    우리가 정한 값으로 사용자 일정의 오류를 만들어내면 안 되므로 판단하지 않는다.
