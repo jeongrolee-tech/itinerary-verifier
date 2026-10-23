@@ -70,7 +70,7 @@ def test_expected_dates_resolve_from_the_suite_reference_date():
 VALID = {
     "date": "2026-10-08", "date_source": "inferred", "weekday_stated": "THU", "notes": [], "avoid_taxi": False,
     "stops": [{"raw": "오후 1시 경복궁 두 시간", "place": "경복궁", "start": "13:00", "start_source": "explicit",
-               "dwell_minutes": 120, "scope": "place", "scope_note": None}],
+               "dwell_minutes": 120, "scope": "place", "scope_note": None, "outside_only": False}],
     "hard_constraints": [{"raw": "20:30 서울역 KTX", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30",
                           "time_source": "explicit"}]}
 
@@ -176,3 +176,10 @@ def test_train_time_source_is_graded(facts):
 def test_missing_the_no_taxi_wish_is_wrong(facts):
     case = by_id("N05")
     assert set(wrong(case, as_extracted(case, avoid_taxi=False), facts)) == {"avoid_taxi"}
+
+
+def test_missing_the_outside_only_wish_is_wrong(facts):
+    """'문 닫은 거 알아요, 앞에서 쉬다 갈게요' 를 옮기지 못하면 휴무 위반으로 불가능이 나온다 — 따로 채점한다."""
+    case = by_id("N01")
+    want = {**case, "stops": [{**case["stops"][0], "outside_only": True}, *case["stops"][1:]]}
+    assert set(wrong(want, as_extracted(case), facts)) == {"outside_only"}

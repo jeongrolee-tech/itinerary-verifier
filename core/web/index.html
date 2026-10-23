@@ -158,7 +158,8 @@
     <div class="table-wrap">
       <table>
         <thead><tr><th>장소</th><th>시작</th><th>체류(분)</th>
-          <th class="center" title="명동 · 북촌처럼 여러 골목에 걸친 동네만 말한 경우">동네</th><th></th></tr></thead>
+          <th class="center" title="명동 · 북촌처럼 여러 골목에 걸친 동네만 말한 경우">동네</th>
+          <th class="center" title="문 닫은 걸 알고 앞이나 주변에서만 머무는 경우 — 휴무 · 입장 · 체류를 보지 않는다">밖에서만</th><th></th></tr></thead>
         <tbody id="stops"></tbody>
       </table>
     </div>
@@ -191,6 +192,7 @@ const WEEKDAYS = { MON: "월", TUE: "화", WED: "수", THU: "목", FRI: "금", S
 const WEEKDAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];  // Date.getDay() 는 일요일이 0
 const FIELDS = { date: "날짜", date_source: "날짜 출처", weekday_stated: "말한 요일", place: "장소", start: "시작 시각",
                  start_source: "시각 출처", dwell_minutes: "체류시간", scope: "동네 여부", scope_note: "동네 메모",
+                 outside_only: "밖에서만",
                  avoid_taxi: "택시 안 탐", type: "종류", time: "시각", time_source: "시각 출처", raw: "원문", id: "번호",
                  buffer_rule: "권장 여유 기준" };
 
@@ -356,6 +358,8 @@ function stopRow(s = {}, index = null) {
                               value: s.dwell_minutes ?? "", "aria-label": "체류시간(분)" });
   const area = el("input", { type: "checkbox", "aria-label": "동네" });
   area.checked = s.scope === "area";
+  const outside = el("input", { type: "checkbox", "aria-label": "밖에서만" });
+  outside.checked = Boolean(s.outside_only);
   const startCell = el("td", {}, start);
   if (s.start_source === "inferred") {
     startCell.append(" ", el("label", { class: "small" }, el("input", { type: "checkbox", class: "start-ok" }),
@@ -363,7 +367,8 @@ function stopRow(s = {}, index = null) {
   }
   const remove = el("button", { type: "button", class: "ghost", text: "빼기" });
   remove.onclick = () => tr.remove();
-  tr.append(el("td", {}, place), startCell, el("td", {}, dwell), el("td", { class: "center" }, area), el("td", {}, remove));
+  tr.append(el("td", {}, place), startCell, el("td", {}, dwell), el("td", { class: "center" }, area),
+            el("td", { class: "center" }, outside), el("td", {}, remove));
   return tr;
 }
 
@@ -428,7 +433,7 @@ function readTable() {
     hard_constraints: [],
   };
   for (const tr of $("stops").rows) {
-    const [place, start, dwell, area] = tr.querySelectorAll("td > input");
+    const [place, start, dwell, area, outside] = tr.querySelectorAll("td > input");
     if (!place.value.trim()) throw new Error("장소 이름을 적어 주세요. 필요 없는 줄은 빼기를 누르세요");
     if (!start.checkValidity()) throw new Error(`${place.value.trim()} 시작 시각을 끝까지 적어 주세요`);
     if (!dwell.checkValidity()) throw new Error("체류시간은 1분에서 1440분 사이 정수로 적어 주세요");
@@ -441,6 +446,7 @@ function readTable() {
     s.start_source = !start.value ? "missing" : guessKept ? "inferred" : "explicit";
     if (dwell.value) s.dwell_minutes = Number(dwell.value);
     s.scope = area.checked ? "area" : "place";
+    s.outside_only = outside.checked;
     // 구역 메모는 장소와 구역 여부를 그대로 둔 동안만 남긴다
     if (before?.scope_note && before.place === s.place && before.scope === s.scope) s.scope_note = before.scope_note;
     revised.stops.push(s);

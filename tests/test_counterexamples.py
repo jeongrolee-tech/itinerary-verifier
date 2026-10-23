@@ -167,7 +167,7 @@ def test_extraction_with_null_train_time_is_asked():
                   "hard_constraints": [{"raw": "서울역에서 KTX 를 꼭 타야 해요", "type": "TRAIN_DEPARTURE",
                                         "place": "서울역", "time": None, "time_source": "missing"}],
                   "stops": [{"raw": "광장시장 6시", "place": "광장시장", "start": "18:00", "start_source": "explicit",
-                             "dwell_minutes": 60, "scope": "place", "scope_note": None}]}
+                             "dwell_minutes": 60, "scope": "place", "scope_note": None, "outside_only": False}]}
     client = TestClient(create_app(Claude(extraction), None, today="2026-10-01"), base_url="http://127.0.0.1")
     res = client.post("/api/check", json={"text": "10월 8일 목요일 6시 광장시장, 서울역에서 KTX 를 꼭 타야 해요"})
     assert res.status_code == 200, res.text
@@ -302,7 +302,6 @@ def outside_palace(outside_only):
         {"place": "덕수궁", "start": "11:45", "dwell_minutes": 60}]}
 
 
-@pytest.mark.xfail(strict=True, reason="밖에서만 머문다는 말을 담을 칸이 없어 휴무를 위반으로 낸다")
 def test_outside_only_stop_is_not_held_to_its_hours(facts, policy):
     """화요일 경복궁(휴궁) 앞에서 한 시간 쉬고 덕수궁 — 경복궁 칸은 해당 없음, 쉬는 날이라는 건 안내한다."""
     facts["legs"][f"{PALACE}|덕수궁"] = estimate(20)
@@ -323,7 +322,6 @@ def test_closed_place_is_still_a_violation_when_entering(facts, policy):
     assert result["summary"]["verdict"] == "infeasible"
 
 
-@pytest.mark.xfail(strict=True, reason="추출 형식에 밖에서만 칸이 없어 그 말이 판정까지 가지 않는다")
 def test_extraction_keeps_outside_only():
     extraction = {"date": TUESDAY, "date_source": "explicit", "weekday_stated": "TUE", "notes": [], "avoid_taxi": False,
                   "hard_constraints": [],

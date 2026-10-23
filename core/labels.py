@@ -18,7 +18,7 @@ from verdict import UNKNOWN, support_scope
 # 더했다(2026-10-07 사용자 결정): 출처가 틀리면 판정이 물어야 할 시각을 확정해 버린다
 EXTRACTION_FIELDS = {"date": "날짜·요일", "date_source": "연도 출처", "place": "장소", "start": "시각",
                      "start_source": "시각 출처", "dwell": "체류시간", "support": "지원 범위 분류",
-                     "hard_constraints": "필수 일정", "avoid_taxi": "택시 안 탐"}
+                     "hard_constraints": "필수 일정", "avoid_taxi": "택시 안 탐", "outside_only": "밖에서만"}
 
 
 def stale_reason(case: dict, suite: dict, facts: dict) -> str | None:
@@ -127,6 +127,10 @@ def grade_extraction(case: dict, got: dict, facts: dict) -> dict[str, list[str]]
             p["dwell"].append(f"stops[{i}] 입력에 없는 체류시간 {g['dwell_minutes']}분을 추가했다")
         elif want.get("dwell_minutes") != g.get("dwell_minutes"):
             p["dwell"].append(f"stops[{i}].dwell_minutes 기대 {want.get('dwell_minutes')} → 추출값 {g.get('dwell_minutes')}")
+        # 밖에서만 머문다는 말을 옮겼나 — 놓치면 문 닫은 걸 알고 가는 일정을 휴무 위반으로 낸다
+        if want.get("outside_only", False) != g.get("outside_only", False):
+            p["outside_only"].append(f"stops[{i}].outside_only 기대 {want.get('outside_only', False)} → "
+                                     f"추출값 {g.get('outside_only')}")
         want_sup, got_sup = support_scope(want, facts), support_scope(g, facts)
         if want_sup != got_sup:
             p["support"].append(f"stops[{i}] 지원 범위 기대 {want_sup} → 추출값 {got_sup}")

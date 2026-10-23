@@ -282,7 +282,8 @@ WEEKDAY_NAMES = dict(zip(WEEKDAYS, "월화수목금토일"))
 
 def _closed_notice(name: str, why: str) -> str:
     """휴무 위반에 붙이는 안내 — 왜 쉬는지와 무엇을 하면 되는지. "휴무일이다" 만으로는 고칠 방법을 모른다."""
-    return f"이날은 {name} 휴무일이에요({why}). 다른 날로 옮기거나 다른 곳을 고르세요"
+    return (f"이날은 {name} 휴무일이에요({why}). 다른 날로 옮기거나 다른 곳을 고르세요. "
+            "안에 들어가지 않고 밖에서만 머물 거라면 그렇게 알려 주세요")
 
 
 def _holiday_dependent(cd: dict) -> bool:
@@ -1324,7 +1325,7 @@ def _prepare_stop(i: int, s: dict, facts: dict, policy: dict, assumptions: list[
         dwell = {"value": value, "source": "system_default", "assumption_id": aid}
     return {"index": i, "name": s["place"], "place": place, "start": s["start"], "entry": s["start"],
             "start_source": start_source, "start_dep": start_dep, "scope": scope, "support": support,
-            "scope_note": s.get("scope_note"), "dwell": dwell}
+            "scope_note": s.get("scope_note"), "dwell": dwell, "outside_only": bool(s.get("outside_only"))}
 
 
 def _place_checks(stops, visit_date, facts, policy, date_dep) -> list[dict]:
@@ -1334,6 +1335,9 @@ def _place_checks(stops, visit_date, facts, policy, date_dep) -> list[dict]:
     # 추정 입력 처리는 검사 하나가 끝날 때마다 바로 한다. 휴무 결과를 입장 검사가,
     # 입장 결과를 체류 검사가 이어받기 때문에, 다 끝낸 뒤에 고치면 앞뒤가 어긋난다.
     for st in stops:
+        if st["outside_only"]:
+            checks += _outside_checks(st["name"], st["place"], visit_date, facts, st["support"])
+            continue
         c = unconfirmed(check_closed_day(st["name"], st["place"], visit_date, facts, st["support"]), date_dep)
         a = unconfirmed(check_admission(st["name"], st["place"], visit_date, st["start"],
                                         c["status"], facts["holidays"], st["support"]),
@@ -1358,6 +1362,8 @@ def _untimed_place_checks(s: dict, missing: dict, visit_date: str, facts: dict, 
     name = s["place"]
     support = support_scope(s, facts)
     place = facts["places"][name] if support == "supported" else None
+    if s.get("outside_only"):
+        return _outside_checks(name, place, visit_date, facts, support)
     closed = unconfirmed(check_closed_day(name, place, visit_date, facts, support), date_dep)
     if closed["status"] == FAIL:
         entry = check("ADMISSION_NOT_POSSIBLE", name, NA, reason="휴무일로 확정되어 운영시간 검사가 성립하지 않는다")
@@ -1366,6 +1372,19 @@ def _untimed_place_checks(s: dict, missing: dict, visit_date: str, facts: dict, 
                       detail=missing["detail"], how_to_resolve=missing["how_to_resolve"])
     # 체류는 입장을 따라간다 — 시각을 몰라 입장이 미확인이면 체류도 미확인, 쉬는 날이면 해당 없음(check_dwell)
     return [closed, entry, check_dwell(name, place, visit_date, None, None, entry, policy, facts["holidays"])]
+
+
+def _outside_checks(name: str, place: dict | None, visit_date: str, facts: dict, support: str) -> list[dict]:
+    """밖에서만 머무는 장소 — 들어가지 않으니 휴무 · 입장 · 체류는 볼 필요가 없다(해당 없음). 쉬는 날이면 알린다."""
+    # ⭐ 사용자가 들어가지 않는다고 했으면 운영시간은 그 일정과 상관이 없다. 휴무를 위반으로 내면 문 닫은 걸 알고
+    #    앞에서 쉬다 가는 일정을 불가능이라고 한다(2026-10-23 사용자 결정). 이동은 다른 장소처럼 본다 — 입장 시각은
+    #    개장이나 회차로 늦추지 않고 사용자가 말한 시각 그대로다
+    reason = "안에 들어가지 않고 밖에서만 머문다고 했다"
+    closed = check("CLOSED_DAY", name, NA, reason=reason)
+    if check_closed_day(name, place, visit_date, facts, support)["status"] == FAIL:
+        closed["notice"] = f"이날은 {name} 휴무일이에요 — 밖에서만 머문다고 해서 위반으로 보지 않았어요"
+    return [closed, check("ADMISSION_NOT_POSSIBLE", name, NA, reason=reason),
+            check("DWELL_NOT_COMPLETABLE", name, NA, reason=reason)]
 
 
 def _in_itinerary_order(seq, stop_inputs, untimed, place_checks) -> list[dict]:

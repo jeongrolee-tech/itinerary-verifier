@@ -21,9 +21,9 @@ T01 = {"date": "2026-10-08", "date_source": "inferred", "weekday_stated": "THU",
        "hard_constraints": [],
        "stops": [{"raw": "오후 1시에 서울시립미술관 서소문본관에서 한 시간", "place": "서울시립미술관 서소문본관",
                   "start": "13:00", "start_source": "explicit", "dwell_minutes": 60, "scope": "place",
-                  "scope_note": None},
+                  "scope_note": None, "outside_only": False},
                  {"raw": "3시에 경복궁에서 두 시간", "place": "경복궁", "start": "15:00",
-                  "start_source": "explicit", "dwell_minutes": 120, "scope": "place", "scope_note": None}]}
+                  "start_source": "explicit", "dwell_minutes": 120, "scope": "place", "scope_note": None, "outside_only": False}]}
 
 
 class Claude:

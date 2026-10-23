@@ -36,7 +36,8 @@ def test_closed_day_tells_why_and_what_to_do(facts, policy, date, name, why):
     c = closed_day(judge({"date": date, "stops": [{"place": name, "start": "14:00", "dwell_minutes": 60}]},
                          facts, policy), name)
     assert c["status"] == FAIL
-    assert c["notice"] == f"이날은 {name} 휴무일이에요({why}). 다른 날로 옮기거나 다른 곳을 고르세요"
+    assert c["notice"] == (f"이날은 {name} 휴무일이에요({why}). 다른 날로 옮기거나 다른 곳을 고르세요. "
+                           "안에 들어가지 않고 밖에서만 머물 거라면 그렇게 알려 주세요")
 
 
 def travel(result, frm, to):

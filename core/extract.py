@@ -49,6 +49,12 @@ class Stop(BaseModel):
         description="place=궁·시장·건물처럼 위치가 하나로 정해지는 곳. 그 안의 어느 가게인지 정해지지 않아도 place / area='명동', '북촌' 처럼 여러 골목에 걸친 동네만 지목한 경우"
     )
     scope_note: str | None = Field(description="area 인 경우 무엇이 특정되지 않았는지. 아니면 null")
+    # ⭐ 장소에 들어가지 않고 밖에서만 머무는 일정이 있다 — 문 닫은 걸 알고 경복궁 앞에서 쉬다 가기. 이 칸이 없으면
+    #    휴무일을 위반으로 판정해 갈 수 있는 일정을 불가능이라고 한다(2026-10-23 사용자 결정). 택시 안 탐처럼
+    #    사용자가 말한 조건이다
+    outside_only: bool = Field(
+        description="사용자가 그 장소에 들어가지 않고 앞이나 주변에서만 머문다고 했으면 true. 말하지 않았으면 false"
+    )
 
     # 값과 출처가 맞아야 한다. 시각이 있는데 출처가 missing 이면 판정 코어가 그 시각을 사용자가 말한
     # 값처럼 쓰고, 없는데 explicit 이면 무엇을 사용자가 말했는지 기록이 틀린다
@@ -112,6 +118,7 @@ class ItineraryStop(BaseModel):
     dwell_minutes: StrictMinutes | None = None
     scope: Literal["place", "area"] = "place"
     scope_note: str | None = None
+    outside_only: bool = False  # 들어가지 않고 밖에서만 머문다고 했나
 
     @model_validator(mode="after")
     def _start_matches_source(self) -> ItineraryStop:
@@ -212,6 +219,10 @@ SYSTEM = """너는 여행 일정 텍스트를 구조화하는 추출기다. 판�
 8. 사용자가 택시를 타지 않는다고 말했으면 avoid_taxi 를 true 로 적는다.
    "택시는 안 타요", "대중교통으로만 다녀요" 가 그렇다. 말하지 않았으면 false 다.
 
+9. 사용자가 어떤 장소에 들어가지 않고 그 앞이나 주변에서만 머문다고 했으면 그 장소의 outside_only 를 true 로 적는다.
+   "문 닫은 거 알아요, 경복궁 앞에서 쉬다 갈게요", "궁 담장 밖만 걸을게요" 가 그렇다. 이때 장소명은 그 장소 이름으로
+   적는다 — "경복궁 앞" 은 경복궁이다. 말하지 않았으면 false 다.
+
 형식이 맞는 것과 의미가 맞는 것은 다르다. 확실하지 않으면 null 과 notes 를 쓴다."""
 
 
@@ -257,6 +268,7 @@ def to_itinerary(ex: Extraction) -> dict:
                 "dwell_minutes": s.dwell_minutes,
                 "scope": s.scope,
                 "scope_note": s.scope_note,
+                "outside_only": s.outside_only,
             }.items() if v is not None}
             for s in ex.stops
         ],
