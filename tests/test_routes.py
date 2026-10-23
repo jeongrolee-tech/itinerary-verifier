@@ -349,6 +349,18 @@ def test_no_taxi_is_not_asked(tmap, facts, policy):
     assert not any("/prediction" in u for u, _ in fake.sent)
 
 
+def test_leg_across_a_midday_constraint_is_not_asked(tmap, facts, policy):
+    """경복궁과 미술관 사이에 정오 약속이 끼면 판정 코어가 그 구간을 계산하지 않는다(미확인). 길도 묻지 않는다."""
+    fake = tmap(transit(1200))
+    itinerary = {"date": "2026-10-08", "stops": [
+        {"place": PALACE, "start": "09:00", "dwell_minutes": 60},
+        {"place": MUSEUM, "start": "15:00", "dwell_minutes": 60}],
+        "hard_constraints": [{"id": "HC1", "type": "ARRIVE_BY", "place": "광화문", "time": "12:00",
+                              "buffer_rule": "transit_leg", "source": "user_stated"}]}
+    assert live_legs(itinerary, "key", facts, policy) == ({}, {})
+    assert not any("/transit/" in u for u, _ in fake.sent)
+
+
 def test_taxi_miss_keeps_the_transit_leg(tmap, facts, policy):
     """택시를 받지 못해도 대중교통 구간은 그대로 쓴다. 못 받은 이유만 남긴다."""
     tmap(transit(1200), taxi_reply={})

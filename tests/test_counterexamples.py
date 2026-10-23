@@ -276,7 +276,6 @@ def test_travel_to_a_closed_place_is_still_judged(facts, policy):
     assert result["summary"]["verdict"] == "infeasible"
 
 
-@pytest.mark.xfail(strict=True, reason="이동 사이에 낀 필수 일정을 보지 않고 장소끼리만 계산한다")
 def test_travel_across_a_midday_constraint_is_unknown(facts, policy):
     """N06 — 창덕궁(11:00~12:00)과 덕수궁(14:00) 사이에 13:00 광화문 약속이 있다. 실제 동선은
     창덕궁 → 광화문 → 덕수궁이라 창덕궁 → 덕수궁 계산으로는 알 수 없다. 약속 앞 구간은 그대로 본다."""

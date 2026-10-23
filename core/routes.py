@@ -22,7 +22,7 @@ import urllib.request
 from datetime import date, datetime, timedelta
 
 from spend import count_tmap
-from verdict import HHMM, is_midday, judge, segment_key
+from verdict import HHMM, crossing_constraint, is_midday, judge, segment_key
 
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
@@ -204,6 +204,8 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
             continue  # 양 끝 장소의 시각이 없거나 읽을 수 없으면 판정 코어도 이 구간을 판정하지 않는다
         if "area" in (a.get("scope"), b.get("scope")):
             continue  # 구역은 대표 지점으로 길을 찾지 않는다. 판정 코어도 이 구간을 판정하지 않는다
+        if not k.startswith("HC") and crossing_constraint(itinerary.get("hard_constraints") or [], a, b):
+            continue  # 사이에 필수 일정이 낀 구간은 판정 코어가 계산하지 않는다(미확인). 호출을 쓰지 않는다
         try:
             for name in (a["place"], b["place"]):
                 if name not in at:

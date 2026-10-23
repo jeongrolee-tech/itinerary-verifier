@@ -222,7 +222,8 @@ RULES = """판정 규칙 — 판정 코드가 쓰는 규칙과 같다. 이 규�
       출발 시각(열차 · 항공편)은 그 시각에 닿아도 놓친 것이다. 권장 여유는 buffer_rule 이 가리키는 policy 값이다.
       이동 0분으로도 놓치면 fail, 이동시간으로 놓치거나 여유가 모자라면 unknown 이다. buffer_rule 의 값이 policy 에
       없으면(항공편) pass 를 내지 않는다. 필수 일정 시각보다 늦게 시작하는 장소가 있으면 하루 중간의 일정이라
-      unknown 이다. 필수 일정에 시각이 없으면 unknown 이고, time_source 가 inferred 인 시각에 기대는 결과는
+      unknown 이다. 하루 중간의 필수 일정이 두 장소 사이 시각이면 그 두 장소 사이 이동도 unknown 이다 — 실제 동선은
+      필수 일정을 거친다. 필수 일정에 시각이 없으면 unknown 이고, time_source 가 inferred 인 시각에 기대는 결과는
       pass 도 fail 도 확정하지 않는다."""
 
 SYSTEM_LLM_FACTS = f"""너는 여행 일정의 실행 가능성을 검증한다.

@@ -1187,7 +1187,7 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
                for i, s in enumerate(itinerary["stops"]) if stop_inputs[i] and s.get("place")}
     checks = _in_itinerary_order(seq, stop_inputs, untimed, place_checks)
     checks += _travel_checks(seq, stop_inputs, facts, policy, visit_date,
-                             itinerary.get("avoid_taxi", False))
+                             itinerary.get("avoid_taxi", False), itinerary.get("hard_constraints") or [])
     for n, c in enumerate(checks, 1):
         c["id"] = f"chk-{n:03d}"
 
@@ -1364,7 +1364,7 @@ def _in_itinerary_order(seq, stop_inputs, untimed, place_checks) -> list[dict]:
     return out
 
 
-def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi) -> list[dict]:
+def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi, hard_constraints) -> list[dict]:
     """이웃한 장소 사이 구간마다 이동 검사. 마지막 장소 뒤는 구간이 없어 not_applicable 이다.
     한쪽 장소의 입력이 빠졌으면(None) 그 구간은 판정하지 않고 같은 질문으로 묻는다."""
     checks = []
@@ -1373,6 +1373,8 @@ def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi) -> l
             if st:
                 checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{st['name']} → (없음)", NA,
                                     reason="마지막 장소라 다음 구간이 없다"))
+        elif st and seq[i + 1] and (hc := crossing_constraint(hard_constraints, st, seq[i + 1])):
+            checks.append(_across_constraint(st, seq[i + 1], hc))
         elif st and seq[i + 1]:
             checks.append(unconfirmed(
                 check_travel(st, seq[i + 1], facts, policy, visit_date, avoid_taxi),
@@ -1385,6 +1387,25 @@ def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi) -> l
                                 detail="앞이나 뒤 장소의 입력이 빠져 이동을 판정하지 못한다",
                                 how_to_resolve=missing.get("how_to_resolve")))
     return checks
+
+
+def crossing_constraint(hard_constraints: list[dict], a: dict, b: dict) -> dict | None:
+    """장소 a 와 b 사이에 낀 필수 일정 — a 를 시작한 뒤, b 를 시작하기 전 시각의 것. 없으면 None.
+    판정 코어와 길찾기(routes)가 같은 기준으로 그 구간을 계산하지 않는다."""
+    # ⭐ 이동은 일정에 적힌 장소끼리 본다. 그 사이에 필수 일정이 끼면 실제 동선은 a → 필수 일정 → b 라서
+    #    a → b 계산으로는 제때 닿는지 알 수 없다(새 평가 N06, 2026-10-23 사용자 결정). 하루 중간의 필수 일정을
+    #    앞뒤 장소와 잇는 검사를 만들 때까지는 그 구간도 미확인으로 둔다. 전에는 약속을 건너뛰고 통과시켰다
+    return next((hc for hc in hard_constraints if re.fullmatch(HHMM, str(hc.get("time") or ""))
+                 and to_min(a["start"]) <= to_min(hc["time"]) < to_min(b["start"])), None)
+
+
+def _across_constraint(frm: dict, to: dict, hc: dict) -> dict:
+    """사이에 필수 일정이 낀 구간 — 계산하지 않고 미확인으로 둔다. 그 필수 일정은 필수 일정 칸이 알린다."""
+    name = f"{EVENT_NAMES.get(hc['type'], '필수 일정')}({hc['time']} {hc['place']})"
+    return check("INSUFFICIENT_TRAVEL_TIME", f"{frm['name']} → {to['name']}", UNKNOWN,
+                 unknown_reason="MIDDAY_HARD_CONSTRAINT",
+                 detail=f"사이에 {name}이 있어 이 구간만으로는 실제 이동을 알 수 없다",
+                 how_to_resolve={"system": "필수 일정을 그 시각 앞뒤 장소와 잇는 검사 구현"})
 
 
 def _stop_name(seq, stop_inputs, i) -> str:
