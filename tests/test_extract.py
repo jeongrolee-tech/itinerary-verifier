@@ -165,10 +165,11 @@ def test_guessing_an_unknown_train_time_is_wrong(facts):
     assert set(wrong(case, as_extracted(case, hard_constraints=[hc]), facts)) == {"hard_constraints"}
 
 
-def test_inferred_train_time_taken_as_stated_is_wrong(facts):
-    """N04 의 '8시 반' 은 기댈 앞 시각이 없어 추정이다. 말한 시각으로 옮기면 판정이 확정해 버린다."""
+def test_train_time_source_is_graded(facts):
+    """N04 의 '8시 반' 은 뒤 문장('그 전에 오후 2시')이 정해 주는 말한 시각이다(2026-10-23 사용자 결정).
+    추정으로 옮기면 판정이 물을 필요 없는 것을 묻는다 — 시각 출처도 채점한다."""
     case = by_id("N04")
-    hc = {**case["hard_constraints"][0], "time_source": "explicit"}
+    hc = {**case["hard_constraints"][0], "time_source": "inferred"}
     assert set(wrong(case, as_extracted(case, hard_constraints=[hc]), facts)) == {"hard_constraints"}
 
 
