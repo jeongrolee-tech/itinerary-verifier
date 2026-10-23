@@ -18,7 +18,7 @@ from verdict import UNKNOWN, support_scope
 # 더했다(2026-10-07 사용자 결정): 출처가 틀리면 판정이 물어야 할 시각을 확정해 버린다
 EXTRACTION_FIELDS = {"date": "날짜·요일", "date_source": "연도 출처", "place": "장소", "start": "시각",
                      "start_source": "시각 출처", "dwell": "체류시간", "support": "지원 범위 분류",
-                     "hard_constraints": "필수 일정", "avoid_taxi": "택시 안 탐", "outside_only": "밖에서만"}
+                     "hard_constraints": "필수 일정", "avoid_taxi": "택시 안 탐", "outside_only": "입장 안 함"}
 
 
 def stale_reason(case: dict, suite: dict, facts: dict) -> str | None:

@@ -283,7 +283,7 @@ WEEKDAY_NAMES = dict(zip(WEEKDAYS, "월화수목금토일"))
 def _closed_notice(name: str, why: str) -> str:
     """휴무 위반에 붙이는 안내 — 왜 쉬는지와 무엇을 하면 되는지. "휴무일이다" 만으로는 고칠 방법을 모른다."""
     return (f"이날은 {name} 휴무일이에요({why}). 다른 날로 옮기거나 다른 곳을 고르세요. "
-            "안에 들어가지 않고 밖에서만 머물 거라면 그렇게 알려 주세요")
+            "입장하지 않고 밖에서만 머물 거라면 그렇게 알려 주세요")
 
 
 def _holiday_dependent(cd: dict) -> bool:
@@ -1379,10 +1379,10 @@ def _outside_checks(name: str, place: dict | None, visit_date: str, facts: dict,
     # ⭐ 사용자가 들어가지 않는다고 했으면 운영시간은 그 일정과 상관이 없다. 휴무를 위반으로 내면 문 닫은 걸 알고
     #    앞에서 쉬다 가는 일정을 불가능이라고 한다(2026-10-23 사용자 결정). 이동은 다른 장소처럼 본다 — 입장 시각은
     #    개장이나 회차로 늦추지 않고 사용자가 말한 시각 그대로다
-    reason = "안에 들어가지 않고 밖에서만 머문다고 했다"
+    reason = "입장하지 않고 밖에서만 머문다고 했다"
     closed = check("CLOSED_DAY", name, NA, reason=reason)
     if check_closed_day(name, place, visit_date, facts, support)["status"] == FAIL:
-        closed["notice"] = f"이날은 {name} 휴무일이에요 — 밖에서만 머문다고 해서 위반으로 보지 않았어요"
+        closed["notice"] = f"이날은 {name} 휴무일이에요 — 입장하지 않는다고 해서 위반으로 보지 않았어요"
     return [closed, check("ADMISSION_NOT_POSSIBLE", name, NA, reason=reason),
             check("DWELL_NOT_COMPLETABLE", name, NA, reason=reason)]
 

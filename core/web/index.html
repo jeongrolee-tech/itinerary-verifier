@@ -78,6 +78,7 @@
   th, td { text-align: left; padding: 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   th { font-weight: 600; font-size: .9rem; color: var(--muted); }
   td.center, th.center { text-align: center; }
+  th.nowrap { white-space: nowrap; }
   td input[type=text] { width: 100%; min-width: 8em; }
   td input.num { width: 5.5em; }
   label.small { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
@@ -159,7 +160,7 @@
       <table>
         <thead><tr><th>장소</th><th>시작</th><th>체류(분)</th>
           <th class="center" title="명동 · 북촌처럼 여러 골목에 걸친 동네만 말한 경우">동네</th>
-          <th class="center" title="문 닫은 걸 알고 앞이나 주변에서만 머무는 경우 — 휴무 · 입장 · 체류를 보지 않는다">밖에서만</th><th></th></tr></thead>
+          <th class="center nowrap" title="들어가지 않고 앞이나 주변에서만 머무는 경우(문 닫은 걸 알고 가는 등). 휴무일 · 입장 · 체류를 보지 않아요">입장 안 함</th><th></th></tr></thead>
         <tbody id="stops"></tbody>
       </table>
     </div>
@@ -192,7 +193,7 @@ const WEEKDAYS = { MON: "월", TUE: "화", WED: "수", THU: "목", FRI: "금", S
 const WEEKDAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];  // Date.getDay() 는 일요일이 0
 const FIELDS = { date: "날짜", date_source: "날짜 출처", weekday_stated: "말한 요일", place: "장소", start: "시작 시각",
                  start_source: "시각 출처", dwell_minutes: "체류시간", scope: "동네 여부", scope_note: "동네 메모",
-                 outside_only: "밖에서만",
+                 outside_only: "입장 안 함",
                  avoid_taxi: "택시 안 탐", type: "종류", time: "시각", time_source: "시각 출처", raw: "원문", id: "번호",
                  buffer_rule: "권장 여유 기준" };
 
@@ -358,7 +359,7 @@ function stopRow(s = {}, index = null) {
                               value: s.dwell_minutes ?? "", "aria-label": "체류시간(분)" });
   const area = el("input", { type: "checkbox", "aria-label": "동네" });
   area.checked = s.scope === "area";
-  const outside = el("input", { type: "checkbox", "aria-label": "밖에서만" });
+  const outside = el("input", { type: "checkbox", "aria-label": "입장 안 함" });
   outside.checked = Boolean(s.outside_only);
   const startCell = el("td", {}, start);
   if (s.start_source === "inferred") {
