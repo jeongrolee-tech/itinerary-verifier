@@ -1,17 +1,18 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20261020-125931",
+  "run_id": "run-20261023-150248",
   "version": "core-0.2",
-  "ran_at": "2026-10-20T03:59:31.892428+00:00",
+  "ran_at": "2026-10-23T06:02:48.698190+00:00",
   "facts_snapshot": "facts-2026-10-20",
   "holidays_verified": true,
+  "suite": "tests.json",
   "labeled_at": "2026-10-14",
   "conditions": {
-    "code_commit": "269e46aa3ec8427f64151ba06a4ef3fbbad523c1",
+    "code_commit": "6e9809a0ad2d1851b86cff7175151bc4a07fc239",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "tests.json": "b28d9fa8164c",
+      "tests.json": "2edf9d2ba978",
       "facts.json": "5e2bb7b1fde0",
       "policy.json": "1e3605504d71"
     }
@@ -23,7 +24,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -295,7 +296,7 @@
           "target": "경복궁",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
           "id": "chk-003"
         },
         {
@@ -337,12 +338,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 3개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 4개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 3,
           "fail": 0,
-          "unknown": 3,
-          "not_applicable": 2
+          "unknown": 4,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -445,9 +446,15 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "광장시장",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "NO_OPERATING_HOURS_DATA",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "방문할 점포를 알려주세요",
+            "system": "시장 단위 운영시간 정의 가능 여부 판단"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-006"
         },
         {
@@ -525,8 +532,8 @@
         "counts": {
           "pass": 1,
           "fail": 1,
-          "unknown": 4,
-          "not_applicable": 3
+          "unknown": 5,
+          "not_applicable": 2
         }
       },
       "assumptions": [
@@ -593,7 +600,7 @@
           "target": "경복궁",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
           "id": "chk-003"
         },
         {
@@ -625,9 +632,15 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "광장시장",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "NO_OPERATING_HOURS_DATA",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "방문할 점포를 알려주세요",
+            "system": "시장 단위 운영시간 정의 가능 여부 판단"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-006"
         },
         {
@@ -738,8 +751,8 @@
         "counts": {
           "pass": 0,
           "fail": 2,
-          "unknown": 0,
-          "not_applicable": 6
+          "unknown": 1,
+          "not_applicable": 5
         }
       },
       "assumptions": [
@@ -781,6 +794,7 @@
             "valid_until": "2026-12-31"
           },
           "detail": "2026-10-06은 휴무일이다",
+          "notice": "이날은 경복궁 휴무일이에요(매주 화요일). 다른 날로 옮기거나 다른 곳을 고르세요. 입장하지 않고 밖에서만 머물 거라면 그렇게 알려 주세요",
           "id": "chk-001"
         },
         {
@@ -796,7 +810,7 @@
           "target": "경복궁",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
           "id": "chk-003"
         },
         {
@@ -817,6 +831,7 @@
             "valid_until": "2026-12-31"
           },
           "detail": "2026-10-06은 휴무일이다",
+          "notice": "이날은 창덕궁 휴무일이에요(월요일 정기휴일이 공휴일과 겹쳐 밀린 날). 다른 날로 옮기거나 다른 곳을 고르세요. 입장하지 않고 밖에서만 머물 거라면 그렇게 알려 주세요",
           "id": "chk-004"
         },
         {
@@ -832,15 +847,19 @@
           "target": "창덕궁",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
           "id": "chk-006"
         },
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
           "target": "경복궁 → 창덕궁",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다",
+          "unknown_reason": "UNVERIFIED_TRAVEL_TIME",
+          "detail": "이 구간 이동시간을 확보하지 못했다",
+          "how_to_resolve": {
+            "system": "TMAP 길찾기로 이 구간 이동시간 조회"
+          },
           "id": "chk-007"
         },
         {
@@ -1269,7 +1288,7 @@
           "target": "경복궁",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
           "id": "chk-003"
         },
         {
@@ -1416,12 +1435,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 4개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 5개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 2,
           "fail": 0,
-          "unknown": 4,
-          "not_applicable": 2
+          "unknown": 5,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -1483,9 +1502,15 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "광장시장",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "NO_OPERATING_HOURS_DATA",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "방문할 점포를 알려주세요",
+            "system": "시장 단위 운영시간 정의 가능 여부 판단"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-003"
         },
         {
@@ -1569,7 +1594,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.01,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -1592,12 +1617,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 4개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 5개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 2,
           "fail": 0,
-          "unknown": 4,
-          "not_applicable": 2
+          "unknown": 5,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -1711,9 +1736,15 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "광장시장",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "NO_OPERATING_HOURS_DATA",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "방문할 점포를 알려주세요",
+            "system": "시장 단위 운영시간 정의 가능 여부 판단"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-006"
         },
         {
@@ -1912,12 +1943,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 3개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 0,
           "fail": 0,
-          "unknown": 2,
-          "not_applicable": 2
+          "unknown": 3,
+          "not_applicable": 1
         }
       },
       "assumptions": [],
@@ -1949,9 +1980,14 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "경복궁",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "EVIDENCE_EXPIRED",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "system": "방문 연도의 공휴일 캘린더를 다시 조회"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-003"
         },
         {
@@ -2054,7 +2090,7 @@
           "target": "서울시립미술관 서소문본관",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
           "id": "chk-003"
         },
         {
@@ -2074,7 +2110,7 @@
       "expect": "feasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -2391,6 +2427,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 20분에 권장 여유 10분을 더해도 13:00까지 닿는다",
           "id": "chk-016"
         },
         {
@@ -2413,6 +2450,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 15:00까지 닿는다",
           "id": "chk-017"
         },
         {
@@ -2435,6 +2473,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 16:30까지 닿는다",
           "id": "chk-018"
         },
         {
@@ -2457,6 +2496,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 10분에 권장 여유 10분을 더해도 18:00까지 닿는다",
           "id": "chk-019"
         },
         {
@@ -2507,8 +2547,8 @@
         "counts": {
           "pass": 19,
           "fail": 1,
-          "unknown": 2,
-          "not_applicable": 2
+          "unknown": 3,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -2802,9 +2842,14 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "청계천",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "UNVERIFIED_ALWAYS_OPEN",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "system": "관리 주체의 공식 안내에서 상시 개방 여부 확인"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-018"
         },
         {
@@ -2827,6 +2872,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 10분에 권장 여유 10분을 더해도 11:00까지 닿는다",
           "id": "chk-019"
         },
         {
@@ -2849,6 +2895,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 20분에 권장 여유 10분을 더해도 13:00까지 닿는다",
           "id": "chk-020"
         },
         {
@@ -2885,6 +2932,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 16:30까지 닿는다",
           "id": "chk-022"
         },
         {
@@ -2907,6 +2955,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 18:00까지 닿는다",
           "id": "chk-023"
         },
         {
@@ -3155,12 +3204,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 3개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 0,
           "fail": 0,
-          "unknown": 2,
-          "not_applicable": 2
+          "unknown": 3,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -3202,9 +3251,14 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "서울시립미술관",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "UNSUPPORTED_PLACE",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "system": "서울시립미술관의 휴무일과 운영시간을 공식 출처에서 확보"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-003"
         },
         {
@@ -3241,12 +3295,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 3개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 0,
           "fail": 0,
-          "unknown": 2,
-          "not_applicable": 2
+          "unknown": 3,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -3288,9 +3342,14 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "덕수궁 돌담길",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "UNVERIFIED_ALWAYS_OPEN",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "system": "관리 주체의 공식 안내에서 상시 개방 여부 확인"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-003"
         },
         {
@@ -3330,12 +3389,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 1개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 1,
           "fail": 0,
-          "unknown": 1,
-          "not_applicable": 2
+          "unknown": 2,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -3407,9 +3466,16 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "경복궁",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "INFERRED_INPUT",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "경복궁에 17:30에 도착하는 것이 맞나요?"
+          },
+          "depends_on_assumptions": [
+            "A2"
+          ],
           "id": "chk-003"
         },
         {
@@ -3592,6 +3658,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 10분에 권장 여유 10분을 더해도 15:00까지 닿는다",
           "id": "chk-007"
         },
         {
@@ -3639,8 +3706,8 @@
         "counts": {
           "pass": 1,
           "fail": 1,
-          "unknown": 3,
-          "not_applicable": 3
+          "unknown": 4,
+          "not_applicable": 2
         }
       },
       "assumptions": [
@@ -3709,7 +3776,7 @@
           "target": "서울시립미술관 서소문본관",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
           "id": "chk-003"
         },
         {
@@ -3741,9 +3808,15 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "광장시장",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "NO_OPERATING_HOURS_DATA",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "방문할 점포를 알려주세요",
+            "system": "시장 단위 운영시간 정의 가능 여부 판단"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-006"
         },
         {
@@ -3803,8 +3876,8 @@
         "counts": {
           "pass": 2,
           "fail": 1,
-          "unknown": 1,
-          "not_applicable": 4
+          "unknown": 2,
+          "not_applicable": 3
         }
       },
       "assumptions": [
@@ -3846,6 +3919,7 @@
             "valid_until": "2026-12-31"
           },
           "detail": "2026-10-12은 휴무일이다",
+          "notice": "이날은 덕수궁 휴무일이에요(매주 월요일). 다른 날로 옮기거나 다른 곳을 고르세요. 입장하지 않고 밖에서만 머물 거라면 그렇게 알려 주세요",
           "id": "chk-001"
         },
         {
@@ -3861,7 +3935,7 @@
           "target": "덕수궁",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
           "id": "chk-003"
         },
         {
@@ -3919,9 +3993,13 @@
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
           "target": "덕수궁 → 경복궁",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다",
+          "unknown_reason": "UNVERIFIED_TRAVEL_TIME",
+          "detail": "이 구간 이동시간을 확보하지 못했다",
+          "how_to_resolve": {
+            "system": "TMAP 길찾기로 이 구간 이동시간 조회"
+          },
           "id": "chk-007"
         },
         {
@@ -4226,12 +4304,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 3개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 4개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 3,
           "fail": 0,
-          "unknown": 3,
-          "not_applicable": 2
+          "unknown": 4,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -4282,9 +4360,14 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "삼청동",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "PLACE_NOT_RESOLVED",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "삼청동에서 정확히 어디로 가시나요?"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-003"
         },
         {
@@ -4388,12 +4471,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 3개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 4,
           "fail": 0,
-          "unknown": 2,
-          "not_applicable": 2
+          "unknown": 3,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -4435,9 +4518,14 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "국립중앙박물관",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "UNSUPPORTED_PLACE",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "system": "국립중앙박물관의 휴무일과 운영시간을 공식 출처에서 확보"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-003"
         },
         {
@@ -4510,6 +4598,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 25분에 권장 여유 10분을 더해도 13:30까지 닿는다",
           "id": "chk-007"
         },
         {
@@ -4743,6 +4832,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 16:30까지 닿는다",
           "id": "chk-010"
         },
         {
@@ -4765,6 +4855,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 10분에 권장 여유 10분을 더해도 19:30까지 닿는다",
           "id": "chk-011"
         },
         {
@@ -4807,10 +4898,10 @@
         "verdict": "infeasible",
         "message": "확인한 정보에서 실행할 수 없는 부분이 발견되었습니다",
         "counts": {
-          "pass": 10,
+          "pass": 12,
           "fail": 1,
           "unknown": 0,
-          "not_applicable": 5
+          "not_applicable": 3
         }
       },
       "assumptions": [
@@ -4893,6 +4984,7 @@
             "valid_until": "2026-12-31"
           },
           "detail": "2026-10-20은 휴무일이다",
+          "notice": "이날은 경복궁 휴무일이에요(매주 화요일). 다른 날로 옮기거나 다른 곳을 고르세요. 입장하지 않고 밖에서만 머물 거라면 그렇게 알려 주세요",
           "id": "chk-004"
         },
         {
@@ -4908,7 +5000,7 @@
           "target": "경복궁",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
           "id": "chk-006"
         },
         {
@@ -5016,17 +5108,47 @@
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
           "target": "창덕궁 → 경복궁",
-          "status": "not_applicable",
+          "status": "pass",
           "severity": null,
-          "reason": "양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다",
+          "evidence": {
+            "depart_at": "11:30",
+            "travel_minutes": 20,
+            "buffer_minutes": 10,
+            "arrival": "11:50",
+            "planned_arrival": "12:30",
+            "arrive_by": "12:30",
+            "mode": "transit",
+            "method": "synthetic_fixture",
+            "source": "synthetic_fixture",
+            "snapshot_id": null,
+            "checked_at": null,
+            "is_lower_bound": false,
+            "excluded_from_travel_time": null
+          },
+          "detail": "대중교통 20분에 권장 여유 10분을 더해도 12:30까지 닿는다",
           "id": "chk-013"
         },
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
           "target": "경복궁 → 덕수궁",
-          "status": "not_applicable",
+          "status": "pass",
           "severity": null,
-          "reason": "양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다",
+          "evidence": {
+            "depart_at": "14:30",
+            "travel_minutes": 15,
+            "buffer_minutes": 10,
+            "arrival": "14:45",
+            "planned_arrival": "15:00",
+            "arrive_by": "15:00",
+            "mode": "transit",
+            "method": "synthetic_fixture",
+            "source": "synthetic_fixture",
+            "snapshot_id": null,
+            "checked_at": null,
+            "is_lower_bound": false,
+            "excluded_from_travel_time": null
+          },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 15:00까지 닿는다",
           "id": "chk-014"
         },
         {
@@ -5049,6 +5171,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 10분에 권장 여유 10분을 더해도 17:00까지 닿는다",
           "id": "chk-015"
         },
         {
@@ -5068,7 +5191,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -5092,12 +5215,12 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 3개 항목을 확인하지 못했습니다",
         "counts": {
           "pass": 16,
           "fail": 0,
-          "unknown": 2,
-          "not_applicable": 2
+          "unknown": 3,
+          "not_applicable": 1
         }
       },
       "assumptions": [
@@ -5241,9 +5364,15 @@
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "광장시장",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
+          "unknown_reason": "NO_OPERATING_HOURS_DATA",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "방문할 점포를 알려주세요",
+            "system": "시장 단위 운영시간 정의 가능 여부 판단"
+          },
+          "depends_on_assumptions": null,
           "id": "chk-009"
         },
         {
@@ -5368,6 +5497,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 20분에 권장 여유 10분을 더해도 11:30까지 닿는다",
           "id": "chk-016"
         },
         {
@@ -5390,6 +5520,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 13:00까지 닿는다",
           "id": "chk-017"
         },
         {
@@ -5412,6 +5543,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 20분에 권장 여유 10분을 더해도 15:00까지 닿는다",
           "id": "chk-018"
         },
         {
@@ -5434,6 +5566,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 10분에 권장 여유 10분을 더해도 16:30까지 닿는다",
           "id": "chk-019"
         },
         {
@@ -5665,6 +5798,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 20분에 권장 여유 10분을 더해도 11:30까지 닿는다",
           "id": "chk-010"
         },
         {
@@ -5687,6 +5821,7 @@
             "is_lower_bound": false,
             "excluded_from_travel_time": null
           },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 14:00까지 닿는다",
           "id": "chk-011"
         },
         {
@@ -5720,7 +5855,562 @@
             "margin_vs_event": 40,
             "margin_vs_required": 25,
             "is_lower_bound": false,
-            "status": "pass"
+            "status": "pass",
+            "detail": "대중교통 20분에 권장 여유 15분을 더해도 열차 출발(16:30) 전에 닿는다"
+          }
+        }
+      ]
+    },
+    {
+      "id": "T34-시각하나빠짐",
+      "set": "dev",
+      "expect": "infeasible",
+      "match": true,
+      "problems": [],
+      "elapsed_ms": 0.0,
+      "label_current": true,
+      "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "places.덕수궁.closed_days.weekly [MON]",
+          "places.덕수궁.hours 09:00~21:00, last_admission 20:00",
+          "places.창덕궁.closed_days.weekly [MON]",
+          "places.경복궁.closed_days.weekly [TUE]"
+        ],
+        "assumptions": [],
+        "missing": [
+          "창덕궁 시작 시각 — 사용자에게 묻는다"
+        ]
+      },
+      "date": "2026-11-17",
+      "date_source": "inferred",
+      "weekday": "TUE",
+      "weekday_stated": "TUE",
+      "is_holiday": false,
+      "summary": {
+        "verdict": "infeasible",
+        "message": "확인한 정보에서 실행할 수 없는 부분이 발견되었습니다",
+        "counts": {
+          "pass": 4,
+          "fail": 1,
+          "unknown": 4,
+          "not_applicable": 3
+        }
+      },
+      "assumptions": [
+        {
+          "id": "A1",
+          "field": "date",
+          "value": "2026-11-17",
+          "source": "llm_inferred",
+          "rule": "extract.inferred_date",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "ask_user": "방문 날짜가 맞는지 확인해 주세요"
+        }
+      ],
+      "checks": [
+        {
+          "type": "CLOSED_DAY",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-001"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "09:00",
+            "close": "21:00",
+            "last_admission": "20:00",
+            "planned_time": "10:00",
+            "entry_at": "10:00",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-22",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-002"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 60,
+            "dwell_source": "user_stated",
+            "end_time": "11:00",
+            "closing_time": "21:00"
+          },
+          "id": "chk-003"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-004"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "창덕궁",
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "MISSING_START_TIME",
+          "detail": "방문 시작 시각이 없어 입장과 이동시간을 계산할 수 없다",
+          "how_to_resolve": {
+            "user": "창덕궁에 몇 시에 도착할 예정인가요?"
+          },
+          "id": "chk-005"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "창덕궁",
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "MISSING_START_TIME",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "창덕궁에 몇 시에 도착할 예정인가요?"
+          },
+          "depends_on_assumptions": null,
+          "id": "chk-006"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "경복궁",
+          "status": "fail",
+          "severity": "blocking",
+          "evidence": {
+            "weekly": [
+              "TUE"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-17",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "detail": "2026-11-17은 휴무일이다",
+          "notice": "이날은 경복궁 휴무일이에요(매주 화요일). 다른 날로 옮기거나 다른 곳을 고르세요. 입장하지 않고 밖에서만 머물 거라면 그렇게 알려 주세요",
+          "id": "chk-007"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "경복궁",
+          "status": "not_applicable",
+          "severity": null,
+          "reason": "휴무일로 확정되어 운영시간 검사가 성립하지 않는다",
+          "id": "chk-008"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "경복궁",
+          "status": "not_applicable",
+          "severity": null,
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
+          "id": "chk-009"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "덕수궁 → 창덕궁",
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "MISSING_START_TIME",
+          "detail": "앞이나 뒤 장소의 입력이 빠져 이동을 판정하지 못한다",
+          "how_to_resolve": {
+            "user": "창덕궁에 몇 시에 도착할 예정인가요?"
+          },
+          "id": "chk-010"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "창덕궁 → 경복궁",
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "MISSING_START_TIME",
+          "detail": "앞이나 뒤 장소의 입력이 빠져 이동을 판정하지 못한다",
+          "how_to_resolve": {
+            "user": "창덕궁에 몇 시에 도착할 예정인가요?"
+          },
+          "id": "chk-011"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "경복궁 → (없음)",
+          "status": "not_applicable",
+          "severity": null,
+          "reason": "마지막 장소라 다음 구간이 없다",
+          "id": "chk-012"
+        }
+      ],
+      "hard_constraints": []
+    },
+    {
+      "id": "T35-정오약속",
+      "set": "dev",
+      "expect": "undetermined",
+      "match": true,
+      "problems": [],
+      "elapsed_ms": 0.0,
+      "label_current": true,
+      "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "places.경복궁.hours (11·12·1·2월) 09:00~17:00, last_admission 16:00",
+          "places.창덕궁.hours (11·12·1월) 09:00~17:30, last_admission 16:30",
+          "places.덕수궁.hours 09:00~21:00, last_admission 20:00",
+          "places.서울시립미술관 서소문본관.hours 토 · 일 · 공휴일 11~2월 10:00~18:00, last_admission 17:00"
+        ],
+        "assumptions": [],
+        "missing": [
+          "광화문 약속을 앞뒤 장소와 잇는 검사 — 아직 없다"
+        ]
+      },
+      "date": "2026-11-21",
+      "date_source": "inferred",
+      "weekday": "SAT",
+      "weekday_stated": "SAT",
+      "is_holiday": false,
+      "summary": {
+        "verdict": "undetermined",
+        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
+        "counts": {
+          "pass": 14,
+          "fail": 0,
+          "unknown": 2,
+          "not_applicable": 1
+        }
+      },
+      "assumptions": [
+        {
+          "id": "A1",
+          "field": "date",
+          "value": "2026-11-21",
+          "source": "llm_inferred",
+          "rule": "extract.inferred_date",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "ask_user": "방문 날짜가 맞는지 확인해 주세요"
+        }
+      ],
+      "checks": [
+        {
+          "type": "CLOSED_DAY",
+          "target": "경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "TUE"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-17",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-001"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "09:00",
+            "close": "17:00",
+            "last_admission": "16:00",
+            "planned_time": "09:30",
+            "entry_at": "09:30",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-002"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 60,
+            "dwell_source": "user_stated",
+            "end_time": "10:30",
+            "closing_time": "17:00"
+          },
+          "id": "chk-003"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-004"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "09:00",
+            "close": "17:30",
+            "last_admission": "16:30",
+            "planned_time": "11:00",
+            "entry_at": "11:00",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-22",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-005"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 60,
+            "dwell_source": "user_stated",
+            "end_time": "12:00",
+            "closing_time": "17:30"
+          },
+          "id": "chk-006"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-007"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "09:00",
+            "close": "21:00",
+            "last_admission": "20:00",
+            "planned_time": "14:00",
+            "entry_at": "14:00",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-22",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-008"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 60,
+            "dwell_source": "user_stated",
+            "end_time": "15:00",
+            "closing_time": "21:00"
+          },
+          "id": "chk-009"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "서울시립미술관 서소문본관",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": [
+              "01-01"
+            ],
+            "exception_rule": "open_if_holiday_no_shift",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://sema.seoul.go.kr/kr/visit/seosomun",
+            "checked_at": "2026-09-29",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-010"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "서울시립미술관 서소문본관",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "10:00",
+            "close": "18:00",
+            "last_admission": "17:00",
+            "planned_time": "16:00",
+            "entry_at": "16:00",
+            "source": "curated",
+            "url": "https://sema.seoul.go.kr/kr/visit/seosomun",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-011"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "서울시립미술관 서소문본관",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 90,
+            "dwell_source": "user_stated",
+            "end_time": "17:30",
+            "closing_time": "18:00"
+          },
+          "id": "chk-012"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "경복궁 → 창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "depart_at": "10:30",
+            "travel_minutes": 15,
+            "buffer_minutes": 10,
+            "arrival": "10:45",
+            "planned_arrival": "11:00",
+            "arrive_by": "11:00",
+            "mode": "transit",
+            "method": "synthetic_fixture",
+            "source": "synthetic_fixture",
+            "snapshot_id": null,
+            "checked_at": null,
+            "is_lower_bound": false,
+            "excluded_from_travel_time": null
+          },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 11:00까지 닿는다",
+          "id": "chk-013"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "창덕궁 → 덕수궁",
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "MIDDAY_HARD_CONSTRAINT",
+          "detail": "사이에 도착 기한(13:00 광화문)이 있어 이 구간만으로는 실제 이동을 알 수 없다",
+          "how_to_resolve": {
+            "system": "필수 일정을 그 시각 앞뒤 장소와 잇는 검사 구현"
+          },
+          "id": "chk-014"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "덕수궁 → 서울시립미술관 서소문본관",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "depart_at": "15:00",
+            "travel_minutes": 5,
+            "buffer_minutes": 10,
+            "arrival": "15:05",
+            "planned_arrival": "16:00",
+            "arrive_by": "16:00",
+            "mode": "walk",
+            "method": "synthetic_fixture",
+            "source": "synthetic_fixture",
+            "snapshot_id": null,
+            "checked_at": null,
+            "is_lower_bound": false,
+            "excluded_from_travel_time": null
+          },
+          "detail": "도보 5분에 권장 여유 10분을 더해도 16:00까지 닿는다",
+          "id": "chk-015"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "서울시립미술관 서소문본관 → (없음)",
+          "status": "not_applicable",
+          "severity": null,
+          "reason": "마지막 장소라 다음 구간이 없다",
+          "id": "chk-016"
+        }
+      ],
+      "hard_constraints": [
+        {
+          "id": "HC1",
+          "event": {
+            "type": "ARRIVE_BY",
+            "place": "광화문",
+            "time": "13:00",
+            "source": "user_stated",
+            "raw": "오후 1시까지는 광화문 앞에서 친구를 꼭 만나야 해요"
+          },
+          "policy": {
+            "status": "unknown",
+            "unknown_reason": "MIDDAY_HARD_CONSTRAINT",
+            "severity": "blocking",
+            "detail": "도착 기한(13:00 광화문)이 하루 중간에 있다. 필수 일정은 아직 하루 마지막 교통편만 판정한다",
+            "how_to_resolve": {
+              "system": "필수 일정을 그 시각 앞뒤 장소와 잇는 검사 구현"
+            },
+            "notice": "도착 기한(13:00 광화문)은 하루 중간이라 아직 검사하지 않아요. 앞 장소에서 제때 닿는지는 직접 확인해 주세요"
           }
         }
       ]
