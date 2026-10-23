@@ -198,7 +198,8 @@ RULES = """판정 규칙 — 판정 코드가 쓰는 규칙과 같다. 이 규�
      외국어 회차가 있으면 fail 이 아니다. 마지막 회차 정각 도착은 unknown 이다.
 
 체류
-  6. 입장이 pass 가 아니면 체류는 not_applicable 이다. 체류시간을 사용자가 말하지 않았으면 unknown 이다.
+  6. 입장이 fail 이거나 not_applicable 이면 체류는 not_applicable 이다. 입장이 unknown 이면 들어갈 수도 있으니
+     체류도 unknown 이다. 체류시간을 사용자가 말하지 않았으면 unknown 이다.
      말했으면 입장 시각에 체류를 더한 시각이 폐장보다 늦을 때 fail 이다. 회차 입장인 날은 해설 시간
      (dwell_fixed_minutes)보다 긴 체류가 unknown 이다.
 

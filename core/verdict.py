@@ -526,15 +526,25 @@ def _admission_by_hours(name, place, visit_date, start, holidays) -> dict:
     return check("ADMISSION_NOT_POSSIBLE", name, PASS, evidence=evidence)
 
 
-def check_dwell(name, place, visit_date, start, dwell, admission_status, policy, holidays) -> dict:
+def check_dwell(name, place, visit_date, start, dwell, admission, policy, holidays) -> dict:
     """
     입장 가능 여부와 계획한 체류를 마칠 수 있는지는 다른 문제다.
     입장마감 전에 들어가도 관람을 마치면 폐장 이후가 될 수 있다.
     체류시간을 사용자가 말하지 않았으면 이 검사는 판단하지 않는다.
+    admission 은 같은 장소의 입장 검사 결과다.
     """
-    if admission_status != PASS:
+    # ⭐ 해야 하는데 못 한 검사는 미확인, 할 필요가 없는 검사만 해당 없음이다(멘토 T28 지적 · 새 평가 N02 사용자 결정).
+    #    입장을 확인하지 못했으면 들어갈 수도 있으니 체류도 확인하지 못한 것이다 — 같은 이유와 같은 질문으로 묻는다.
+    #    들어갈 수 없거나(위반) 쉬는 날이라 볼 것이 없을 때(해당 없음)만 체류가 해당 없음이다
+    if admission["status"] == UNKNOWN:
+        return check("DWELL_NOT_COMPLETABLE", name, UNKNOWN,
+                     unknown_reason=admission["unknown_reason"],
+                     detail="입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+                     how_to_resolve=admission.get("how_to_resolve"),
+                     depends_on_assumptions=admission.get("depends_on_assumptions"))
+    if admission["status"] != PASS:
         return check("DWELL_NOT_COMPLETABLE", name, NA,
-                     reason="입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다")
+                     reason="들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다")
 
     # ⭐ 9월 22일 비교 실험에서 이 프로젝트가 이긴 지점이다 (README '비교 실험').
     #    "16:30 에 경복궁" — 입장마감 17:00 전이라 들어갈 수는 있다. 그런데 몇 시간
@@ -1319,7 +1329,7 @@ def _place_checks(stops, visit_date, facts, policy, date_dep) -> tuple[list[dict
         ev = a.get("evidence") or a.get("reference") or {}
         st["entry"], st["entry_kind"] = ev.get("entry_at", st["start"]), ev.get("entry_kind", "개장")
         d = unconfirmed(check_dwell(st["name"], st["place"], visit_date, st["entry"], st["dwell"],
-                                    a["status"], policy, facts["holidays"]),
+                                    a, policy, facts["holidays"]),
                         date_dep + st["start_dep"])
         checks += [c, a, d]
     return checks, closed_statuses

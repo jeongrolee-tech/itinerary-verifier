@@ -248,7 +248,6 @@ def test_open_place_without_time_asks_for_entry_and_dwell(facts, policy):
     assert result["summary"]["verdict"] == "infeasible"  # 경복궁 휴궁은 그대로 위반이다
 
 
-@pytest.mark.xfail(strict=True, reason="입장이 미확인이어도 체류를 해당 없음으로 둔다")
 def test_dwell_is_unknown_when_entry_is_unknown(facts, policy):
     """광장시장은 운영시간 근거가 없어 입장이 미확인이다. 체류도 할 필요가 없는 게 아니라 못 한 것이다."""
     result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}]},
