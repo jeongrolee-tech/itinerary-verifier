@@ -99,6 +99,7 @@
 
 ![전체 구조 — 데모 화면 · API가 구조화 추출(LLM) · 길찾기(TMAP) · 판정 코어 · 다시 검사 · 결과 묶기를 부른다](docs/images/architecture.png)
 
+선 이름의 숫자는 순서다 — 처음 검사가 1\~6, 표에서 고쳐 다시 검사하면 7\~9, 0은 서버를 켤 때 한 번 읽는 것이다.
 LLM은 구조화 추출 한 칸에만 있고, 판정 코어 · 다시 검사 · 결과 묶기는 LLM과 네트워크 없이 돈다. 길찾기는 판정할 때만
 TMAP을 부르고 저장하지 않는다. 상자를 누르면 근거 코드 줄로 가는 대화형 버전은 [`docs/architecture.html`](docs/architecture.html)이다
 (내려받아 브라우저로 연다. [archify](https://github.com/tt-a1i/archify)로 만들었다).
