@@ -21,6 +21,24 @@ MARKET = "광장시장"
 THURSDAY = "2026-10-08"  # 미술관·경복궁 모두 개관, 공휴일 아님
 
 
+def closed_day(result, name):
+    return next(c for c in result["checks"] if c["type"] == "CLOSED_DAY" and c["target"] == name)
+
+
+@pytest.mark.parametrize("date, name, why", [
+    ("2026-11-17", PALACE, "매주 화요일"),                               # 정기휴일
+    ("2026-10-06", "창덕궁", "월요일 정기휴일이 공휴일과 겹쳐 밀린 날"),     # 10/5(월) 대체공휴일이라 하루 밀렸다(T05)
+    ("2026-01-01", MUSEUM, "매년 1월 1일"),                              # 고정 휴관일
+])
+def test_closed_day_tells_why_and_what_to_do(facts, policy, date, name, why):
+    """휴무 위반은 "휴무일이다" 에서 끝내지 않고 왜 쉬는지와 무엇을 하면 되는지 안내한다(2026-10-23).
+    쉬는 곳이라도 일부러 갈 수 있으니 묻지 않고 알린다 — 판정은 위반 그대로다."""
+    c = closed_day(judge({"date": date, "stops": [{"place": name, "start": "14:00", "dwell_minutes": 60}]},
+                         facts, policy), name)
+    assert c["status"] == FAIL
+    assert c["notice"] == f"이날은 {name} 휴무일이에요({why}). 다른 날로 옮기거나 다른 곳을 고르세요"
+
+
 def travel(result, frm, to):
     hits = [c for c in result["checks"]
             if c["type"] == "INSUFFICIENT_TRAVEL_TIME" and c["target"] == f"{frm} → {to}"]

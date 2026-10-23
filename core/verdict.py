@@ -269,9 +269,20 @@ def check_closed_day(name: str, place: dict | None, visit_date: str, facts: dict
         return _fixed_date_closure(name, visit_date, cd, facts, evidence)
 
     if closed == visit_date:
+        weekly = WEEKDAY_NAMES[cd["weekly"][0]]
+        why = (f"매주 {weekly}요일" if weekday_of(visit_date) in cd["weekly"]
+               else f"{weekly}요일 정기휴일이 공휴일과 겹쳐 밀린 날")
         return check("CLOSED_DAY", name, FAIL, evidence=evidence,
-                     detail=f"{visit_date}은 휴무일이다")
+                     detail=f"{visit_date}은 휴무일이다", notice=_closed_notice(name, why))
     return check("CLOSED_DAY", name, PASS, evidence=evidence)
+
+
+WEEKDAY_NAMES = dict(zip(WEEKDAYS, "월화수목금토일"))
+
+
+def _closed_notice(name: str, why: str) -> str:
+    """휴무 위반에 붙이는 안내 — 왜 쉬는지와 무엇을 하면 되는지. "휴무일이다" 만으로는 고칠 방법을 모른다."""
+    return f"이날은 {name} 휴무일이에요({why}). 다른 날로 옮기거나 다른 곳을 고르세요"
 
 
 def _holiday_dependent(cd: dict) -> bool:
@@ -331,8 +342,10 @@ def _fixed_date_closure(name: str, visit_date: str, cd: dict, facts: dict, evide
                             f"공식 문구 두 개가 휴관과 개관으로 결론이 갈린다",
                      how_to_resolve={"system": "기관에 두 규칙의 우선순위 확인"},
                      reference=evidence)
+    month, day = (int(x) for x in visit_date[5:].split("-"))
     return check("CLOSED_DAY", name, FAIL, evidence=evidence,
-                 detail=f"{visit_date}은 고정 휴관일({visit_date[5:]})이다")
+                 detail=f"{visit_date}은 고정 휴관일({visit_date[5:]})이다",
+                 notice=_closed_notice(name, f"매년 {month}월 {day}일"))
 
 
 # ── 운영시간 ────────────────────────────────────────────────────────
