@@ -671,26 +671,26 @@ def taxi_alternative(leg: dict | None, avoid_taxi: bool) -> dict | None:
     return None if avoid_taxi else ((leg or {}).get("alternatives") or [None])[0]
 
 
-def check_travel(frm, to, facts, policy, closed_statuses, visit_date, avoid_taxi=False) -> dict:
+def check_travel(frm, to, facts, policy, visit_date, avoid_taxi=False) -> dict:
     """구간 하나의 이동 검사. 대중교통으로 '된다' 가 안 나오면 붙어 있는 택시 대안을 본다(택시를 안 탄다고 했으면 안 본다)."""
     leg = leg_for(facts, segment_key(frm["index"], frm["name"], to["name"]), frm["name"], to["name"],
                   visit_date, departure(frm))
-    result = _travel(frm, to, leg, policy, closed_statuses, visit_date)
+    result = _travel(frm, to, leg, policy, visit_date)
     taxi = taxi_alternative(leg, avoid_taxi)
     if taxi is None or result["status"] != UNKNOWN:
         return result
-    return _with_taxi(result, taxi, lambda: _travel(frm, to, taxi, policy, closed_statuses, visit_date))
+    return _with_taxi(result, taxi, lambda: _travel(frm, to, taxi, policy, visit_date))
 
 
-def _travel(frm, to, leg, policy, closed_statuses, visit_date) -> dict:
+def _travel(frm, to, leg, policy, visit_date) -> dict:
     """구간 하나를 leg 로 판정한다. 택시 대안은 보지 않는다 — check_travel 이 본다.
 
-    순서: 양 끝이 휴무인가 → 이동 0분으로도 늦나 → 이 구간을 판정할 수 있나 → 이동시간으로 판정.
+    순서: 이동 0분으로도 늦나 → 이 구간을 판정할 수 있나 → 이동시간으로 판정.
     """
+    # ⭐ 쉬는 곳이 끼어도 이동은 다른 이동처럼 본다(새 평가 N02, 2026-10-23 사용자 결정). 쉬는 곳이라도 일부러
+    #    갈 수 있다. 휴무는 휴무일 검사가 위반으로 알리고, 이동 검사는 제때 닿는지만 본다 — 전에는 해당 없음으로
+    #    빼서, 쉬는 곳 앞뒤 장소의 시각이 빠졌을 때도 시각을 묻지 않았다
     label = f"{frm['name']} → {to['name']}"
-    if closed_statuses.get(frm["name"]) == FAIL or closed_statuses.get(to["name"]) == FAIL:
-        return check("INSUFFICIENT_TRAVEL_TIME", label, NA,
-                     reason="양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다")
 
     # 다음 장소에 도착해야 하는 시각은 실제로 들어갈 수 있는 시각이다. 09:45 로 계획했어도
     # 10:00 에 열면 그 전에는 어차피 기다린다(check_admission). 10:00 까지만 가면 된다.
@@ -1182,11 +1182,11 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
            for i, s in enumerate(itinerary["stops"])]
 
     # ④ 장소 검사 ⑤ 구간 검사 — 화면 줄과 맞도록 일정 순서로 잇는다(같은 장소를 두 번 가도 섞이지 않게)
-    place_checks, closed_statuses = _place_checks([st for st in seq if st], visit_date, facts, policy, date_dep)
+    place_checks = _place_checks([st for st in seq if st], visit_date, facts, policy, date_dep)
     untimed = {i: _untimed_place_checks(s, stop_inputs[i][0], visit_date, facts, policy, date_dep)
                for i, s in enumerate(itinerary["stops"]) if stop_inputs[i] and s.get("place")}
     checks = _in_itinerary_order(seq, stop_inputs, untimed, place_checks)
-    checks += _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date,
+    checks += _travel_checks(seq, stop_inputs, facts, policy, visit_date,
                              itinerary.get("avoid_taxi", False))
     for n, c in enumerate(checks, 1):
         c["id"] = f"chk-{n:03d}"
@@ -1314,16 +1314,14 @@ def _prepare_stop(i: int, s: dict, facts: dict, policy: dict, assumptions: list[
             "scope_note": s.get("scope_note"), "dwell": dwell}
 
 
-def _place_checks(stops, visit_date, facts, policy, date_dep) -> tuple[list[dict], dict[str, str]]:
+def _place_checks(stops, visit_date, facts, policy, date_dep) -> list[dict]:
     """장소마다 휴무 → 입장 → 체류를 본다. 개장 전 도착이면 입장 시각(entry)을 개장으로 늦춘다."""
     checks: list[dict] = []
-    closed_statuses: dict[str, str] = {}
 
     # 추정 입력 처리는 검사 하나가 끝날 때마다 바로 한다. 휴무 결과를 입장 검사가,
     # 입장 결과를 체류 검사가 이어받기 때문에, 다 끝낸 뒤에 고치면 앞뒤가 어긋난다.
     for st in stops:
         c = unconfirmed(check_closed_day(st["name"], st["place"], visit_date, facts, st["support"]), date_dep)
-        closed_statuses[st["name"]] = c["status"]
         a = unconfirmed(check_admission(st["name"], st["place"], visit_date, st["start"],
                                         c["status"], facts["holidays"], st["support"]),
                         date_dep + st["start_dep"])
@@ -1334,7 +1332,7 @@ def _place_checks(stops, visit_date, facts, policy, date_dep) -> tuple[list[dict
                                     a, policy, facts["holidays"]),
                         date_dep + st["start_dep"])
         checks += [c, a, d]
-    return checks, closed_statuses
+    return checks
 
 
 def _untimed_place_checks(s: dict, missing: dict, visit_date: str, facts: dict, policy: dict,
@@ -1366,7 +1364,7 @@ def _in_itinerary_order(seq, stop_inputs, untimed, place_checks) -> list[dict]:
     return out
 
 
-def _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date, avoid_taxi) -> list[dict]:
+def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi) -> list[dict]:
     """이웃한 장소 사이 구간마다 이동 검사. 마지막 장소 뒤는 구간이 없어 not_applicable 이다.
     한쪽 장소의 입력이 빠졌으면(None) 그 구간은 판정하지 않고 같은 질문으로 묻는다."""
     checks = []
@@ -1377,13 +1375,8 @@ def _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date,
                                     reason="마지막 장소라 다음 구간이 없다"))
         elif st and seq[i + 1]:
             checks.append(unconfirmed(
-                check_travel(st, seq[i + 1], facts, policy, closed_statuses, visit_date, avoid_taxi),
+                check_travel(st, seq[i + 1], facts, policy, visit_date, avoid_taxi),
                 st["start_dep"] + seq[i + 1]["start_dep"]))
-        elif any(s and closed_statuses.get(s["name"]) == FAIL for s in (st, seq[i + 1])):
-            # 한쪽이 쉬는 날이면 입력이 빠졌어도 구간이 성립하지 않는다(_travel 과 같은 규칙)
-            checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{_stop_name(seq, stop_inputs, i)} → "
-                                f"{_stop_name(seq, stop_inputs, i + 1)}", NA,
-                                reason="양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다"))
         else:
             missing = (stop_inputs[i] or stop_inputs[i + 1])[0]
             checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{_stop_name(seq, stop_inputs, i)} → "

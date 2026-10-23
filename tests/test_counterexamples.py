@@ -230,7 +230,6 @@ def test_closed_place_without_time_is_still_caught(facts, policy):
     assert result["summary"]["verdict"] == "infeasible"
 
 
-@pytest.mark.xfail(strict=True, reason="시각이 빠진 장소는 입력 검사 한 줄로만 묻고, 쉬는 곳이 낀 이동은 해당 없음이다")
 def test_open_place_without_time_asks_for_entry_and_dwell(facts, policy):
     """N02 — 화요일 창덕궁(연다)에 시각이 없다. 휴무일은 통과, 입장 · 체류는 시각을 몰라 미확인이다.
     창덕궁 → 경복궁(화요일 휴궁) 이동도 창덕궁을 나서는 시각을 몰라 미확인이다."""
@@ -265,7 +264,6 @@ def test_dwell_is_not_applicable_on_a_closed_day(facts, policy):
     assert c["ADMISSION_NOT_POSSIBLE"]["status"] == NA and c["DWELL_NOT_COMPLETABLE"]["status"] == NA
 
 
-@pytest.mark.xfail(strict=True, reason="쉬는 곳이 낀 이동은 해당 없음으로 두고 계산하지 않는다")
 def test_travel_to_a_closed_place_is_still_judged(facts, policy):
     """화요일 경복궁은 쉬지만 일부러 갈 수도 있다. 휴무는 휴무일 칸이 알리고, 이동은 이동대로 본다 —
     11:00 에 덕수궁을 나와 20분, 권장 여유 10분을 더해도 11:30 이라 11:45 시작 전이다."""

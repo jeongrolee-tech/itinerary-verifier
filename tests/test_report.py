@@ -126,10 +126,12 @@ def statuses(prefix, facts, policy):
 
 
 def test_one_closed_place_shows_where_in_the_day(facts, policy):
-    """T31 — 네 곳 중 경복궁만 화요일 휴궁이다. 그 줄만 위반이고, 쉬는 곳에 닿는 두 구간은 해당 없음이다."""
+    """T31 — 네 곳 중 경복궁만 화요일 휴궁이다. 그 줄만 위반이다. 쉬는 곳이 낀 구간도 다른 구간처럼 계산한다
+    (2026-10-23 — 쉬는 곳이라도 일부러 갈 수 있다). 창덕궁을 11:30 에 나와 20분, 경복궁을 14:30 에 나와 15분이라
+    권장 여유 10분을 더해도 둘 다 시작 전에 닿는다."""
     assert statuses("T31", facts, policy) == [
-        ("stop", "창덕궁", "pass"), ("travel", "창덕궁 → 경복궁", "not_applicable"),
-        ("stop", "경복궁", "fail"), ("travel", "경복궁 → 덕수궁", "not_applicable"),
+        ("stop", "창덕궁", "pass"), ("travel", "창덕궁 → 경복궁", "pass"),
+        ("stop", "경복궁", "fail"), ("travel", "경복궁 → 덕수궁", "pass"),
         ("stop", "덕수궁", "pass"), ("travel", "덕수궁 → 서울시립미술관 서소문본관", "pass"),
         ("stop", "서울시립미술관 서소문본관", "pass")]
 
