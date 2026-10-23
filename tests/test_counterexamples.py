@@ -14,7 +14,7 @@ import routes
 from app import create_app
 from report import render, report, timeline
 from routes import live_legs
-from verdict import FAIL, UNKNOWN, judge
+from verdict import FAIL, NA, PASS, UNKNOWN, judge
 
 MUSEUM = "서울시립미술관 서소문본관"
 PALACE = "경복궁"
@@ -201,3 +201,97 @@ def test_taxi_is_used_when_not_excluded(facts, policy):
     facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
     c = travel_checks(judge(museum_then_palace(False), facts, policy), f"{MUSEUM} → {PALACE}")[0]
     assert c["status"] != UNKNOWN and "택시" in c.get("notice", "")
+
+
+# ── 6. 새 평가 첫 실행에서 드러난 것 (2026-10-23) ───────────────────────────
+# 정답을 판정 코드보다 먼저 정한 새 평가(core/eval-new.json)에서 판정 코드와 다른 곳이 나왔다
+# (docs/experiments/2026-10-23-new-eval-first-run.md). 기대 결과는 그 정답과 사용자 결정에서 왔다.
+#   - 확인할 수 있는 검사는 한다: 시각이 없어도 휴무일은 날짜만으로 확인한다
+#   - 해야 하는데 못 한 검사는 미확인, 할 필요가 없는 검사만 해당 없음(멘토 T28 지적)
+#   - 쉬는 곳이라도 일부러 갈 수 있으니, 쉬는 곳이 낀 이동도 다른 이동처럼 본다
+#   - 이동 사이에 필수 일정이 끼면 그 구간 계산은 실제 동선이 아니다
+
+from test_travel_estimate import estimate  # noqa: E402
+
+TUESDAY, MONDAY = "2026-11-17", "2026-11-16"
+
+
+def place_checks(result, name):
+    return {c["type"]: c for c in result["checks"] if c["target"] == name}
+
+
+@pytest.mark.xfail(strict=True, reason="시각이 빠진 장소는 검사를 하나도 만들지 않아 휴무 위반을 놓친다")
+def test_closed_place_without_time_is_still_caught(facts, policy):
+    """월요일 창덕궁(정기휴일)에 시각이 없다 — 휴무일은 날짜만으로 확인한다. 놓치면 불가능 대신 보류다."""
+    result = judge({"date": MONDAY, "stops": [{"place": PALACE, "start": "10:00", "dwell_minutes": 60},
+                                              {"place": "창덕궁", "dwell_minutes": 90}]}, facts, policy)
+    c = place_checks(result, "창덕궁")
+    assert c["CLOSED_DAY"]["status"] == FAIL
+    assert c["ADMISSION_NOT_POSSIBLE"]["status"] == NA and c["DWELL_NOT_COMPLETABLE"]["status"] == NA
+    assert result["summary"]["verdict"] == "infeasible"
+
+
+@pytest.mark.xfail(strict=True, reason="시각이 빠진 장소는 입력 검사 한 줄로만 묻고, 쉬는 곳이 낀 이동은 해당 없음이다")
+def test_open_place_without_time_asks_for_entry_and_dwell(facts, policy):
+    """N02 — 화요일 창덕궁(연다)에 시각이 없다. 휴무일은 통과, 입장 · 체류는 시각을 몰라 미확인이다.
+    창덕궁 → 경복궁(화요일 휴궁) 이동도 창덕궁을 나서는 시각을 몰라 미확인이다."""
+    result = judge({"date": TUESDAY, "stops": [{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60},
+                                               {"place": "창덕궁", "dwell_minutes": 90},
+                                               {"place": PALACE, "start": "15:30", "dwell_minutes": 60}]},
+                   facts, policy)
+    c = place_checks(result, "창덕궁")
+    assert c["CLOSED_DAY"]["status"] == PASS
+    assert c["ADMISSION_NOT_POSSIBLE"]["unknown_reason"] == "MISSING_START_TIME"
+    assert c["DWELL_NOT_COMPLETABLE"]["status"] == UNKNOWN
+    (move,) = travel_checks(result, f"창덕궁 → {PALACE}")
+    assert move["status"] == UNKNOWN
+    assert result["summary"]["verdict"] == "infeasible"  # 경복궁 휴궁은 그대로 위반이다
+
+
+@pytest.mark.xfail(strict=True, reason="입장이 미확인이어도 체류를 해당 없음으로 둔다")
+def test_dwell_is_unknown_when_entry_is_unknown(facts, policy):
+    """광장시장은 운영시간 근거가 없어 입장이 미확인이다. 체류도 할 필요가 없는 게 아니라 못 한 것이다."""
+    result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}]},
+                   facts, policy)
+    c = place_checks(result, "광장시장")
+    assert c["ADMISSION_NOT_POSSIBLE"]["status"] == UNKNOWN
+    assert c["DWELL_NOT_COMPLETABLE"]["status"] == UNKNOWN
+
+
+def test_dwell_is_not_applicable_on_a_closed_day(facts, policy):
+    """대조군: 쉬는 날은 들어갈 수 없으니 입장 · 체류는 할 필요가 없다 — 해당 없음 그대로다."""
+    result = judge({"date": TUESDAY, "stops": [{"place": PALACE, "start": "11:00", "dwell_minutes": 60}]},
+                   facts, policy)
+    c = place_checks(result, PALACE)
+    assert c["CLOSED_DAY"]["status"] == FAIL
+    assert c["ADMISSION_NOT_POSSIBLE"]["status"] == NA and c["DWELL_NOT_COMPLETABLE"]["status"] == NA
+
+
+@pytest.mark.xfail(strict=True, reason="쉬는 곳이 낀 이동은 해당 없음으로 두고 계산하지 않는다")
+def test_travel_to_a_closed_place_is_still_judged(facts, policy):
+    """화요일 경복궁은 쉬지만 일부러 갈 수도 있다. 휴무는 휴무일 칸이 알리고, 이동은 이동대로 본다 —
+    11:00 에 덕수궁을 나와 20분, 권장 여유 10분을 더해도 11:30 이라 11:45 시작 전이다."""
+    facts["legs"][f"덕수궁|{PALACE}"] = estimate(20)
+    result = judge({"date": TUESDAY, "stops": [{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60},
+                                               {"place": PALACE, "start": "11:45", "dwell_minutes": 60}]},
+                   facts, policy)
+    (move,) = travel_checks(result, f"덕수궁 → {PALACE}")
+    assert move["status"] == PASS
+    assert result["summary"]["verdict"] == "infeasible"
+
+
+@pytest.mark.xfail(strict=True, reason="이동 사이에 낀 필수 일정을 보지 않고 장소끼리만 계산한다")
+def test_travel_across_a_midday_constraint_is_unknown(facts, policy):
+    """N06 — 창덕궁(11:00~12:00)과 덕수궁(14:00) 사이에 13:00 광화문 약속이 있다. 실제 동선은
+    창덕궁 → 광화문 → 덕수궁이라 창덕궁 → 덕수궁 계산으로는 알 수 없다. 약속 앞 구간은 그대로 본다."""
+    facts["legs"][f"{PALACE}|창덕궁"] = estimate(15)
+    facts["legs"]["창덕궁|덕수궁"] = estimate(20)
+    result = judge({"date": THURSDAY, "stops": [{"place": PALACE, "start": "09:30", "dwell_minutes": 60},
+                                                {"place": "창덕궁", "start": "11:00", "dwell_minutes": 60},
+                                                {"place": "덕수궁", "start": "14:00", "dwell_minutes": 60}],
+                    "hard_constraints": [{"id": "HC1", "type": "ARRIVE_BY", "place": "광화문", "time": "13:00",
+                                          "buffer_rule": "transit_leg", "source": "user_stated"}]}, facts, policy)
+    (before,) = travel_checks(result, f"{PALACE} → 창덕궁")
+    (across,) = travel_checks(result, "창덕궁 → 덕수궁")
+    assert before["status"] == PASS
+    assert across["status"] == UNKNOWN and across["unknown_reason"] == "MIDDAY_HARD_CONSTRAINT"
