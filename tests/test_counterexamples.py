@@ -290,3 +290,48 @@ def test_travel_across_a_midday_constraint_is_unknown(facts, policy):
     (across,) = travel_checks(result, "창덕궁 → 덕수궁")
     assert before["status"] == PASS
     assert across["status"] == UNKNOWN and across["unknown_reason"] == "MIDDAY_HARD_CONSTRAINT"
+
+
+# ── 7. 문 닫은 걸 알고 밖에서만 머무는 일정 (2026-10-23 사용자 결정) ─────────────────
+# "경복궁 문 닫은 거 알아요, 앞에서 쉬다 갈게요" — 들어가지 않으니 휴무 · 입장 · 체류는 볼 필요가 없다(해당 없음).
+# 휴무로 위반을 내면 갈 수 있는 일정을 불가능이라고 한다(가능인데 불가능). 이동은 다른 장소처럼 본다.
+
+def outside_palace(outside_only):
+    return {"date": TUESDAY, "stops": [
+        {"place": PALACE, "start": "10:00", "dwell_minutes": 60, "outside_only": outside_only},
+        {"place": "덕수궁", "start": "11:45", "dwell_minutes": 60}]}
+
+
+@pytest.mark.xfail(strict=True, reason="밖에서만 머문다는 말을 담을 칸이 없어 휴무를 위반으로 낸다")
+def test_outside_only_stop_is_not_held_to_its_hours(facts, policy):
+    """화요일 경복궁(휴궁) 앞에서 한 시간 쉬고 덕수궁 — 경복궁 칸은 해당 없음, 쉬는 날이라는 건 안내한다."""
+    facts["legs"][f"{PALACE}|덕수궁"] = estimate(20)
+    result = judge(outside_palace(True), facts, policy)
+    c = place_checks(result, PALACE)
+    assert [c[t]["status"] for t in ("CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE")] == [NA, NA, NA]
+    assert "휴무일" in c["CLOSED_DAY"]["notice"]
+    (move,) = travel_checks(result, f"{PALACE} → 덕수궁")
+    assert move["status"] == PASS
+    assert result["summary"]["verdict"] == "feasible"
+
+
+def test_closed_place_is_still_a_violation_when_entering(facts, policy):
+    """대조군: 밖에서만이라고 하지 않았으면 지금처럼 휴무 위반, 불가능이다."""
+    facts["legs"][f"{PALACE}|덕수궁"] = estimate(20)
+    result = judge(outside_palace(False), facts, policy)
+    assert place_checks(result, PALACE)["CLOSED_DAY"]["status"] == FAIL
+    assert result["summary"]["verdict"] == "infeasible"
+
+
+@pytest.mark.xfail(strict=True, reason="추출 형식에 밖에서만 칸이 없어 그 말이 판정까지 가지 않는다")
+def test_extraction_keeps_outside_only():
+    extraction = {"date": TUESDAY, "date_source": "explicit", "weekday_stated": "TUE", "notes": [], "avoid_taxi": False,
+                  "hard_constraints": [],
+                  "stops": [{"raw": "경복궁 앞에서 한 시간 쉬다 갈게요", "place": PALACE, "start": "10:00",
+                             "start_source": "explicit", "dwell_minutes": 60, "scope": "place", "scope_note": None,
+                             "outside_only": True}]}
+    client = TestClient(create_app(Claude(extraction), None, today="2026-10-01"), base_url="http://127.0.0.1")
+    res = client.post("/api/check", json={"text": "11월 17일 화요일 10시, 문 닫은 거 알아요. 경복궁 앞에서 한 시간 쉬다 갈게요"})
+    assert res.status_code == 200, res.text
+    assert res.json()["itinerary"]["stops"][0]["outside_only"] is True
+    assert res.json()["result"]["summary"]["verdict"] != "infeasible"
