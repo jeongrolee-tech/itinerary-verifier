@@ -97,13 +97,11 @@
 이동시간으로는 늦을 것 같아도 이동 0분이면 닿는 일정은 위반이 아니고, "20:30 KTX"(사용자)와 "15분 전 도착"(우리 기준)은
 따로 남긴다. 규칙 전체와 규칙마다 없으면 무엇이 깨지는지는 [`docs/판정-규칙.md`](docs/판정-규칙.md)에 있다.
 
-```
-[조회]          facts.json (사실) · policy.json (우리 기준) · routes.py (TMAP — 판정할 때만 부르고 저장하지 않는다)
-[구조화 추출]   extract.py — LLM. 값을 채우지 않는다
-[판정]          verdict.py — 순수 함수. 검사 · 필수 일정 · 기댄 가정
-[결과 묶기]     report.py — 상태별 묶음 · 일정 순서 줄 · 물을 말 · 검사하지 않는 것
-[다시 검사]     recheck.py · app.py — 표에서 고친 일정 전체를 다시 판정한다
-```
+![전체 구조 — 데모 화면 · API가 구조화 추출(LLM) · 길찾기(TMAP) · 판정 코어 · 다시 검사 · 결과 묶기를 부른다](docs/images/architecture.png)
+
+LLM은 구조화 추출 한 칸에만 있고, 판정 코어 · 다시 검사 · 결과 묶기는 LLM과 네트워크 없이 돈다. 길찾기는 판정할 때만
+TMAP을 부르고 저장하지 않는다. 상자를 누르면 근거 코드 줄로 가는 대화형 버전은 [`docs/architecture.html`](docs/architecture.html)이다
+(내려받아 브라우저로 연다. [archify](https://github.com/tt-a1i/archify)로 만들었다).
 
 ## 대표 실패 사례와 수정
 

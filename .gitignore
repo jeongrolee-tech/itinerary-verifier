@@ -25,3 +25,6 @@ core/last-*-subset-*.json
 
 # 개인용 Claude Code 설정 (공유하지 않는다)
 CLAUDE.local.md
+
+# archify 작업 폴더 — 다이어그램 원본과 검사 기록. 결과 HTML 은 docs/architecture.html 로 옮겨 올린다
+.archify/
