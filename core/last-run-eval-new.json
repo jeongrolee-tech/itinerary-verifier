@@ -1,14 +1,14 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20261023-091509",
+  "run_id": "run-20261023-094008",
   "version": "core-0.2",
-  "ran_at": "2026-10-23T00:15:09.777584+00:00",
+  "ran_at": "2026-10-23T00:40:08.175296+00:00",
   "facts_snapshot": "facts-2026-10-20",
   "holidays_verified": true,
   "suite": "eval-new.json",
   "labeled_at": "2026-10-23",
   "conditions": {
-    "code_commit": "a9a2b6c7e5c797414ca29cf8e4b9fb699e7e1b6b",
+    "code_commit": "c2855ee668e83a42ca7b2e648f394227946472e1",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
@@ -343,13 +343,8 @@
       "id": "N02-시각하나빠짐",
       "set": "new",
       "expect": "infeasible",
-      "match": false,
-      "problems": [
-        "CLOSED_DAY / 창덕궁 검사가 아예 없다",
-        "ADMISSION_NOT_POSSIBLE / 창덕궁 검사가 아예 없다",
-        "DWELL_NOT_COMPLETABLE / 창덕궁 검사가 아예 없다",
-        "INSUFFICIENT_TRAVEL_TIME / 창덕궁 → 경복궁 기대 미확인 → 실제 해당 없음"
-      ],
+      "match": true,
+      "problems": [],
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
@@ -363,10 +358,10 @@
         "verdict": "infeasible",
         "message": "확인한 정보에서 실행할 수 없는 부분이 발견되었습니다",
         "counts": {
-          "pass": 3,
+          "pass": 4,
           "fail": 1,
-          "unknown": 2,
-          "not_applicable": 4
+          "unknown": 4,
+          "not_applicable": 3
         }
       },
       "assumptions": [
@@ -432,7 +427,26 @@
           "id": "chk-003"
         },
         {
-          "type": "INPUT_REQUIRED",
+          "type": "CLOSED_DAY",
+          "target": "창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-004"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
           "target": "창덕궁",
           "status": "unknown",
           "severity": null,
@@ -441,7 +455,20 @@
           "how_to_resolve": {
             "user": "창덕궁에 몇 시에 도착할 예정인가요?"
           },
-          "id": "chk-004"
+          "id": "chk-005"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "창덕궁",
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "MISSING_START_TIME",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "창덕궁에 몇 시에 도착할 예정인가요?"
+          },
+          "depends_on_assumptions": null,
+          "id": "chk-006"
         },
         {
           "type": "CLOSED_DAY",
@@ -461,7 +488,7 @@
             "valid_until": "2026-12-31"
           },
           "detail": "2026-11-17은 휴무일이다",
-          "id": "chk-005"
+          "id": "chk-007"
         },
         {
           "type": "ADMISSION_NOT_POSSIBLE",
@@ -469,15 +496,15 @@
           "status": "not_applicable",
           "severity": null,
           "reason": "휴무일로 확정되어 운영시간 검사가 성립하지 않는다",
-          "id": "chk-006"
+          "id": "chk-008"
         },
         {
           "type": "DWELL_NOT_COMPLETABLE",
           "target": "경복궁",
           "status": "not_applicable",
           "severity": null,
-          "reason": "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다",
-          "id": "chk-007"
+          "reason": "들어갈 수 없는 날이나 시각이라 체류 검사가 성립하지 않는다",
+          "id": "chk-009"
         },
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
@@ -489,15 +516,19 @@
           "how_to_resolve": {
             "user": "창덕궁에 몇 시에 도착할 예정인가요?"
           },
-          "id": "chk-008"
+          "id": "chk-010"
         },
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
           "target": "창덕궁 → 경복궁",
-          "status": "not_applicable",
+          "status": "unknown",
           "severity": null,
-          "reason": "양 끝 중 한 곳이 휴무일이라 구간이 성립하지 않는다",
-          "id": "chk-009"
+          "unknown_reason": "MISSING_START_TIME",
+          "detail": "앞이나 뒤 장소의 입력이 빠져 이동을 판정하지 못한다",
+          "how_to_resolve": {
+            "user": "창덕궁에 몇 시에 도착할 예정인가요?"
+          },
+          "id": "chk-011"
         },
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
@@ -505,7 +536,7 @@
           "status": "not_applicable",
           "severity": null,
           "reason": "마지막 장소라 다음 구간이 없다",
-          "id": "chk-010"
+          "id": "chk-012"
         }
       ],
       "hard_constraints": []
@@ -707,7 +738,7 @@
       "expect": "feasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": null,
@@ -906,7 +937,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": null,
@@ -1154,10 +1185,8 @@
       "id": "N06-정오약속",
       "set": "new",
       "expect": "undetermined",
-      "match": false,
-      "problems": [
-        "INSUFFICIENT_TRAVEL_TIME / 창덕궁 → 덕수궁 기대 미확인 → 실제 통과"
-      ],
+      "match": true,
+      "problems": [],
       "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
@@ -1169,11 +1198,11 @@
       "is_holiday": false,
       "summary": {
         "verdict": "undetermined",
-        "message": "위반은 발견되지 않았지만 1개 항목을 확인하지 못했습니다",
+        "message": "위반은 발견되지 않았지만 2개 항목을 확인하지 못했습니다",
         "counts": {
-          "pass": 15,
+          "pass": 14,
           "fail": 0,
-          "unknown": 1,
+          "unknown": 2,
           "not_applicable": 1
         }
       },
@@ -1417,24 +1446,13 @@
         {
           "type": "INSUFFICIENT_TRAVEL_TIME",
           "target": "창덕궁 → 덕수궁",
-          "status": "pass",
+          "status": "unknown",
           "severity": null,
-          "evidence": {
-            "depart_at": "12:00",
-            "travel_minutes": 20,
-            "buffer_minutes": 10,
-            "arrival": "12:20",
-            "planned_arrival": "14:00",
-            "arrive_by": "14:00",
-            "mode": "transit",
-            "method": "synthetic_fixture",
-            "source": "synthetic_fixture",
-            "snapshot_id": null,
-            "checked_at": null,
-            "is_lower_bound": false,
-            "excluded_from_travel_time": null
+          "unknown_reason": "MIDDAY_HARD_CONSTRAINT",
+          "detail": "사이에 도착 기한(13:00 광화문)이 있어 이 구간만으로는 실제 이동을 알 수 없다",
+          "how_to_resolve": {
+            "system": "필수 일정을 그 시각 앞뒤 장소와 잇는 검사 구현"
           },
-          "detail": "대중교통 20분에 권장 여유 10분을 더해도 14:00까지 닿는다",
           "id": "chk-014"
         },
         {
