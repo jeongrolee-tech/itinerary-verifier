@@ -1,14 +1,17 @@
 {
-  "note": "새 평가 문제 — 기존 33건(tests.json, 회귀셋)과 따로 둔다. 3차 피드백: '기존 33건은 유지하고, 새 일정 몇 건은 사람이 공식 근거를 확인해 기대 결과를 먼저 정한 뒤 실행해 주세요. 최초 결과를 그대로 남기고, 수정한 사례는 회귀셋에 편입하면 됩니다.' 입력(자연어 · 기대 추출값 · 테스트용 이동시간)은 Claude 가 썼고, 기대 판정(expect · expect_checks · expect_hard_constraints)은 사용자가 공식 근거로 정한다(docs/new-eval-worksheet.md). 판정 코드를 돌리기 전에 정답을 먼저 커밋한다.",
+  "note": "새 평가 문제 — 기존 33건(tests.json, 회귀셋)과 따로 둔다. 3차 피드백: '기존 33건은 유지하고, 새 일정 몇 건은 사람이 공식 근거를 확인해 기대 결과를 먼저 정한 뒤 실행해 주세요. 최초 결과를 그대로 남기고, 수정한 사례는 회귀셋에 편입하면 됩니다.' 입력(자연어 · 기대 추출값 · 테스트용 이동시간)은 Claude 가 썼다. 정답은 판정 코드를 돌리기 전에 정해 커밋했다 — 누가 정했는지는 문제마다 labeled_by 에, 칸마다 근거는 docs/new-eval-worksheet.md 에 있다.",
   "reference_date": "2026-10-22",
   "reference_date_note": "입력의 '오늘'. 연도가 빠진 날짜는 이 날 기준 가장 가까운 미래로 푼다(tests.json 과 같은 규칙).",
-  "time_rule": "tests.json 의 time_rule 과 같다. 기댈 앞 시각이 없는 시각만 inferred 다.",
+  "time_rule": "tests.json 의 time_rule 과 같다. 기댈 앞 시각이 없는 시각만 inferred 다. 단 N04 는 사용자가 다르게 정했다 — 뒤 문장('그 전에 오후 2시')이 정해 주는 시각도 말한 시각으로 본다.",
+  "labeled_at": "2026-10-23",
+  "labeled_against_snapshot": "facts-2026-10-20",
+  "label_note": "labeled_by — '사용자': 사용자가 공식 근거로 모든 칸을 정했다. 'Claude 초안 + 사용자(⚑)': 판단이 갈리는 칸(⚑)은 사용자가, 나머지는 Claude 가 공식 문구와 README 판정 규칙을 인용해 정했다. 'Claude 초안': Claude 가 정했고 사용자가 맡겼다. Claude 는 판정 코드를 돌리지 않고 코드 출력도 보지 않은 채 썼다. Claude 가 쓴 칸은 멘토 검토를 부탁한다.",
   "sets": {"new": "새 평가. 정답을 먼저 정하고 처음 돌린 결과를 그대로 남긴다. 고친 문제는 tests.json 으로 옮긴다"},
   "situations": {
     "N01": "같은 장소 재방문 — 같은 방향 구간을 오전 · 오후에 두 번 간다. 이동시간이 출발 시각마다 다르다",
     "N02": "입력 일부 누락 — 한 장소의 시각이 없고, 다른 장소에는 확인할 수 있는 문제가 있다",
     "N03": "필수 일정 시각 모름 — 꼭 타야 하는 열차의 시각을 아직 모른다",
-    "N04": "필수 일정 시각 추정 — 열차 시각에 오전 · 오후가 없고 기댈 앞 시각도 없다",
+    "N04": "필수 일정 시각 — 열차 시각에 오전 · 오후가 없고 앞에 기댈 시각도 없지만 뒤 문장이 정해 준다",
     "N05": "택시 안 탐 — 대중교통으로는 늦을 것 같고 택시로는 닿는 구간이 있다",
     "N06": "하루 중간 필수 일정 — 정오 무렵 약속이 있고 그 뒤에도 일정이 이어진다. 장소 넷"
   },
@@ -16,6 +19,9 @@
     {
       "id": "N01-재방문",
       "set": "new",
+      "labeled_by": "사용자",
+      "expect": "undetermined",
+      "why": "같은 방향(경복궁 → 덕수궁)을 오전 · 오후에 한 번씩 간다. 10:30 출발은 35분이라 11:05 도착 예상으로 덕수궁 11:00 시작에 늦을 것 같지만 이동 0분이면 닿으니 미확인, 14:30 출발은 15분이라 통과다. 두 구간이 저마다 자기 이동시간을 써야 한다. 나머지는 11월 시간표 안이다",
       "raw": "11월 12일 목요일에 아이들이랑 다녀요. 오전 9시 반에 경복궁 들어가서 한 시간 보고, 11시에 덕수궁에서 한 시간 볼게요. 오후 1시에 다시 경복궁 가서 한 시간 반 보고, 저녁 5시에 덕수궁 다시 가서 한 시간 걸을게요.",
       "date": "2026-11-12",
       "date_source": "inferred",
@@ -34,11 +40,31 @@
                          "source": "synthetic_fixture", "method": "synthetic_fixture"},
         "2:경복궁|덕수궁": {"minutes": 15, "mode": "transit", "is_lower_bound": false, "depart_at": "2026-11-12T14:30",
                          "source": "synthetic_fixture", "method": "synthetic_fixture"}
-      }
+      },
+      "expect_checks": [
+        {"type": "CLOSED_DAY", "target": "경복궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "경복궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "경복궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "경복궁 → 덕수궁", "status": "unknown"},
+        {"type": "CLOSED_DAY", "target": "덕수궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "덕수궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "덕수궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "덕수궁 → 경복궁", "status": "pass"},
+        {"type": "CLOSED_DAY", "target": "경복궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "경복궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "경복궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "경복궁 → 덕수궁", "status": "pass"},
+        {"type": "CLOSED_DAY", "target": "덕수궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "덕수궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "덕수궁", "status": "pass"}
+      ]
     },
     {
       "id": "N02-시각하나빠짐",
       "set": "new",
+      "labeled_by": "Claude 초안 + 사용자(⚑)",
+      "expect": "infeasible",
+      "why": "화요일이라 경복궁은 정기휴일이다(위반). 창덕궁은 시각이 없다. 시각이 없어도 휴무일은 확인하고, 시각이 필요한 창덕궁 입장 · 체류와 창덕궁 앞뒤 이동은 미확인으로 남겨 시각을 묻는다(사용자 결정 — 멘토 '입력 부족으로 수행할 수 없는 검사만 미확인'). 확인된 휴무 위반이 전체 판정에 반영된다",
       "raw": "11월 17일 화요일이에요. 오전 10시에 덕수궁 들어가서 한 시간 보고, 그다음 창덕궁에서 한 시간 반, 오후 3시 반에 경복궁 들어가서 한 시간 볼게요.",
       "date": "2026-11-17",
       "date_source": "inferred",
@@ -48,11 +74,27 @@
         {"place": "창덕궁", "dwell_minutes": 90},
         {"place": "경복궁", "start": "15:30", "dwell_minutes": 60}
       ],
-      "hard_constraints": []
+      "hard_constraints": [],
+      "expect_checks": [
+        {"type": "CLOSED_DAY", "target": "덕수궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "덕수궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "덕수궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "덕수궁 → 창덕궁", "status": "unknown"},
+        {"type": "CLOSED_DAY", "target": "창덕궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "창덕궁", "status": "unknown"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "창덕궁", "status": "unknown"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "창덕궁 → 경복궁", "status": "unknown"},
+        {"type": "CLOSED_DAY", "target": "경복궁", "status": "fail"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "경복궁", "status": "not_applicable"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "경복궁", "status": "not_applicable"}
+      ]
     },
     {
       "id": "N03-열차시각모름",
       "set": "new",
+      "labeled_by": "Claude 초안",
+      "expect": "undetermined",
+      "why": "열차를 꼭 타야 하는데 시각을 모른다. 열차 조건을 빼지 않고 미확인으로 남겨 시각을 묻는다. 나머지는 모두 통과라 열차 칸 하나가 전체를 보류로 만든다 — 열차 조건을 빠뜨리면 가능이 나온다",
       "raw": "11월 19일 목요일이에요. 오후 2시에 창덕궁 들어가서 한 시간 반 보고, 4시에 덕수궁에서 한 시간 볼게요. 그다음 서울역에서 KTX를 꼭 타야 하는데 기차 시간은 아직 안 정했어요.",
       "date": "2026-11-19",
       "date_source": "inferred",
@@ -69,11 +111,24 @@
       "legs": {
         "창덕궁|덕수궁": {"minutes": 15, "mode": "transit", "is_lower_bound": false,
                        "source": "synthetic_fixture", "method": "synthetic_fixture"}
-      }
+      },
+      "expect_checks": [
+        {"type": "CLOSED_DAY", "target": "창덕궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "창덕궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "창덕궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "창덕궁 → 덕수궁", "status": "pass"},
+        {"type": "CLOSED_DAY", "target": "덕수궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "덕수궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "덕수궁", "status": "pass"}
+      ],
+      "expect_hard_constraints": [{"id": "HC1", "status": "unknown"}]
     },
     {
-      "id": "N04-열차시각추정",
+      "id": "N04-열차시각뒤문장",
       "set": "new",
+      "labeled_by": "Claude 초안 + 사용자(⚑)",
+      "expect": "feasible",
+      "why": "'8시 반' 열차가 문장 맨 앞에 와 기댈 앞 시각은 없지만, '그 전에 오후 2시…' 로 20:30 이 정해진다고 본다(사용자 결정). 18:00 에 미술관을 나와 15분이면 18:15 도착, 권장 도착 20:15 전이다. 경복궁 → 미술관은 권장 여유 10분을 딱 맞게 채운다",
       "raw": "12월 4일 금요일이에요. 8시 반에 서울역에서 KTX를 꼭 타야 해서, 그 전에 오후 2시에 경복궁 들어가서 두 시간 보고 4시 반에 서울시립미술관 서소문본관에서 한 시간 반 볼게요.",
       "date": "2026-12-04",
       "date_source": "inferred",
@@ -83,7 +138,7 @@
         {"place": "서울시립미술관 서소문본관", "start": "16:30", "dwell_minutes": 90}
       ],
       "hard_constraints": [
-        {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30", "time_source": "inferred",
+        {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30", "time_source": "explicit",
          "buffer_rule": "rail_boarding", "source": "user_stated", "raw": "8시 반에 서울역에서 KTX를 꼭 타야 해서"}
       ],
       "legs": {
@@ -91,11 +146,24 @@
                                     "source": "synthetic_fixture", "method": "synthetic_fixture"},
         "서울시립미술관 서소문본관|서울역": {"minutes": 15, "mode": "transit", "is_lower_bound": false,
                                     "source": "synthetic_fixture", "method": "synthetic_fixture"}
-      }
+      },
+      "expect_checks": [
+        {"type": "CLOSED_DAY", "target": "경복궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "경복궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "경복궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "경복궁 → 서울시립미술관 서소문본관", "status": "pass"},
+        {"type": "CLOSED_DAY", "target": "서울시립미술관 서소문본관", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "서울시립미술관 서소문본관", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "서울시립미술관 서소문본관", "status": "pass"}
+      ],
+      "expect_hard_constraints": [{"id": "HC1", "status": "pass"}]
     },
     {
       "id": "N05-택시안탐",
       "set": "new",
+      "labeled_by": "Claude 초안",
+      "expect": "undetermined",
+      "why": "택시를 안 탄다고 했다. 창덕궁 → 덕수궁은 대중교통 35분이라 5분 늦을 것 같고 택시 15분이면 닿지만, 택시는 보지 않는다. 예상 이동시간으로만 늦으니 위반이 아니라 미확인이다. 택시로 통과시키면 가능이 나온다",
       "raw": "11월 26일 목요일이에요. 택시는 안 타고 대중교통으로만 다닐 거예요. 오전 10시에 창덕궁 들어가서 한 시간 반 보고, 낮 12시에 덕수궁 한 시간, 오후 1시 반에 서울시립미술관 서소문본관에서 한 시간 볼게요.",
       "date": "2026-11-26",
       "date_source": "inferred",
@@ -114,11 +182,27 @@
                                          "source": "synthetic_fixture", "method": "synthetic_fixture"}]},
         "덕수궁|서울시립미술관 서소문본관": {"minutes": 5, "mode": "walk", "is_lower_bound": false,
                                     "source": "synthetic_fixture", "method": "synthetic_fixture"}
-      }
+      },
+      "expect_checks": [
+        {"type": "CLOSED_DAY", "target": "창덕궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "창덕궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "창덕궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "창덕궁 → 덕수궁", "status": "unknown"},
+        {"type": "CLOSED_DAY", "target": "덕수궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "덕수궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "덕수궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "덕수궁 → 서울시립미술관 서소문본관", "status": "pass"},
+        {"type": "CLOSED_DAY", "target": "서울시립미술관 서소문본관", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "서울시립미술관 서소문본관", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "서울시립미술관 서소문본관", "status": "pass"}
+      ]
     },
     {
       "id": "N06-정오약속",
       "set": "new",
+      "labeled_by": "Claude 초안 + 사용자(⚑)",
+      "expect": "undetermined",
+      "why": "오후 1시 광화문 약속 뒤에도 덕수궁 · 미술관 일정이 이어지는 하루 중간 약속이다. 약속은 창덕궁에서 광화문까지 이동시간 근거가 없어 미확인으로 알린다. 약속을 사이에 둔 창덕궁 → 덕수궁 이동도 실제 동선이 아니라 미확인으로 본다(사용자 결정). 나머지 네 곳은 11월 토요일 시간표 안이다",
       "raw": "11월 21일 토요일이에요. 오전 9시 반에 경복궁 들어가서 한 시간 보고, 11시에 창덕궁 한 시간 볼게요. 오후 1시까지는 광화문 앞에서 친구를 꼭 만나야 해요. 그다음 오후 2시에 덕수궁 한 시간, 오후 4시에 서울시립미술관 서소문본관에서 한 시간 반 볼게요.",
       "date": "2026-11-21",
       "date_source": "inferred",
@@ -140,7 +224,25 @@
                        "source": "synthetic_fixture", "method": "synthetic_fixture"},
         "덕수궁|서울시립미술관 서소문본관": {"minutes": 5, "mode": "walk", "is_lower_bound": false,
                                     "source": "synthetic_fixture", "method": "synthetic_fixture"}
-      }
+      },
+      "expect_checks": [
+        {"type": "CLOSED_DAY", "target": "경복궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "경복궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "경복궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "경복궁 → 창덕궁", "status": "pass"},
+        {"type": "CLOSED_DAY", "target": "창덕궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "창덕궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "창덕궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "창덕궁 → 덕수궁", "status": "unknown"},
+        {"type": "CLOSED_DAY", "target": "덕수궁", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "덕수궁", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "덕수궁", "status": "pass"},
+        {"type": "INSUFFICIENT_TRAVEL_TIME", "target": "덕수궁 → 서울시립미술관 서소문본관", "status": "pass"},
+        {"type": "CLOSED_DAY", "target": "서울시립미술관 서소문본관", "status": "pass"},
+        {"type": "ADMISSION_NOT_POSSIBLE", "target": "서울시립미술관 서소문본관", "status": "pass"},
+        {"type": "DWELL_NOT_COMPLETABLE", "target": "서울시립미술관 서소문본관", "status": "pass"}
+      ],
+      "expect_hard_constraints": [{"id": "HC1", "status": "unknown"}]
     }
   ]
 }
