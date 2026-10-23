@@ -1183,7 +1183,9 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
 
     # ④ 장소 검사 ⑤ 구간 검사 — 화면 줄과 맞도록 일정 순서로 잇는다(같은 장소를 두 번 가도 섞이지 않게)
     place_checks, closed_statuses = _place_checks([st for st in seq if st], visit_date, facts, policy, date_dep)
-    checks = _in_itinerary_order(seq, stop_inputs, place_checks)
+    untimed = {i: _untimed_place_checks(s, stop_inputs[i][0], visit_date, facts, policy, date_dep)
+               for i, s in enumerate(itinerary["stops"]) if stop_inputs[i] and s.get("place")}
+    checks = _in_itinerary_order(seq, stop_inputs, untimed, place_checks)
     checks += _travel_checks(seq, stop_inputs, facts, policy, closed_statuses, visit_date,
                              itinerary.get("avoid_taxi", False))
     for n, c in enumerate(checks, 1):
@@ -1335,11 +1337,32 @@ def _place_checks(stops, visit_date, facts, policy, date_dep) -> tuple[list[dict
     return checks, closed_statuses
 
 
-def _in_itinerary_order(seq, stop_inputs, place_checks) -> list[dict]:
-    """장소 검사(입력이 갖춰진 장소마다 휴무 · 입장 · 체류 셋)와 입력 검사를 일정 순서로 잇는다."""
+def _untimed_place_checks(s: dict, missing: dict, visit_date: str, facts: dict, policy: dict,
+                          date_dep: list[dict]) -> list[dict]:
+    """시각이 없거나 읽을 수 없는 장소의 휴무 · 입장 · 체류. 휴무일은 날짜만으로 확인하고, 입장은 시각을 묻는다.
+    missing 은 그 장소의 입력 검사(MISSING_START_TIME · INVALID_TIME)다."""
+    # ⭐ 확인할 수 있는 검사는 한다(3차 피드백). 1단계에서는 다른 장소의 검사만 계속하고, 시각이 빠진 장소 자체는
+    #    검사를 하나도 하지 않았다. 휴무일은 시각이 없어도 날짜로 확인된다 — 월요일 창덕궁에 시각이 없다고 휴무를 보지
+    #    않으면 확인할 수 있는 위반을 놓치고 보류를 낸다(새 평가 N02 에서 드러났다)
+    name = s["place"]
+    support = support_scope(s, facts)
+    place = facts["places"][name] if support == "supported" else None
+    closed = unconfirmed(check_closed_day(name, place, visit_date, facts, support), date_dep)
+    if closed["status"] == FAIL:
+        entry = check("ADMISSION_NOT_POSSIBLE", name, NA, reason="휴무일로 확정되어 운영시간 검사가 성립하지 않는다")
+    else:
+        entry = check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN, unknown_reason=missing["unknown_reason"],
+                      detail=missing["detail"], how_to_resolve=missing["how_to_resolve"])
+    # 체류는 입장을 따라간다 — 시각을 몰라 입장이 미확인이면 체류도 미확인, 쉬는 날이면 해당 없음(check_dwell)
+    return [closed, entry, check_dwell(name, place, visit_date, None, None, entry, policy, facts["holidays"])]
+
+
+def _in_itinerary_order(seq, stop_inputs, untimed, place_checks) -> list[dict]:
+    """장소 검사(장소마다 휴무 · 입장 · 체류 셋)와 입력 검사를 일정 순서로 잇는다. 시각이 빠진 장소는 untimed 의
+    검사 셋을, 이름이 빠진 장소는 입력 검사를 넣는다."""
     out, it = [], iter(place_checks)
-    for st, inputs in zip(seq, stop_inputs):
-        out += inputs if st is None else [next(it), next(it), next(it)]
+    for i, (st, inputs) in enumerate(zip(seq, stop_inputs)):
+        out += untimed[i] if i in untimed else inputs if st is None else [next(it), next(it), next(it)]
     return out
 
 

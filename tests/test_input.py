@@ -16,10 +16,11 @@ def reasons(out):
 
 
 def test_unreadable_start_time_is_asked_not_crashed(facts, policy):
+    """휴무일은 시각 없이 날짜로 확인하고(목요일 경복궁은 연다), 입장 · 체류는 시각을 다시 묻는다(2026-10-23 새 평가)."""
     it = {"date": THURSDAY, "stops": [{"place": "경복궁", "start": "1:00 PM", "dwell_minutes": 60}]}
     out = judge(it, facts, policy)
     assert out["summary"]["verdict"] == "undetermined"
-    assert reasons(out) == ["INVALID_TIME"]
+    assert reasons(out) == [None, "INVALID_TIME", "INVALID_TIME"]
 
 
 def test_unreadable_train_time_is_asked_not_crashed(facts, policy):
@@ -36,6 +37,6 @@ def test_unreadable_train_time_is_asked_not_crashed(facts, policy):
 
 
 def test_missing_start_time_is_asked(facts, policy):
-    """대조군: 시각이 아예 없으면 지금처럼 MISSING_START_TIME 이다."""
+    """대조군: 시각이 아예 없으면 MISSING_START_TIME 으로 묻는다. 휴무일은 그대로 확인한다."""
     it = {"date": THURSDAY, "stops": [{"place": "경복궁", "dwell_minutes": 60}]}
-    assert reasons(judge(it, facts, policy)) == ["MISSING_START_TIME"]
+    assert reasons(judge(it, facts, policy)) == [None, "MISSING_START_TIME", "MISSING_START_TIME"]

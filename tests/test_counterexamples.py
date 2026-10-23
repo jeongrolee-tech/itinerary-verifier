@@ -220,7 +220,6 @@ def place_checks(result, name):
     return {c["type"]: c for c in result["checks"] if c["target"] == name}
 
 
-@pytest.mark.xfail(strict=True, reason="시각이 빠진 장소는 검사를 하나도 만들지 않아 휴무 위반을 놓친다")
 def test_closed_place_without_time_is_still_caught(facts, policy):
     """월요일 창덕궁(정기휴일)에 시각이 없다 — 휴무일은 날짜만으로 확인한다. 놓치면 불가능 대신 보류다."""
     result = judge({"date": MONDAY, "stops": [{"place": PALACE, "start": "10:00", "dwell_minutes": 60},
