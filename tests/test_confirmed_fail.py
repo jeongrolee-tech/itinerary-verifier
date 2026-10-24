@@ -32,7 +32,7 @@ def closed_day(result, name):
 ])
 def test_closed_day_tells_why_and_what_to_do(facts, policy, date, name, why):
     """휴무 위반은 "휴무일이다" 에서 끝내지 않고 왜 쉬는지와 무엇을 하면 되는지 안내한다(2026-10-23).
-    쉬는 곳이라도 일부러 갈 수 있으니 묻지 않고 알린다 — 판정은 위반 그대로다."""
+    휴무일인 곳이라도 일부러 갈 수 있으니 묻지 않고 알린다 — 판정은 위반 그대로다."""
     c = closed_day(judge({"date": date, "stops": [{"place": name, "start": "14:00", "dwell_minutes": 60}]},
                          facts, policy), name)
     assert c["status"] == FAIL

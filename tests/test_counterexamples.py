@@ -208,7 +208,7 @@ def test_taxi_is_used_when_not_excluded(facts, policy):
 # (docs/experiments/2026-10-23-new-eval-first-run.md). 기대 결과는 그 정답과 사용자 결정에서 왔다.
 #   - 확인할 수 있는 검사는 한다: 시각이 없어도 휴무일은 날짜만으로 확인한다
 #   - 해야 하는데 못 한 검사는 미확인, 할 필요가 없는 검사만 해당 없음(멘토 T28 지적)
-#   - 쉬는 곳이라도 일부러 갈 수 있으니, 쉬는 곳이 낀 이동도 다른 이동처럼 본다
+#   - 휴무일인 곳이라도 일부러 갈 수 있으니, 휴무일인 곳이 낀 이동도 다른 이동처럼 본다
 #   - 이동 사이에 필수 일정이 끼면 그 구간 계산은 실제 동선이 아니다
 
 from test_travel_estimate import estimate  # noqa: E402
