@@ -1,18 +1,18 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20261023-150248",
+  "run_id": "run-20261025-224526",
   "version": "core-0.2",
-  "ran_at": "2026-10-23T06:02:48.698190+00:00",
+  "ran_at": "2026-10-25T13:45:26.556640+00:00",
   "facts_snapshot": "facts-2026-10-20",
   "holidays_verified": true,
   "suite": "tests.json",
   "labeled_at": "2026-10-14",
   "conditions": {
-    "code_commit": "6e9809a0ad2d1851b86cff7175151bc4a07fc239",
+    "code_commit": "1caf37caac0b5253056bdc0e83617fcbcc5e4268",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "tests.json": "2edf9d2ba978",
+      "tests.json": "13845980b4c0",
       "facts.json": "5e2bb7b1fde0",
       "policy.json": "1e3605504d71"
     }
@@ -24,7 +24,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -2110,7 +2110,7 @@
       "expect": "feasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -3678,7 +3678,7 @@
       "expect": "infeasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -5191,7 +5191,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -6414,6 +6414,500 @@
           }
         }
       ]
+    },
+    {
+      "id": "T36-시각빠진곳틈있음",
+      "set": "dev",
+      "expect": "feasible",
+      "match": true,
+      "problems": [],
+      "elapsed_ms": 0.0,
+      "label_current": true,
+      "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "places.덕수궁.closed_days.weekly [MON]",
+          "places.창덕궁.closed_days.weekly [MON]",
+          "places.경복궁.closed_days.weekly [TUE]",
+          "places.덕수궁.hours 09:00~21:00, last_admission 20:00",
+          "places.창덕궁.hours (11·12·1월) 09:00~17:30, last_admission 16:30",
+          "places.경복궁.hours (11·12·1·2월) 09:00~17:00, last_admission 16:00",
+          "policy.buffer_minutes.transit_leg 10"
+        ],
+        "assumptions": [],
+        "missing": []
+      },
+      "date": "2026-11-18",
+      "date_source": "inferred",
+      "weekday": "WED",
+      "weekday_stated": "WED",
+      "is_holiday": false,
+      "summary": {
+        "verdict": "feasible",
+        "message": "확인한 정보와 검사 범위 내에서 위반이 발견되지 않았습니다",
+        "counts": {
+          "pass": 11,
+          "fail": 0,
+          "unknown": 0,
+          "not_applicable": 1
+        }
+      },
+      "assumptions": [
+        {
+          "id": "A1",
+          "field": "date",
+          "value": "2026-11-18",
+          "source": "llm_inferred",
+          "rule": "extract.inferred_date",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "ask_user": "방문 날짜가 맞는지 확인해 주세요"
+        }
+      ],
+      "checks": [
+        {
+          "type": "CLOSED_DAY",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-001"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "09:00",
+            "close": "21:00",
+            "last_admission": "20:00",
+            "planned_time": "10:00",
+            "entry_at": "10:00",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-22",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-002"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 60,
+            "dwell_source": "user_stated",
+            "end_time": "11:00",
+            "closing_time": "21:00"
+          },
+          "id": "chk-003"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-004"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "09:00",
+            "close": "17:30",
+            "last_admission": "16:30",
+            "planned_time": "11:30",
+            "entry_at": "11:30",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-22",
+            "valid_until": "2026-12-31"
+          },
+          "notice": "창덕궁에는 11:30~13:35 사이에 들어가면 돼요. 들어갈 시각을 말하지 않아서 덕수궁에서 나와 바로 가는 것으로 계산했어요",
+          "window": {
+            "from": "11:30",
+            "to": "13:35",
+            "before": false
+          },
+          "id": "chk-005"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 90,
+            "dwell_source": "user_stated",
+            "end_time": "13:00",
+            "closing_time": "17:30"
+          },
+          "id": "chk-006"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "TUE"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-17",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-007"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "09:00",
+            "close": "17:00",
+            "last_admission": "16:00",
+            "planned_time": "15:30",
+            "entry_at": "15:30",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-008"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 60,
+            "dwell_source": "user_stated",
+            "end_time": "16:30",
+            "closing_time": "17:00"
+          },
+          "id": "chk-009"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "덕수궁 → 창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "depart_at": "11:00",
+            "travel_minutes": 20,
+            "buffer_minutes": 10,
+            "arrival": "11:20",
+            "planned_arrival": "11:30",
+            "arrive_by": "11:30",
+            "mode": "transit",
+            "method": "synthetic_fixture",
+            "source": "synthetic_fixture",
+            "snapshot_id": null,
+            "checked_at": null,
+            "is_lower_bound": false,
+            "excluded_from_travel_time": null
+          },
+          "detail": "대중교통 20분에 권장 여유 10분을 더해도 11:30까지 닿는다",
+          "id": "chk-010"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "창덕궁 → 경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "depart_at": "13:00",
+            "travel_minutes": 15,
+            "buffer_minutes": 10,
+            "arrival": "13:15",
+            "planned_arrival": "15:30",
+            "arrive_by": "15:30",
+            "mode": "transit",
+            "method": "synthetic_fixture",
+            "source": "synthetic_fixture",
+            "snapshot_id": null,
+            "checked_at": null,
+            "is_lower_bound": false,
+            "excluded_from_travel_time": null
+          },
+          "detail": "대중교통 15분에 권장 여유 10분을 더해도 15:30까지 닿는다",
+          "id": "chk-011"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "경복궁 → (없음)",
+          "status": "not_applicable",
+          "severity": null,
+          "reason": "마지막 장소라 다음 구간이 없다",
+          "id": "chk-012"
+        }
+      ],
+      "hard_constraints": []
+    },
+    {
+      "id": "T37-시각빠진곳틈없음",
+      "set": "dev",
+      "expect": "infeasible",
+      "match": true,
+      "problems": [],
+      "elapsed_ms": 1.0,
+      "label_current": true,
+      "stale_reason": null,
+      "expect_applied": {
+        "facts": [
+          "places.덕수궁.closed_days.weekly [MON]",
+          "places.창덕궁.closed_days.weekly [MON]",
+          "places.경복궁.closed_days.weekly [TUE]",
+          "places.덕수궁.hours 09:00~21:00, last_admission 20:00",
+          "places.창덕궁.hours (11·12·1월) 09:00~17:30, last_admission 16:30",
+          "places.경복궁.hours (11·12·1·2월) 09:00~17:00, last_admission 16:00",
+          "policy.buffer_minutes.transit_leg 10"
+        ],
+        "assumptions": [],
+        "missing": [
+          "창덕궁 시작 시각 — 사용자에게 묻는다"
+        ]
+      },
+      "date": "2026-11-18",
+      "date_source": "inferred",
+      "weekday": "WED",
+      "weekday_stated": "WED",
+      "is_holiday": false,
+      "summary": {
+        "verdict": "infeasible",
+        "message": "확인한 정보에서 실행할 수 없는 부분이 발견되었습니다",
+        "counts": {
+          "pass": 7,
+          "fail": 1,
+          "unknown": 3,
+          "not_applicable": 1
+        }
+      },
+      "assumptions": [
+        {
+          "id": "A1",
+          "field": "date",
+          "value": "2026-11-18",
+          "source": "llm_inferred",
+          "rule": "extract.inferred_date",
+          "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
+          "ask_user": "방문 날짜가 맞는지 확인해 주세요"
+        }
+      ],
+      "checks": [
+        {
+          "type": "CLOSED_DAY",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-001"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "09:00",
+            "close": "21:00",
+            "last_admission": "20:00",
+            "planned_time": "10:00",
+            "entry_at": "10:00",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-22",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-002"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "덕수궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 180,
+            "dwell_source": "user_stated",
+            "end_time": "13:00",
+            "closing_time": "21:00"
+          },
+          "id": "chk-003"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "창덕궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "MON"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-16",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-004"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "창덕궁",
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "MISSING_START_TIME",
+          "detail": "방문 시작 시각이 없어 입장과 이동시간을 계산할 수 없다",
+          "how_to_resolve": {
+            "user": "창덕궁에 몇 시에 도착할 예정인가요?"
+          },
+          "id": "chk-005"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "창덕궁",
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "MISSING_START_TIME",
+          "detail": "입장을 확인하지 못해 체류를 마칠 수 있는지도 확인하지 못했다",
+          "how_to_resolve": {
+            "user": "창덕궁에 몇 시에 도착할 예정인가요?"
+          },
+          "depends_on_assumptions": null,
+          "id": "chk-006"
+        },
+        {
+          "type": "CLOSED_DAY",
+          "target": "경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "weekly": [
+              "TUE"
+            ],
+            "fixed_dates": null,
+            "exception_rule": "shift_to_next_nonholiday",
+            "effective_closed_date": "2026-11-17",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-007"
+        },
+        {
+          "type": "ADMISSION_NOT_POSSIBLE",
+          "target": "경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "open": "09:00",
+            "close": "17:00",
+            "last_admission": "16:00",
+            "planned_time": "14:00",
+            "entry_at": "14:00",
+            "source": "curated",
+            "url": "https://royal.khs.go.kr/ROYAL/contents/R702000000.do",
+            "checked_at": "2026-09-21",
+            "valid_until": "2026-12-31"
+          },
+          "id": "chk-008"
+        },
+        {
+          "type": "DWELL_NOT_COMPLETABLE",
+          "target": "경복궁",
+          "status": "pass",
+          "severity": null,
+          "evidence": {
+            "dwell_minutes": 60,
+            "dwell_source": "user_stated",
+            "end_time": "15:00",
+            "closing_time": "17:00"
+          },
+          "id": "chk-009"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "덕수궁 → 창덕궁",
+          "status": "unknown",
+          "severity": null,
+          "unknown_reason": "MISSING_START_TIME",
+          "detail": "앞이나 뒤 장소의 입력이 빠져 이동을 판정하지 못한다",
+          "how_to_resolve": {
+            "user": "창덕궁에 몇 시에 도착할 예정인가요?"
+          },
+          "id": "chk-010"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "창덕궁 → 경복궁",
+          "status": "fail",
+          "severity": "blocking",
+          "evidence": {
+            "depart_at": "15:00",
+            "planned_arrival": "14:00",
+            "arrive_by": "14:00",
+            "travel_minutes": 0
+          },
+          "detail": "창덕궁에 들어갈 시각을 말하지 않아 가장 이른 입장 시각(13:00)으로 봤다. 창덕궁에서 빨라도 15:00에 나오는데 경복궁에는 14:00까지 가야 한다 — 이동시간이 0분이어도 늦는다",
+          "id": "chk-011"
+        },
+        {
+          "type": "INSUFFICIENT_TRAVEL_TIME",
+          "target": "경복궁 → (없음)",
+          "status": "not_applicable",
+          "severity": null,
+          "reason": "마지막 장소라 다음 구간이 없다",
+          "id": "chk-012"
+        }
+      ],
+      "hard_constraints": []
     }
   ]
 }
