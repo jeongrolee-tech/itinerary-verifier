@@ -37,6 +37,7 @@ def test_unreadable_train_time_is_asked_not_crashed(facts, policy):
 
 
 def test_missing_start_time_is_asked(facts, policy):
-    """대조군: 시각이 아예 없으면 MISSING_START_TIME 으로 묻는다. 휴무일은 그대로 확인한다."""
-    it = {"date": THURSDAY, "stops": [{"place": "경복궁", "dwell_minutes": 60}]}
+    """대조군: 시각도 체류시간도 없으면 들어갈 시간대를 계산할 수 없어 MISSING_START_TIME 으로 묻는다. 휴무일은
+    그대로 확인한다. 체류시간을 말했으면 시간대를 알린다(test_time_window, 2026-10-25)."""
+    it = {"date": THURSDAY, "stops": [{"place": "경복궁"}]}
     assert reasons(judge(it, facts, policy)) == [None, "MISSING_START_TIME", "MISSING_START_TIME"]
