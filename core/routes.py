@@ -22,7 +22,7 @@ import urllib.request
 from datetime import date, datetime, timedelta
 
 from spend import count_tmap
-from verdict import HHMM, crossing_constraint, is_midday, judge, segment_key
+from verdict import HHMM, crossing_constraint, is_midday, judge, segment_key, window_candidate, window_departure
 
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
@@ -167,12 +167,34 @@ def _readable(stop: dict) -> bool:
     return bool(re.fullmatch(HHMM, str(stop.get("start") or "")))
 
 
+def _departure(day: date, i: int, k: str, a: dict, b: dict, itinerary: dict, entry_times: dict, facts: dict,
+               policy: dict) -> datetime | None:
+    """구간 a → b 를 TMAP 에 물을 출발 시각 — 판정 코어가 그 구간을 판정할 때 쓰는 출발 시각과 같다. 판정 코어가
+    이 구간을 판정하지 않으면 None 이다. facts 에는 앞 구간에서 받은 이동시간이 들어 있다."""
+    if "area" in (a.get("scope"), b.get("scope")):
+        return None  # 구역은 대표 지점으로 길을 찾지 않는다. 판정 코어도 이 구간을 판정하지 않는다
+    hc_leg = k.startswith("HC")
+    # 시각이 빠진 장소의 앞뒤 구간은 판정 코어가 그 장소를 가장 이르게 들어가는 시각으로 판정할 수 있을 때만
+    # 묻는다(verdict 의 '시각이 빠진 장소의 시간대'). 앞 구간은 앞 장소를 나서는 시각이다
+    if _readable(a) and (hc_leg or _readable(b) or window_candidate(itinerary, i + 1, facts, policy)):
+        if not hc_leg and _readable(b) and crossing_constraint(itinerary.get("hard_constraints") or [], a, b):
+            return None  # 사이에 필수 일정이 낀 구간은 판정 코어가 계산하지 않는다(미확인)
+        entry_at = entry_times.get(i, a["start"])
+        return (datetime.combine(day, datetime.strptime(entry_at, "%H:%M").time())
+                + timedelta(minutes=a.get("dwell_minutes") or 0))
+    # 뒤 구간은 가장 이르게 들어갔다가 나서는 시각이다. 앞 구간에서 받은 이동시간으로 계산한다
+    if not hc_leg and _readable(b) and (leave := window_departure(itinerary, i, facts, policy)):
+        return datetime.combine(day, datetime.strptime(leave, "%H:%M").time())
+    return None
+
+
 def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dict, dict]:
     """일정의 구간마다 예상 이동시간을 받는다. (판정 코어의 legs 에 덮어쓸 구간, 받지 못한 구간 → Miss)
 
     출발 시각은 판정 코어가 계산한 입장 시각에 사용자가 말한 체류시간을 더한 것이다. 개장 전에
     도착하면 개장까지 기다린 뒤 체류를 시작한다. 체류를 모르면 바로 나온다고 본다 — 판정 코어도
-    체류를 모르면 0분으로 보고, 0분으로도 늦을 때만 확정한다.
+    체류를 모르면 0분으로 보고, 0분으로도 늦을 때만 확정한다. 시각이 빠진 장소는 가장 이르게 들어가는
+    시각으로 본다(_departure). 구간을 일정 순서로 묻기 때문에 뒤 구간을 물을 때는 앞 구간 값이 있다.
 
     대중교통 구간에는 같은 출발 시각의 택시를 대안(alternatives)으로 붙인다. 판정 코어가 대중교통으로
     '된다' 가 안 나올 때 본다. 걸어갈 만큼 가까운 구간과 택시를 안 탄다고 한 일정에는 붙이지 않는다.
@@ -200,12 +222,11 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
     day = date.fromisoformat(itinerary["date"])
     at, legs, misses = {}, {}, {}
     for i, k, a, b in pairs:
-        if not _readable(a) or (not k.startswith("HC") and not _readable(b)):
-            continue  # 양 끝 장소의 시각이 없거나 읽을 수 없으면 판정 코어도 이 구간을 판정하지 않는다
-        if "area" in (a.get("scope"), b.get("scope")):
-            continue  # 구역은 대표 지점으로 길을 찾지 않는다. 판정 코어도 이 구간을 판정하지 않는다
-        if not k.startswith("HC") and crossing_constraint(itinerary.get("hard_constraints") or [], a, b):
-            continue  # 사이에 필수 일정이 낀 구간은 판정 코어가 계산하지 않는다(미확인). 호출을 쓰지 않는다
+        # 앞 구간에서 받은 이동시간까지 넣어 묻는다 — 시각이 빠진 장소의 뒤 구간 출발 시각이 거기에 달렸다
+        depart = _departure(day, i, k, a, b, itinerary, entry_times,
+                            {**facts, "legs": {**facts["legs"], **legs}}, policy)
+        if depart is None:
+            continue  # 판정 코어가 이 구간을 판정하지 않는다 — 호출을 쓰지 않는다
         try:
             for name in (a["place"], b["place"]):
                 if name not in at:
@@ -215,9 +236,6 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
                         at[name] = e  # 못 찾은 장소는 다음 구간에서 다시 묻지 않는다
                 if isinstance(at[name], Miss):
                     raise at[name]
-            entry_at = entry_times.get(i, a["start"])
-            depart = (datetime.combine(day, datetime.strptime(entry_at, "%H:%M").time())
-                      + timedelta(minutes=a.get("dwell_minutes") or 0))
             # 받은 날짜 · 출발 시각을 붙인다. 판정 코어는 이것이 판정과 같을 때만 이 값을 쓴다(verdict.leg_for)
             legs[k] = {**leg(a["place"], at[a["place"]], b["place"], at[b["place"]], depart, key),
                        "depart_at": depart.strftime("%Y-%m-%dT%H:%M")}

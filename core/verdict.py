@@ -1504,6 +1504,37 @@ def _no_window(name, prev, arrive, at, fallback, date_dep) -> dict | None:
     return out if out["after"] or out["place"] != fallback else None
 
 
+def _timed_stops(itinerary: dict, facts: dict, policy: dict) -> tuple[list, list]:
+    """입력 검사와 장소 정리 — 시각 있는 장소는 입장 시각(entry)까지 정한다. judge 의 ③ ④ 와 같은 계산이다."""
+    stop_inputs = [_stop_input(i, s) for i, s in enumerate(itinerary["stops"])]
+    seq = [None if stop_inputs[i] else _prepare_stop(i, s, facts, policy, [])
+           for i, s in enumerate(itinerary["stops"])]
+    _place_checks([st for st in seq if st], itinerary["date"], facts, policy, [])
+    return stop_inputs, seq
+
+
+def window_candidate(itinerary: dict, i: int, facts: dict, policy: dict) -> bool:
+    """길찾기용 — 장소 i 가 시각이 빠졌지만 시간대를 계산할 수 있는 장소인가. 그 앞 구간 이동시간을 물을지 정한다."""
+    stop_inputs, seq = _timed_stops(itinerary, facts, policy)
+    return _window_candidate(i, itinerary, seq, stop_inputs, facts)
+
+
+def window_departure(itinerary: dict, i: int, facts: dict, policy: dict) -> str | None:
+    """길찾기용 — 시각이 빠진 장소 i 에 가장 이르게 들어갔다가 나서는 시각. 판정 코어가 뒤 구간을 판정하는 출발
+    시각과 같아야 받은 이동시간을 쓴다(leg_for). facts 에는 앞 구간에서 받은 이동시간이 있어야 한다."""
+    stop_inputs, seq = _timed_stops(itinerary, facts, policy)
+    if not _window_candidate(i, itinerary, seq, stop_inputs, facts):
+        return None
+    arrive = _earliest_arrival(i, itinerary, seq, facts, policy)
+    if arrive is None:
+        return None
+    st = _prepare_stop(i, {**itinerary["stops"][i], "start": to_hhmm(arrive), "start_source": "explicit"},
+                       facts, policy, [])
+    _place_checks([st], itinerary["date"], facts, policy, [])  # 문 열기 전에 닿으면 여는 시각에 들어간다(entry)
+    leave = departure(st)
+    return leave if to_min(leave) < 24 * 60 else None  # 자정을 넘겨 나서면 그날 길을 묻지 않는다
+
+
 def _in_itinerary_order(seq, stop_inputs, untimed, place_checks) -> list[dict]:
     """장소 검사(장소마다 휴무 · 입장 · 체류 셋)와 입력 검사를 일정 순서로 잇는다. 시각이 빠진 장소는 untimed 의
     검사 셋을, 이름이 빠진 장소는 입력 검사를 넣는다."""

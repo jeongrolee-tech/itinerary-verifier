@@ -7,17 +7,13 @@
 검사만 위반이다. 그 밖에는 지금처럼 시각을 묻는다 — 앞뒤 장소도 시각이 빠졌거나, 체류시간을 말하지 않았거나,
 쓸 수 있는 이동시간이 없거나, 필수 일정이 걸린 경우다.
 
-기대 결과는 판정 코드를 돌리기 전에 facts.json 운영시간과 테스트용 이동시간으로 손으로 계산했다.
-xfail(strict=True) 는 "지금 코드가 틀렸고, 고칠 작업이 정해져 있다" 는 표시다. 고치면 XPASS 가 되어 스위트가
-실패하므로, 그 작업에서 표시를 지운다.
+기대 결과는 판정 코드를 돌리기 전에 facts.json 운영시간과 테스트용 이동시간으로 손으로 계산했다. 이 테스트를
+xfail 로 먼저 커밋하고(e18c43f), 판정 · 일정 줄 · 길찾기를 고칠 때마다 표시를 지웠다.
 """
-
-import pytest
 
 from report import questions, timeline
 from routes import live_legs
-from test_routes import FakeTmap, poi, transit  # noqa: F401 — tmap 픽스처가 쓰는 가짜 TMAP
-from test_routes import tmap  # noqa: F401 — pytest 픽스처
+from test_routes import poi, tmap, transit  # noqa: F401 — tmap 은 가짜 TMAP 을 까는 pytest 픽스처다
 from test_travel_estimate import estimate
 from verdict import FAIL, PASS, UNKNOWN, judge
 
@@ -26,7 +22,6 @@ from verdict import FAIL, PASS, UNKNOWN, judge
 WEDNESDAY = "2026-11-18"
 THURSDAY = "2026-10-08"  # 경복궁 10월 09:00~18:00(입장마감 17:00)
 PLACE = ("CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE")
-pending = pytest.mark.xfail(strict=True, reason="시각이 빠진 장소의 시간대 계산을 아직 하지 않는다")
 
 
 def add_legs(facts):
@@ -167,7 +162,6 @@ def test_train_after_a_missing_last_stop_is_asked(facts, policy):
 
 # ── 길찾기 ──────────────────────────────────────────────────────────
 
-@pending
 def test_routes_ask_both_sides_of_a_missing_stop(tmap, facts, policy):
     """시각이 빠진 장소 앞뒤 구간도 TMAP 에 묻는다. 앞 구간은 덕수궁을 나서는 11:00, 뒤 구간은 가장 이르게
     들어가는 11:30(11:00 + 20분 + 여유 10분)에 90분을 더한 13:00 출발이다 — 받은 출발 시각에만 그 값을 쓴다."""
