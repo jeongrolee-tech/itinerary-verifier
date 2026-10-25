@@ -96,7 +96,6 @@ def test_only_stop_is_bounded_by_its_hours(facts, policy):
     assert result["summary"]["verdict"] == "feasible"
 
 
-@pending
 def test_timeline_shows_the_window(facts, policy):
     """화면 일정 줄의 시각 칸에 시간대를 적는다 — 시각을 말하지 않은 장소라 빈칸이었다."""
     add_legs(facts)

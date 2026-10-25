@@ -119,6 +119,13 @@ def _row(kind: str, time: str | None, title: str, lines: list[dict]) -> dict:
     return {"kind": kind, "time": time, "title": title, "status": status, "lines": lines}
 
 
+def _window_time(window: dict | None) -> str | None:
+    """시각을 말하지 않은 장소의 시각 칸 — 판정 코드가 계산한 들어갈 시간대(verdict._with_window). 없으면 빈칸이다."""
+    if not window:
+        return None
+    return f"{window['from']}~{window['to']}" + (" 전" if window["before"] else "")
+
+
 def timeline(itinerary: dict, result: dict) -> list[dict]:
     """일정 순서대로 줄을 만든다 — 장소마다 한 줄, 장소 사이 이동 한 줄, 끝에 필수 일정. result 는 바꾸지 않는다.
 
@@ -138,9 +145,10 @@ def timeline(itinerary: dict, result: dict) -> list[dict]:
 
     rows, stops = [], itinerary.get("stops") or []
     for i, s in enumerate(stops):
-        lines = [_line(c, CHECK_NAMES[t]) for t in INPUT_CHECKS + PLACE_CHECKS_IN_ORDER
-                 if (c := take(t, s["place"]))]
-        rows.append(_row("stop", s.get("start"), s["place"], lines))
+        taken = [(t, c) for t in INPUT_CHECKS + PLACE_CHECKS_IN_ORDER if (c := take(t, s["place"]))]
+        lines = [_line(c, CHECK_NAMES[t]) for t, c in taken]
+        window = next((c["window"] for _, c in taken if c.get("window")), None)
+        rows.append(_row("stop", s.get("start") or _window_time(window), s["place"], lines))
         if i + 1 < len(stops):
             target = f"{s['place']} → {stops[i + 1]['place']}"
             c = take("INSUFFICIENT_TRAVEL_TIME", target)
