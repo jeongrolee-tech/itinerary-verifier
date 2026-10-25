@@ -1199,9 +1199,13 @@ def judge(itinerary: dict, facts: dict, policy: dict) -> dict:
     place_checks = _place_checks([st for st in seq if st], visit_date, facts, policy, date_dep)
     untimed = {i: _untimed_place_checks(s, stop_inputs[i][0], visit_date, facts, policy, date_dep)
                for i, s in enumerate(itinerary["stops"]) if stop_inputs[i] and s.get("place")}
+    # 시각이 빠진 장소에 들어갈 틈이 있으면 묻지 않고 시간대를 알린다. 계산할 수 없으면 위 검사(시각을 묻는다) 그대로다
+    windows = {i: w for i in untimed
+               if (w := _windowed(i, itinerary, seq, stop_inputs, facts, policy, date_dep, untimed[i]))}
+    untimed.update({i: w["place"] for i, w in windows.items()})
     checks = _in_itinerary_order(seq, stop_inputs, untimed, place_checks)
     checks += _travel_checks(seq, stop_inputs, facts, policy, visit_date,
-                             itinerary.get("avoid_taxi", False), itinerary.get("hard_constraints") or [])
+                             itinerary.get("avoid_taxi", False), itinerary.get("hard_constraints") or [], windows)
     for n, c in enumerate(checks, 1):
         c["id"] = f"chk-{n:03d}"
 
@@ -1387,6 +1391,119 @@ def _outside_checks(name: str, place: dict | None, visit_date: str, facts: dict,
             check("DWELL_NOT_COMPLETABLE", name, NA, reason=reason)]
 
 
+# ── 시각이 빠진 장소의 시간대 ─────────────────────────────────────────
+# ⭐ 사용자는 장소마다 시각을 정해 두지 않는다("그다음 창덕궁에서 한 시간 반" — 2026-10-25 사용자 결정). 시각이
+#    빠졌다고 입장 · 체류 · 앞뒤 이동을 모두 묻는 대신, 앞 장소를 나와 바로 갔을 때(이동시간 + 권장 여유)를 가장
+#    이른 입장으로 보고 그때 다 되면 통과로 본다 — 되는 시각이 하나라도 있으면 일정은 된다. 시각은 채우지 않고
+#    들어갈 시간대를 알린다(3차 피드백: 추정한 시각을 확정된 입력으로 취급하지 않는다). 위반은 이동 0분으로 쳐도
+#    안 될 때만이다(2차 피드백 1번). TMAP 값은 받은 출발 시각에만 쓰므로(leg_for) 뒤 구간도 가장 이른 입장에서
+#    나서는 시각으로 묻고 판정한다(window_departure)
+
+def _window_candidate(i: int, itinerary: dict, seq: list, stop_inputs: list, facts: dict) -> bool:
+    """시각이 빠진 장소 i 의 시간대를 계산할 수 있는 일정인가. 이동시간은 아직 보지 않는다."""
+    s, visit_date, holidays = itinerary["stops"][i], itinerary["date"], facts["holidays"]
+    if [c["unknown_reason"] for c in stop_inputs[i]] != ["MISSING_START_TIME"]:
+        return False  # 시각이 있거나, 적었는데 읽지 못했거나, 장소 이름이 없다
+    if s.get("outside_only") or s.get("dwell_minutes") is None or support_scope(s, facts) != "supported":
+        return False  # 체류를 모르면 언제 나서는지 모른다. 구역 · 목록 밖 장소는 운영시간이 없다
+    place = facts["places"][s["place"]]
+    if hours_for(place, visit_date, holidays) is None or timed_day(place, visit_date, holidays):
+        return False  # 운영시간을 모르거나 회차로만 들어가는 날이다
+    prev = seq[i - 1] if i > 0 else None
+    nxt = seq[i + 1] if i + 1 < len(seq) else None
+    if (i > 0 and prev is None) or (i + 1 < len(seq) and nxt is None):
+        return False  # 앞이나 뒤 장소도 시각이 빠졌다 — 연달아 빠지면 가장 이른 시각을 정할 수 없다
+    if prev and (prev["start_dep"] or prev["scope"] == "area" or prev["dwell"]["source"] != "user_stated"):
+        return False  # 앞 장소를 나서는 시각이 추정이거나 모른다
+    if nxt and (nxt["start_dep"] or nxt["scope"] == "area"):
+        return False
+    lo, hi = to_min(prev["start"]) if prev else 0, to_min(nxt["start"]) if nxt else 24 * 60
+    # 그 사이에 필수 일정이 끼면 실제 동선을 모른다. 시각을 모르는 필수 일정은 끼는지도 모른다
+    return not any(not re.fullmatch(HHMM, str(hc.get("time") or "")) or lo <= to_min(hc["time"]) < hi
+                   for hc in itinerary.get("hard_constraints") or [])
+
+
+def _earliest_arrival(i: int, itinerary: dict, seq: list, facts: dict, policy: dict) -> int | None:
+    """시각이 빠진 장소 i 에 가장 이르게 닿는 시각(분) — 앞 장소를 나와 바로 와서 권장 여유까지 채운 시각.
+    앞 장소가 없으면 문 여는 시각이다. 쓸 수 있는 이동시간이 없거나 최소 이동시간뿐이면 None."""
+    s, visit_date = itinerary["stops"][i], itinerary["date"]
+    if i == 0:
+        return to_min(hours_for(facts["places"][s["place"]], visit_date, facts["holidays"])["open"])
+    prev = seq[i - 1]
+    depart = departure(prev)
+    leg = leg_for(facts, segment_key(prev["index"], prev["name"], s["place"]), prev["name"], s["place"],
+                  visit_date, depart)
+    if leg is None or leg.get("is_lower_bound") or not evidence_usable_on(leg, visit_date):
+        return None
+    arrive = to_min(depart) + leg["minutes"] + policy["buffer_minutes"]["transit_leg"]
+    return arrive if arrive < 24 * 60 else None
+
+
+def _windowed(i, itinerary, seq, stop_inputs, facts, policy, date_dep, fallback) -> dict | None:
+    """시각이 빠진 장소 i 를 가장 이르게 들어가는 시각으로 판정한다. {"place": 휴무 · 입장 · 체류, "before": 앞 이동,
+    "after": 뒤 이동} — 이동이 None 이면 그 구간은 시각을 묻는다. 계산할 수 없거나 확정할 것이 없으면 None 이고
+    fallback(시각을 묻는 검사) 그대로다."""
+    if not _window_candidate(i, itinerary, seq, stop_inputs, facts):
+        return None
+    arrive = _earliest_arrival(i, itinerary, seq, facts, policy)
+    if arrive is None:
+        return None
+    s, visit_date, avoid_taxi = itinerary["stops"][i], itinerary["date"], itinerary.get("avoid_taxi", False)
+    prev = seq[i - 1] if i > 0 else None
+    nxt = seq[i + 1] if i + 1 < len(seq) else None
+
+    def at(minute, dep):
+        """장소 i 에 minute 에 닿는다고 보고 장소 검사와 앞뒤 이동을 판정한다."""
+        st = _prepare_stop(i, {**s, "start": to_hhmm(minute), "start_source": "explicit"}, facts, policy, [])
+        place = _place_checks([st], visit_date, facts, policy, dep)
+        return (st, place, prev and check_travel(prev, st, facts, policy, visit_date, avoid_taxi),
+                nxt and check_travel(st, nxt, facts, policy, visit_date, avoid_taxi))
+
+    st, place, before, after = at(arrive, [])
+    if place[0]["status"] == FAIL:
+        return None  # 쉬는 날은 들어갈 시각과 상관없다 — 휴무 위반으로 알리는 fallback 그대로다
+    if all(c["status"] == PASS for c in [*place, before, after] if c):
+        if date_dep:  # 날짜를 추정했으면 장소 검사는 날짜를 확인하기 전까지 확정하지 않는다(시각 있는 장소와 같다)
+            place = at(arrive, date_dep)[1]
+        place[1] = _with_window(place[1], st, prev, nxt, after, visit_date, facts, policy)
+        return {"place": place, "before": before, "after": after}
+    return _no_window(s["place"], prev, arrive, at, fallback, date_dep)
+
+
+def _with_window(admission, st, prev, nxt, after, visit_date, facts, policy) -> dict:
+    """입장 검사에 들어갈 시간대를 붙인다 — 가장 이른 입장부터, 입장마감 · 폐장 전에 체류를 마칠 시각 · 다음 장소에
+    맞출 시각 중 가장 이른 것까지. 입장마감 정각은 공식 안내가 '…까지 입장' 이라고 적은 곳만 포함한다."""
+    h, dwell = hours_for(st["place"], visit_date, facts["holidays"]), st["dwell"]["value"]
+    limit = h.get("last_admission") or h["close"]
+    bounds = [(to_min(limit), bool(h.get("last_admission")) and not h.get("last_admission_rule")),
+              (to_min(h["close"]) - dwell, False)]
+    if nxt:  # 뒤 구간은 가장 이른 입장에서 나서는 시각의 이동시간이다. 늦게 나서면 당일 교통에 따라 달라질 수 있다
+        travel = after["evidence"]["travel_minutes"]
+        bounds.append((to_min(nxt["entry"]) - policy["buffer_minutes"]["transit_leg"] - travel - dwell, False))
+    latest, before = min(bounds, key=lambda b: (b[0], not b[1]))  # 같은 시각이면 '그 전' 쪽이 더 엄하다
+    span = f"{st['entry']}부터 {to_hhmm(latest)} 전에" if before else f"{st['entry']}~{to_hhmm(latest)} 사이에"
+    how = f"{prev['name']}에서 나와 바로 가는 것으로" if prev else "문 여는 시각부터"
+    admission = _add_notice(admission, f"{st['name']}에는 {span} 들어가면 돼요. "
+                                       f"들어갈 시각을 말하지 않아서 {how} 계산했어요")
+    admission["window"] = {"from": st["entry"], "to": to_hhmm(latest), "before": before}
+    return admission
+
+
+def _no_window(name, prev, arrive, at, fallback, date_dep) -> dict | None:
+    """가장 이른 시각에 안 되는 검사가 있을 때. 앞 장소를 나서는 바로 그 시각에 닿아도(이동 0분) 안 되는 검사만
+    위반으로 확정한다 — 더 늦게 들어가면 입장마감 · 폐장 · 다음 장소에 더 늦을 뿐이다. 나머지는 시각을 묻는다."""
+    st, place, _, after = at(to_min(departure(prev)) if prev else arrive, date_dep)
+    lead = f"{name}에 들어갈 시각을 말하지 않아 가장 이른 입장 시각({st['entry']})으로 봤다. "
+    out = {"place": list(fallback), "before": None, "after": None}
+    if place[1]["status"] == FAIL:  # 들어갈 수 없으니 체류는 볼 것이 없다(해당 없음)
+        out["place"][1:] = [{**place[1], "detail": lead + place[1]["detail"]}, place[2]]
+    elif place[2]["status"] == FAIL:
+        out["place"][2] = {**place[2], "detail": lead + place[2]["detail"]}
+    if after and after["status"] == FAIL:
+        out["after"] = {**after, "detail": lead + after["detail"]}
+    return out if out["after"] or out["place"] != fallback else None
+
+
 def _in_itinerary_order(seq, stop_inputs, untimed, place_checks) -> list[dict]:
     """장소 검사(장소마다 휴무 · 입장 · 체류 셋)와 입력 검사를 일정 순서로 잇는다. 시각이 빠진 장소는 untimed 의
     검사 셋을, 이름이 빠진 장소는 입력 검사를 넣는다."""
@@ -1396,9 +1513,9 @@ def _in_itinerary_order(seq, stop_inputs, untimed, place_checks) -> list[dict]:
     return out
 
 
-def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi, hard_constraints) -> list[dict]:
+def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi, hard_constraints, windows) -> list[dict]:
     """이웃한 장소 사이 구간마다 이동 검사. 마지막 장소 뒤는 구간이 없어 not_applicable 이다.
-    한쪽 장소의 입력이 빠졌으면(None) 그 구간은 판정하지 않고 같은 질문으로 묻는다."""
+    한쪽 장소의 시각이 빠졌으면(None) 그 장소의 시간대(windows)로 판정한 구간은 그 결과를, 아니면 같은 질문으로 묻는다."""
     checks = []
     for i, st in enumerate(seq):
         if i == len(seq) - 1:
@@ -1411,6 +1528,10 @@ def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi, hard
             checks.append(unconfirmed(
                 check_travel(st, seq[i + 1], facts, policy, visit_date, avoid_taxi),
                 st["start_dep"] + seq[i + 1]["start_dep"]))
+        elif (w := windows.get(i + 1)) and w["before"]:
+            checks.append(w["before"])
+        elif (w := windows.get(i)) and w["after"]:
+            checks.append(w["after"])
         else:
             missing = (stop_inputs[i] or stop_inputs[i + 1])[0]
             checks.append(check("INSUFFICIENT_TRAVEL_TIME", f"{_stop_name(seq, stop_inputs, i)} → "

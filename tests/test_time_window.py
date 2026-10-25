@@ -53,7 +53,6 @@ def moves(result):
 
 # ── 시간대를 찾는다 ─────────────────────────────────────────────────
 
-@pending
 def test_gap_is_found_and_told(facts, policy):
     """T36 — 덕수궁을 11:00 에 나와 20분 + 여유 10분이면 창덕궁에 11:30. 90분 보고 13:00 에 나와 15분 + 10분이면
     13:25 라 경복궁 15:30 전이다. 늦어도 15:30 − 10 − 15 − 90 = 13:35 에는 들어가야 한다. 묻지 않는다."""
@@ -67,7 +66,6 @@ def test_gap_is_found_and_told(facts, policy):
     assert result["summary"]["verdict"] == "feasible"
 
 
-@pending
 def test_first_stop_starts_at_opening(facts, policy):
     """앞 장소가 없으면 문 여는 09:00 부터다. 10:30 에 나와 15분 + 10분이면 10:55 라 경복궁 13:00 전이다.
     늦어도 13:00 − 10 − 15 − 90 = 11:05."""
@@ -80,7 +78,6 @@ def test_first_stop_starts_at_opening(facts, policy):
     assert result["summary"]["verdict"] == "feasible"
 
 
-@pending
 def test_last_stop_is_bounded_by_its_hours(facts, policy):
     """뒤 장소가 없으면 운영시간만 본다. 11:30 부터, 17:30 폐장 전에 90분을 마치려면 늦어도 16:00."""
     add_legs(facts)
@@ -91,7 +88,6 @@ def test_last_stop_is_bounded_by_its_hours(facts, policy):
     assert result["summary"]["verdict"] == "feasible"
 
 
-@pending
 def test_only_stop_is_bounded_by_its_hours(facts, policy):
     """장소가 하나뿐이어도 같다. 10월 8일 경복궁 한 시간 — 입장마감 17:00 정각은 공식 안내가 말하지 않아 그 전이다."""
     result = judge({"date": THURSDAY, "stops": [{"place": "경복궁", "dwell_minutes": 60}]}, facts, policy)
@@ -111,7 +107,6 @@ def test_timeline_shows_the_window(facts, policy):
 
 # ── 시간대가 없다 ───────────────────────────────────────────────────
 
-@pending
 def test_no_gap_even_without_travel_is_a_violation(facts, policy):
     """T37 — 덕수궁 10:00 부터 세 시간이면 13:00 에 나온다. 이동 0분으로 쳐도 창덕궁 두 시간이면 15:00 이라
     경복궁 14:00 에 늦는다 — 창덕궁 → 경복궁 위반. 창덕궁 입장 · 체류와 앞 이동은 시각을 몰라 지금처럼 묻는다."""
