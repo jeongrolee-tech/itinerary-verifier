@@ -215,7 +215,7 @@ RULES = """판정 규칙 — 판정 코드가 쓰는 규칙과 같다. 이 규�
      일정의 avoid_taxi 가 true 면(사용자가 택시를 안 탄다고 했다) 택시 대안을 보지 않는다.
   10. 휴무일인 곳이 끼어도 이동은 다른 이동처럼 본다 — 휴무일인 곳이라도 일부러 갈 수 있고, 휴무는 휴무일 검사가 알린다.
       구역(area)이 끼거나 구간 이동시간(legs)이 없으면
-      unknown 이다. 마지막 장소 뒤에는 이동이 없다. 구간 이동시간은 legs 에서 '출발|도착' 으로 찾는다.
+      unknown 이다. 마지막 장소 뒤에는 이동이 없다. 구간 이동시간은 사실 데이터의 legs 와 [이 일정의 테스트용 이동시간]에서 '출발|도착' 으로 찾는다.
       '번호:출발|도착' 키(번호는 0부터 센 출발 장소 순번)는 그 구간에만 쓰고, depart_at 이 그 구간을 나서는 시각과
       같을 때만 쓴다. 같은 장소 사이라도 출발 시각이 다르면 이동시간이 다르다.
 
@@ -271,7 +271,8 @@ def facts_for_llm(f: dict) -> dict:
 
     케이스별로 부분집합을 주면 arm 2 만 정보가 줄어들어, 차이가 판정 방식 때문인지
     정보량 때문인지 다시 구분할 수 없게 된다. 그래서 전체를 준다. 케이스에 테스트용 이동시간이
-    있으면 그것을 얹은 사실 데이터(labels.case_facts)를 arm 2 와 arm 3 에 똑같이 준다.
+    있으면 arm 3 은 그것을 얹은 사실 데이터(labels.case_facts)를 받고, arm 2 는 같은 이동시간을 일정 옆에
+    따로 받는다(llm_requests) — 내용은 같다.
     """
     # ⭐ 실제로 이 버그를 한 번 냈다. arm2 에는 케이스별 부분집합을, arm3 에는
     #    전체 facts 를 주고 있었다. 그러면 arm2 가 못 맞힌 게 판정 능력 때문인지
@@ -282,46 +283,97 @@ def facts_for_llm(f: dict) -> dict:
 SYSTEMS = {"llm_naive": SYSTEM_LLM_NAIVE, "llm_only": SYSTEM_LLM_ONLY, "llm_with_facts": SYSTEM_LLM_FACTS}
 
 
-def llm_requests(case: dict, case_f: dict) -> dict[str, dict]:
+def llm_requests(case: dict) -> dict[str, dict]:
     """LLM 방식마다 llm.ask 가 받는 인자. 이것으로 요청 지문을 만들고 그대로 부른다."""
     # arm0 과 arm1 은 입력이 완전히 같다. 시스템 프롬프트만 다르다.
     raw = f"오늘은 {REFERENCE_DATE} 이다.\n\n[일정]\n{case['raw']}"
-    with_facts = (f"[구조화 일정]\n{json.dumps(itinerary_for(case), ensure_ascii=False, indent=1)}\n\n"
-                  f"[사실 데이터]\n{json.dumps(facts_for_llm(case_f), ensure_ascii=False, indent=1)}\n\n"
-                  f"[정책]\n{json.dumps(policy, ensure_ascii=False, indent=1)}")
+    # ⭐ 사실 데이터와 정책(약 9,400토큰)은 문제마다 같다. 전에는 문제마다 다른 일정 뒤에 붙여 보내 프롬프트 캐시가
+    #    걸리지 않았고, 호출 한 번 비용의 절반이 이 부분을 매번 새로 읽는 값이었다(2026-10-26 사용량으로 확인). 같은
+    #    부분을 앞에 두고 캐시에 올리면 두 번째 호출부터 읽기 단가가 1/20 이다(model_info.PRICES 의 cache_read).
+    #    문제마다 다른 테스트용 이동시간은 사실 데이터에 얹지 않고 일정과 함께 뒤에 둔다
+    shared = (f"[사실 데이터]\n{json.dumps(facts_for_llm(facts), ensure_ascii=False, indent=1)}\n\n"
+              f"[정책]\n{json.dumps(policy, ensure_ascii=False, indent=1)}")
+    own = f"[구조화 일정]\n{json.dumps(itinerary_for(case), ensure_ascii=False, indent=1)}"
+    if case.get("legs"):
+        own += f"\n\n[이 일정의 테스트용 이동시간]\n{json.dumps(case['legs'], ensure_ascii=False, indent=1)}"
+    with_facts = [{"type": "text", "text": shared, "cache_control": {"type": "ephemeral"}},
+                  {"type": "text", "text": own}]
     content = {"llm_naive": raw, "llm_only": raw, "llm_with_facts": with_facts}
     return {arm: {"model": MODEL, "effort": EFFORT, "system": SYSTEMS[arm], "content": content[arm],
                   "schema": Judgment} for arm in ARMS if arm in SYSTEMS}
 
 
-def ask_fresh(req: dict) -> tuple[dict, dict]:
-    """모델을 한 번 부른다. (답, 사용량). 거부와 형식 오류도 답으로 돌려준다 — 지표가 판정과 따로 센다."""
-    try:
-        j, usage = ask(client, **req)
-        return j.model_dump(), usage
-    except Refusal as e:
+def as_answer(got) -> tuple[dict, dict]:
+    """llm.ask 의 (결과, 사용량)이나 예외를 (답, 사용량)으로. 거부와 형식 오류도 답으로 돌려준다 — 지표가 판정과 따로 센다."""
+    if isinstance(got, Refusal):
         # 거부는 판정이 아니다. 지표가 따로 세도록 verdict 를 "refused" 로 남긴다
         return {"verdict": "refused", "checks": [], "message": "",
-                "stop_details": {"category": e.usage["refusal_category"],
-                                 "explanation": e.usage["refusal_explanation"]}}, e.usage
-    except InvalidOutput as e:
+                "stop_details": {"category": got.usage["refusal_category"],
+                                 "explanation": got.usage["refusal_explanation"]}}, got.usage
+    if isinstance(got, InvalidOutput):
         # 형식이 틀린 응답도 판정이 아니다. 따로 세고, 청구된 사용량은 비용에 넣는다
-        return {"verdict": "invalid", "checks": [], "message": str(e)}, e.usage
+        return {"verdict": "invalid", "checks": [], "message": str(got)}, got.usage
+    j, usage = got
+    return j.model_dump(), usage
 
 
-def answer(arm: str, req: dict, key: str, case_id: str) -> dict:
-    """LLM 방식 하나의 답. 받아 둔 응답이 있으면 그것을 쓰고, 없으면 불러서 받는 즉시 응답 캐시에 넣는다."""
-    if key in stored:
-        return stored[key]
-    result, usage = ask_fresh(req)
-    if DRY:  # 가짜 응답은 응답 캐시에 넣지 않는다. 돈도 나가지 않았다
-        return {"label": arm, "run": RUN_ID, "result": result, "usage": usage}
-    hit = cache.put(key, run=RUN_ID, label=arm, result=result, usage=usage)
-    cost = meter.claude(ARM_NAMES[arm], usage)
-    # 문제마다 결과 줄은 세 방식의 답을 다 받은 뒤에 찍힌다. 그 앞에 찍히는 이 줄이 위 문제의 것으로 읽히지 않게 번호를 붙인다
-    print(f"    [비용] {case_id.split('-')[0]} {ARM_NAMES[arm]} 새로 부름 {'단가 모름' if cost is None else f'${cost:.4f}'}"
-          f" · 이번 실행 누적 ${meter.claude_usd:.4f}")
-    return hit
+def ask_fresh(req: dict) -> tuple[dict, dict]:
+    """모델을 한 번 바로 부른다 — --dry-run 의 가짜 응답만 이 길로 간다. 실제로 부를 때는 call_all 이 모아서 부른다."""
+    try:
+        return as_answer(ask(client, **req))
+    except (Refusal, InvalidOutput) as e:
+        return as_answer(e)
+
+
+def call_all(todo: dict[str, tuple[str, dict]]) -> tuple[dict, list]:
+    """{이름: (방식, 요청)}을 한꺼번에 부른다 — 첫 요청만 바로, 나머지는 배치(llm.ask_many, 값이 절반).
+    ({이름: (답, 사용량)}, 답을 받지 못한 요청)을 돌려준다. 받은 것마다 비용을 찍는다."""
+    # 첫 요청이 프롬프트 캐시를 데운다 — 앞부분이 가장 긴 '사실 데이터 줌'을 맨 앞에 둔다
+    order = sorted(todo, key=lambda name: todo[name][0] != "llm_with_facts")
+    if DRY:  # 가짜 응답은 배치가 없다. 돈도 나가지 않는다
+        return {name: ask_fresh(todo[name][1]) for name in order}, []
+    try:
+        got = ask_many(client, {name: todo[name][1] for name in order})
+    except APIError as e:
+        raise SystemExit(f"\n  ❌ API 호출 실패: {type(e).__name__} {e}\n{meter.summary()}") from e
+    out, missed = {}, []
+    for name in order:
+        arm, ans = todo[name][0], got[name]
+        if isinstance(ans, BatchMiss):
+            missed.append(f"{ARM_NAMES[arm]} — {ans}")
+            continue
+        out[name] = as_answer(ans)
+        cost = meter.claude(ARM_NAMES[arm], out[name][1])
+        print(f"    [비용] {ARM_NAMES[arm]} {'배치' if out[name][1].get('batch') else '바로'} "
+              f"{'단가 모름' if cost is None else f'${cost:.4f}'} · 이번 실행 누적 ${meter.claude_usd:.4f}")
+    if missed:
+        print(f"\n  ❌ 배치에서 {len(missed)}건의 답을 받지 못했다(청구되지 않는다): " + " / ".join(missed[:3]))
+    return out, missed
+
+
+def fetch_new() -> None:
+    """받아 둔 응답이 없는 요청을 한꺼번에 불러(call_all) 응답 캐시에 넣는다. 못 받은 것이 있으면 멈춘다 —
+    받은 것은 캐시에 남아 다시 돌리면 남은 것만 부른다. 공식 기록은 건드리지 않는다."""
+    todo = {}
+    for _, _, reqs, keys in plan:
+        for arm, req in reqs.items():
+            if keys[arm] not in stored:
+                todo.setdefault(keys[arm], (arm, req))
+    if not todo:
+        return
+    got, missed = call_all(todo)
+    for key, (result, usage) in got.items():
+        arm = todo[key][0]
+        fetched[key] = ({"label": arm, "run": RUN_ID, "result": result, "usage": usage} if DRY  # 가짜 응답은 캐시에 넣지 않는다
+                        else cache.put(key, run=RUN_ID, label=arm, result=result, usage=usage))
+    if missed:
+        raise SystemExit("  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.\n"
+                         f"{meter.summary()}")
+
+
+def answer(key: str) -> dict:
+    """LLM 방식 하나의 답 — 받아 둔 응답이거나, 이번에 fetch_new 가 받은 응답이다."""
+    return stored[key] if key in stored else fetched[key]
 
 
 # ── 채점 ────────────────────────────────────────────────────────────
@@ -398,16 +450,16 @@ def repeat_runs(n: int) -> None:
     나오는지는 다른 질문이다. 공식 기록에 쓴 응답은 바꾸지 않고 따로 부른다. 기록은 last-compare-stability.json.
     """
     rows = []
-    for case, _, reqs, _ in plan:
-        for arm, req in reqs.items():
+    todo = {f"{i}|{arm}|{r}": (arm, req) for i, (_, _, reqs, _) in enumerate(plan)
+            for arm, req in reqs.items() for r in range(n)}
+    got, missed = call_all(todo)
+    if missed:
+        raise SystemExit(f"  반복 기록을 남기지 않는다. 다시 돌려 주세요.\n{meter.summary()}")
+    for i, (case, _, reqs, _) in enumerate(plan):
+        for arm in reqs:
             answers = []
-            for _ in range(n):
-                try:
-                    result, usage = ask_fresh(req)
-                except APIError as e:
-                    raise SystemExit(f"\n  ❌ API 호출 실패: {type(e).__name__} {e}\n{meter.summary()}") from e
-                if not DRY:  # 가짜 응답은 돈이 나가지 않았다
-                    meter.claude(f"{ARM_NAMES[arm]} 반복", usage)
+            for r in range(n):
+                result, _ = got[f"{i}|{arm}|{r}"]
                 g = graded(case, result)
                 answers.append({"verdict": result["verdict"], "checks_wrong": g["checks_wrong"],
                                 "consistent": g["consistent"], "result": result})
@@ -472,11 +524,12 @@ REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
 
 client = cache = Judgment = JUDGMENT_SCHEMA = None
 stored = {}  # 요청 지문 → 받아 둔 응답. 이번 실행에서 다시 쓸 것만 담는다
+fetched = {}  # 요청 지문 → 이번 실행에서 새로 받은 응답(fetch_new)
 meter = Spend()  # 이번 실행에서 새로 부른 호출만 센다 — 받아 둔 응답은 돈이 나가지 않는다
 if need_llm:
     # anthropic 이 있어야 읽힌다. 코드 arm 만 돌릴 때는 읽지 않는다
     from anthropic import APIError, transform_schema  # noqa: E402
-    from llm import InvalidOutput, Refusal, ask  # noqa: E402
+    from llm import BatchMiss, InvalidOutput, Refusal, ask, ask_many  # noqa: E402
     from response_cache import ResponseCache, confirm_spend, cost_summary, request_key  # noqa: E402
     Judgment = build_models()
     JUDGMENT_SCHEMA = fingerprint(json.dumps(transform_schema(Judgment), ensure_ascii=False, sort_keys=True))
@@ -486,7 +539,7 @@ if need_llm:
 plan = []
 for case in cases:
     case_f = case_facts(case, facts)
-    reqs = llm_requests(case, case_f) if need_llm else {}
+    reqs = llm_requests(case) if need_llm else {}
     plan.append((case, case_f, reqs, {arm: request_key(**req) for arm, req in reqs.items()}))
 
 new_calls = 0
@@ -505,7 +558,7 @@ elif need_llm:
     new = {ARM_NAMES[arm]: n for arm, n in counts.items()}
     new_calls = sum(new.values())
     confirm_spend(new, len(stored),
-                  {ARM_NAMES[arm]: cache.estimate_usd(MODEL, arm, n) for arm, n in counts.items()})
+                  {ARM_NAMES[arm]: cache.estimate_usd(MODEL, arm, n, batch=True) for arm, n in counts.items()})
     if new_calls:
         import os
         from getpass import getpass
@@ -534,6 +587,8 @@ if REPEAT:  # 반복 실행은 공식 기록과 따로 남기고 끝낸다
     repeat_runs(REPEAT)
     raise SystemExit
 
+if need_llm:
+    fetch_new()
 rows, used = [], {}  # used — LLM 방식마다 이번 기록에 쓴 응답
 for case, case_f, reqs, keys in plan:
     rec = {"id": case["id"], "set": case["set"], "expect": case["expect"],
@@ -547,14 +602,8 @@ for case, case_f, reqs, keys in plan:
                                "hard_constraints": [{"id": h["id"], "status": h["policy"]["status"]}
                                                     for h in out["hard_constraints"]]}
 
-    for arm, req in reqs.items():
-        try:
-            hit = answer(arm, req, keys[arm], case["id"])
-        except APIError as e:
-            # 잔액 부족 · 네트워크 오류. 남은 문제를 계속 부르지 않고 멈춘다 — 공식 기록은 건드리지 않는다
-            raise SystemExit(f"\n  ❌ API 호출 실패: {type(e).__name__} {e}\n"
-                             "  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.\n"
-                             f"{meter.summary()}") from e
+    for arm in reqs:
+        hit = answer(keys[arm])
         rec["arms"][arm] = hit["result"]
         used.setdefault(arm, []).append(hit)
 

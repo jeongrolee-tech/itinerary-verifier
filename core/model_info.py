@@ -4,6 +4,8 @@
 단가와 거부 청구 규칙은 공식 문서에서 2026-10-01 에 확인했다.
 https://platform.claude.com/docs/en/about-claude/pricing
 https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#how-refusals-are-billed
+배치 할인은 2026-10-26 에 확인했다.
+https://platform.claude.com/docs/en/build-with-claude/batch-processing#pricing
 """
 
 from __future__ import annotations
@@ -20,6 +22,10 @@ PRICES = {
     "claude-sonnet-5": {"input": 2.00, "output": 10.00, "cache_write": 2.50, "cache_read": 0.20},
     "claude-haiku-4-5": {"input": 1.00, "output": 5.00, "cache_write": 1.25, "cache_read": 0.10},
 }
+
+# 배치(Message Batches API)로 받은 호출 — "All usage is charged at 50 percent of the standard API prices."
+# Opus 5.5 는 입력 $2 · 출력 $10 이다(배치 문서의 표). 캐시 쓰기 · 읽기도 사용량이라 같이 절반이다
+BATCH_DISCOUNT = 0.5
 
 # effort 를 받지 않는 모델. output_config.effort 를 보내면 400 이 난다.
 NO_EFFORT = {"claude-haiku-4-5"}
@@ -50,5 +56,6 @@ def cost_usd(model: str, usage: dict) -> float | None:
         return None
     if not billed(usage):
         return 0.0
-    return (usage["input_tokens"] * p["input"] + usage["output_tokens"] * p["output"]
+    cost = (usage["input_tokens"] * p["input"] + usage["output_tokens"] * p["output"]
             + usage["cache_write"] * p["cache_write"] + usage["cache_read"] * p["cache_read"]) / 1e6
+    return cost * BATCH_DISCOUNT if usage.get("batch") else cost

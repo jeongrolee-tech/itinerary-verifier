@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from llm import request_params
-from model_info import PRICES, cost_usd
+from model_info import BATCH_DISCOUNT, PRICES, cost_usd
 from runmeta import fingerprint
 
 PATH = Path(__file__).parent / "response-cache.json"
@@ -65,8 +65,9 @@ class ResponseCache:
         os.replace(tmp, self.path)
         return self.responses[key]
 
-    def estimate_usd(self, model: str, label: str, n: int) -> float | None:
+    def estimate_usd(self, model: str, label: str, n: int, batch: bool = False) -> float | None:
         """같은 모델 · 같은 이름(label)으로 새로 부를 n 건의 비용을 넉넉히 어림한다. 견줄 응답이 없으면 None.
+        batch 면 첫 호출만 바로, 나머지는 배치 값(model_info.BATCH_DISCOUNT)으로 센다(llm.ask_many).
 
         ⭐ 지난 기록의 건당 평균을 쓰지 않는다. 2026-10-14 에 그렇게 $0.40 이라고 하고 $0.63 이 나갔다 — 평균에는
            방식마다 첫 호출 한 번의 프롬프트 캐시 쓰기가 29건에 나뉘어 묻혀 있었고, 새 문제는 장소가 많아 답이 더 길었다.
@@ -83,7 +84,8 @@ class ResponseCache:
         system = max(u["cache_read"] + u["cache_write"] for u in usages)
         per_call = (max(u["input_tokens"] for u in usages) * p["input"] + system * p["cache_read"]
                     + max(u["output_tokens"] for u in usages) * p["output"]) / 1e6
-        return n * per_call + system * (p["cache_write"] - p["cache_read"]) / 1e6
+        first = per_call + system * (p["cache_write"] - p["cache_read"]) / 1e6
+        return first + (n - 1) * per_call * (BATCH_DISCOUNT if batch else 1)
 
 
 def confirm_spend(new: dict[str, int], reused: int, estimated_usd: dict[str, float | None]) -> None:
@@ -129,7 +131,8 @@ def cost_summary(model: str, used: list[dict], totals: dict) -> dict:
         return dict(next(iter(whole.values())))
     costs = [cost_usd(model, u) for u in usages] + [t["total_usd"] for t in whole.values()]
     cost = None if None in costs else sum(costs)  # 단가를 모르는 모델이면 비용을 적지 않는다
-    # 중앙값은 묶음끼리 합칠 수 없다. 호출별 지연이 모두 있을 때만 낸다
-    lat = sorted(u["latency_ms"] for u in usages)[n // 2] if len(usages) == n else None
+    # 중앙값은 묶음끼리 합칠 수 없다. 호출별 지연이 모두 있을 때만 낸다 — 배치로 받은 응답은 호출별 지연을 모른다
+    known = [u["latency_ms"] for u in usages if u["latency_ms"] is not None]
+    lat = sorted(known)[n // 2] if len(known) == n else None
     return {"n": n, "total_usd": None if cost is None else round(cost, 4),
             "per_case_usd": None if cost is None else round(cost / n, 4), "latency_median_ms": lat}

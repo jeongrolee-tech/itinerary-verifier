@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import anthropic  # noqa: E402
 from extract import SYSTEM, Extraction, request, to_itinerary  # noqa: E402
 from labels import EXTRACTION_FIELDS, case_facts, grade_extraction, stale_reason  # noqa: E402
-from llm import InvalidOutput, Refusal, ask  # noqa: E402
+from llm import BatchMiss, InvalidOutput, Refusal, ask_many  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, cost_usd, effort_for  # noqa: E402
 from report import INPUT_SOURCE_NAMES, SET_NAMES, VERDICT_NAMES, pad  # noqa: E402
 from response_cache import ResponseCache, confirm_spend, request_key  # noqa: E402
@@ -93,6 +93,23 @@ def ask_key() -> str:
 RUN_ID = f"extract-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 
+def call_all(client, meter: Spend, label: str, todo: dict[str, dict]) -> dict:
+    """요청을 한꺼번에 부른다 — 첫 요청만 바로, 나머지는 배치(llm.ask_many, 값이 절반). 받은 것마다 비용을 찍는다.
+    API 오류(잔액 · 네트워크)면 멈춘다 — 받은 응답만 남고 공식 기록은 건드리지 않는다."""
+    try:
+        got = ask_many(client, todo)
+    except anthropic.APIError as e:
+        raise SystemExit(f"❌ API 호출 실패: {type(e).__name__} {e}\n{meter.summary()}") from e
+    for name, ans in got.items():
+        usage = None if isinstance(ans, BatchMiss) else ans.usage if isinstance(ans, Exception) else ans[1]
+        if usage is None:
+            continue  # 배치에서 답을 받지 못한 요청은 청구되지 않는다
+        cost = meter.claude(label, usage)
+        print(f"[비용] {name.split('-')[0]} {'배치' if usage.get('batch') else '바로'} "
+              f"{'단가 모름' if cost is None else f'${cost:.4f}'} · 이번 실행 누적 ${meter.claude_usd:.4f}")
+    return got
+
+
 def repeat_runs(n: int) -> None:
     """같은 요청을 n 번 새로 불러 답이 흔들리는지 잰다. 응답 캐시는 읽지도 쓰지도 않는다.
 
@@ -100,25 +117,27 @@ def repeat_runs(n: int) -> None:
     다른 질문이다. 공식 기록(last-extract-run.json)은 문제마다 응답 하나로 낸다. 그 응답은 바꾸지 않고 따로 부른다.
     """
     total = n * len(cases)
-    confirm_spend({"구조화 추출 반복": total}, 0, {"구조화 추출 반복": cache.estimate_usd(MODEL, "extract", total)})
+    confirm_spend({"구조화 추출 반복": total}, 0,
+                  {"구조화 추출 반복": cache.estimate_usd(MODEL, "extract", total, batch=True)})
     key = ask_key()
     if not key:
         raise SystemExit("키가 비어 있다.")
     client, meter, rows = anthropic.Anthropic(api_key=key), Spend(), []
+    got = call_all(client, meter, "구조화 추출 반복",
+                   {f"{case['id']}|{r}": requests[case["id"]] for case in cases for r in range(n)})
     for case in cases:
         runs = []
-        for _ in range(n):
-            try:
-                ex, usage = ask(client, **requests[case["id"]])
-                got = to_itinerary(ex)
-                runs.append({"extracted": got,
-                             "wrong_fields": [k for k, msgs in grade_extraction(case, got, facts).items() if msgs]})
-            except (Refusal, InvalidOutput) as e:
-                usage = e.usage
-                runs.append({"error": f"{type(e).__name__}: {e}"})
-            except anthropic.APIError as e:
-                raise SystemExit(f"❌ API 호출 실패: {type(e).__name__} {e}\n{meter.summary()}") from e
-            meter.claude("구조화 추출 반복", usage)
+        for r in range(n):
+            ans = got[f"{case['id']}|{r}"]
+            if isinstance(ans, BatchMiss):
+                raise SystemExit(f"❌ 배치에서 답을 받지 못했다(청구되지 않는다) — {ans}. 반복 기록을 남기지 않는다\n"
+                                 f"{meter.summary()}")
+            if isinstance(ans, (Refusal, InvalidOutput)):
+                runs.append({"error": f"{type(ans).__name__}: {ans}"})
+                continue
+            got_it = to_itinerary(ans[0])
+            runs.append({"extracted": got_it,
+                         "wrong_fields": [k for k, msgs in grade_extraction(case, got_it, facts).items() if msgs]})
         right = sum(1 for r in runs if "extracted" in r and not r["wrong_fields"])
         distinct = len({json.dumps(r.get("extracted") or r.get("error"), ensure_ascii=False, sort_keys=True)
                         for r in runs})
@@ -150,40 +169,42 @@ stored = {}  # 문제 → 받아 둔 응답. --fresh 면 쓰지 않고 전부 �
 if "--fresh" not in args:
     stored = {cid: hit for cid, key in keys.items() if (hit := cache.get(key))}
 new_calls = len(cases) - len(stored)
-confirm_spend({"구조화 추출": new_calls}, len(stored), {"구조화 추출": cache.estimate_usd(MODEL, "extract", new_calls)})
+confirm_spend({"구조화 추출": new_calls}, len(stored),
+              {"구조화 추출": cache.estimate_usd(MODEL, "extract", new_calls, batch=True)})
 
-client = None
+results, usages, runs = [], [], set()  # usages — 응답마다 하나. 거부된 호출도 들어간다. runs — 응답을 받은 실행
+meter = Spend()  # 이번 실행에서 새로 부른 호출만 센다 — 받아 둔 응답은 돈이 나가지 않는다
+fetched = {}  # 문제 → 이번 실행에서 새로 받은 응답
 if new_calls:
     key = ask_key()
     if not key:
         raise SystemExit("키가 비어 있다.")
-    client = anthropic.Anthropic(api_key=key)
-results, usages, runs = [], [], set()  # usages — 응답마다 하나. 거부된 호출도 들어간다. runs — 응답을 받은 실행
-meter = Spend()  # 이번 실행에서 새로 부른 호출만 센다 — 받아 둔 응답은 돈이 나가지 않는다
+    got = call_all(anthropic.Anthropic(api_key=key), meter, "구조화 추출",
+                   {c["id"]: requests[c["id"]] for c in cases if c["id"] not in stored})
+    missed = []
+    for cid, ans in got.items():
+        if isinstance(ans, BatchMiss):
+            missed.append(f"{cid} — {ans}")
+            continue
+        if isinstance(ans, Refusal):
+            result, usage = {"error": f"refusal: {ans}"}, ans.usage  # 거부된 호출도 청구될 수 있다(model_info.billed)
+        elif isinstance(ans, InvalidOutput):
+            result, usage = {"error": f"invalid_output: {ans}"}, ans.usage  # 끝까지 온 응답이라 청구된다
+        else:
+            # 캐시에는 채점에 쓰는 모양(판정 코드가 읽는 일정과 메모)으로 둔다
+            result, usage = {"extracted": to_itinerary(ans[0]), "notes": ans[0].notes}, ans[1]
+        fetched[cid] = cache.put(keys[cid], run=RUN_ID, label="extract", result=result, usage=usage)
+    if missed:
+        # 공식 기록은 건드리지 않는다. 받은 것은 응답 캐시에 남아 다시 돌리면 남은 것만 부른다
+        raise SystemExit(f"❌ 배치에서 {len(missed)}건의 답을 받지 못했다(청구되지 않는다): {' / '.join(missed[:3])}\n"
+                         "  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.\n"
+                         f"{meter.summary()}")
 
 for case in cases:
     print(f"\n{LINE}\n  {case['id']}  [{SET_NAMES.get(case['set'], case['set'])}]\n{LINE}")
     print(f"입력: {case['raw']}\n")
 
-    hit = stored.get(case["id"])
-    if hit is None:
-        try:
-            ex, usage = ask(client, **requests[case["id"]])
-            # 캐시에는 채점에 쓰는 모양(판정 코드가 읽는 일정과 메모)으로 둔다
-            result = {"extracted": to_itinerary(ex), "notes": ex.notes}
-        except Refusal as e:
-            result, usage = {"error": f"refusal: {e}"}, e.usage  # 거부된 호출도 청구될 수 있다(model_info.billed)
-        except InvalidOutput as e:
-            result, usage = {"error": f"invalid_output: {e}"}, e.usage  # 끝까지 온 응답이라 청구된다
-        except anthropic.APIError as e:
-            # 잔액 부족 · 네트워크 오류. 남은 문제를 계속 부르지 않고 멈춘다 — 공식 기록은 건드리지 않는다
-            raise SystemExit(f"❌ API 호출 실패: {type(e).__name__} {e}\n"
-                             "  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.\n"
-                             f"{meter.summary()}") from e
-        hit = cache.put(keys[case["id"]], run=RUN_ID, label="extract", result=result, usage=usage)
-        cost = meter.claude("구조화 추출", usage)
-        print(f"[비용] 새로 부름 {'단가 모름' if cost is None else f'${cost:.4f}'}"
-              f" · 이번 실행 누적 ${meter.claude_usd:.4f}\n")
+    hit = stored.get(case["id"]) or fetched[case["id"]]
     result, usage = hit["result"], hit["usage"]
     usages.append(usage)
     runs.add(hit["run"])
@@ -216,7 +237,8 @@ for case in cases:
         print(f"  ❌ {p}")
     print(f"  토큰 in {usage['input_tokens']} / out {usage['output_tokens']}"
           f"  (프롬프트 캐시 읽기 {usage['cache_read']} / 쓰기 {usage['cache_write']})"
-          f"  {usage['latency_ms']}ms" + (f"  — 받아 둔 응답 ({hit['run']})" if case["id"] in stored else ""))
+          + (f"  {usage['latency_ms']}ms" if usage["latency_ms"] is not None else "  배치")
+          + (f"  — 받아 둔 응답 ({hit['run']})" if case["id"] in stored else ""))
 
     row = {"id": case["id"], "set": case["set"], "extraction_ok": not ex_problems,
            "extraction_problems": ex_problems,
@@ -280,7 +302,7 @@ print(f"\n  토큰 in {totals['in']:,} / out {totals['out']:,}"
       f" / 프롬프트 캐시 읽기 {totals['cache_read']:,} 쓰기 {totals['cache_write']:,}")
 print(f"  비용 약 ${cost:.4f}   (건당 ${cost / max(len(results), 1):.4f})" if cost is not None
       else f"  비용 — {MODEL} 의 단가를 모른다(model_info.PRICES)")
-lat = [r["usage"]["latency_ms"] for r in results if r.get("usage")]
+lat = [r["usage"]["latency_ms"] for r in results if r.get("usage") and r["usage"]["latency_ms"] is not None]
 if lat:
     print(f"  지연 중앙값 {sorted(lat)[len(lat) // 2]}ms / 최대 {max(lat)}ms")
 print(f"  모델 {MODEL} / effort {EFFORT}")

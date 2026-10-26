@@ -7,7 +7,7 @@
 
 import pytest
 
-from model_info import DEFAULT_MODEL, PRICES, billed, cost_usd, effort_for
+from model_info import BATCH_DISCOUNT, DEFAULT_MODEL, PRICES, billed, cost_usd, effort_for
 
 
 def usage(input_tokens=0, output_tokens=0, cache_write=0, cache_read=0,
@@ -57,3 +57,11 @@ def test_haiku_is_not_sent_effort():
     """Haiku 4.5 는 effort 를 받지 않는다. 보내면 400 으로 실행이 실패한다."""
     assert effort_for("claude-haiku-4-5", "low") is None
     assert effort_for(DEFAULT_MODEL, "low") == "low"
+
+
+def test_batch_usage_costs_half():
+    """배치로 받은 호출은 모든 사용량이 표준 가격의 50%다(배치 문서, 2026-10-26 확인). Opus 5.5 는 입력 $2 · 출력 $10."""
+    u = usage(1_000_000, 1_000_000)
+    assert BATCH_DISCOUNT == 0.5
+    assert cost_usd("claude-opus-5-5", {**u, "batch": True}) == pytest.approx(12.0)
+    assert cost_usd("claude-opus-5-5", u) == pytest.approx(24.0)

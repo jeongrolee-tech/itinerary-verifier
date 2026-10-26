@@ -206,7 +206,7 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
     md += ["", "끝까지 돌린 결과 — " + " · ".join(f"{k} {v}건" for k, v in blame.most_common()) + ".", ""]
 
     # ── 6. 비용과 지연 ───────────────────────────────────────────────
-    lat = [r["usage"]["latency_ms"] for r in ex_rows if r.get("usage")]
+    lat = [r["usage"]["latency_ms"] for r in ex_rows if r.get("usage") and r["usage"]["latency_ms"] is not None]
     judge_ms = [r["elapsed_ms"] for r in res]
     usd = lambda v: "—" if v is None else f"${v}"  # 단가를 모르는 모델이거나 사용량이 남아 있지 않은 응답
     sec = lambda ms: "—" if ms is None else f"{ms / 1000:.1f}초"
