@@ -1,0 +1,915 @@
+{
+  "_역할": "비교 실험 반복 기록. 같은 요청을 여러 번 새로 불러 답이 흔들리는지 잰다. 공식 기록(last-compare.json)과 따로 둔다. compare.py --repeat 이 덮어쓴다.",
+  "run_id": "cmp-repeat-20261028-172005",
+  "ran_at": "2026-10-28T08:25:53.058864+00:00",
+  "facts_snapshot": "facts-2026-10-20",
+  "model": "claude-opus-5-5",
+  "effort": "low",
+  "repeat": 3,
+  "conditions": {
+    "code_commit": "de33aa971de709d49dddc4cffe9423d555206072",
+    "uncommitted": [],
+    "reproducible": true,
+    "fingerprints": {
+      "tests.json": "13845980b4c0",
+      "facts.json": "5e2bb7b1fde0",
+      "policy.json": "1e3605504d71"
+    },
+    "reference_date": "2026-09-22",
+    "libraries": {
+      "anthropic": "1.11.0",
+      "pydantic": "2.13.5"
+    },
+    "prompts": {
+      "llm_naive": "4e48c8e517b8",
+      "llm_only": "38c4246886bc",
+      "llm_with_facts": "2cdedc1d3198",
+      "judgment_schema": "47bc8065e473"
+    }
+  },
+  "spent_usd": 0.2786,
+  "rows": [
+    {
+      "id": "T15-공휴일시간표",
+      "arm": "llm_with_facts",
+      "expect": "infeasible",
+      "verdicts": {
+        "infeasible": 3
+      },
+      "answers": [
+        {
+          "verdict": "infeasible",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "2026-10-09(금)는 공휴일이지만 정기휴일(월요일)과 고정 휴관일(01-01)에 해당하지 않는다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "fail",
+                "reason": "공휴일이라 금요일 시간표 대신 10월 공휴일 시간표(10:00~19:00, 입장마감 18:00)를 쓴다. 18:30 도착은 입장마감 18:00보다 늦다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "not_applicable",
+                "reason": "입장 검사가 fail이므로 체류 검사는 적용되지 않는다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "서울시립미술관 서소문본관",
+                "status": "not_applicable",
+                "reason": "장소가 하나뿐이고 필수 일정이 없어 이동 구간이 없다."
+              }
+            ],
+            "verdict": "infeasible",
+            "message": "10월 9일은 한글날이라 서울시립미술관 서소문본관은 공휴일 시간표(입장마감 18:00, 폐관 19:00)를 따르며, 18:30에 도착하면 입장할 수 없습니다."
+          }
+        },
+        {
+          "verdict": "infeasible",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "2026-10-09는 금요일이고 공휴일입니다. 정기휴관(월요일)과 고정휴관(01-01)에 해당하지 않으므로 휴관일이 아닙니다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "fail",
+                "reason": "공휴일에는 금요일 시간표 대신 holiday 시간표(10월: 10:00~19:00, 입장마감 18:00)를 씁니다. 도착 18:30은 입장마감 18:00보다 늦습니다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "not_applicable",
+                "reason": "입장 검사가 fail이라 체류 검사는 적용하지 않습니다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "서울시립미술관 서소문본관",
+                "status": "not_applicable",
+                "reason": "장소가 하나뿐이고 필수 일정도 없어 이동 구간이 없습니다."
+              }
+            ],
+            "verdict": "infeasible",
+            "message": "10월 9일은 한글날(공휴일)이라 서울시립미술관 서소문본관은 공휴일 시간표로 18:00에 입장을 마감합니다. 18:30에 도착하면 입장할 수 없습니다."
+          }
+        },
+        {
+          "verdict": "infeasible",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "2026-10-09(금)는 공휴일이지만 정기휴일은 월요일이고 고정휴관일 01-01에도 해당하지 않아 개관한다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "fail",
+                "reason": "공휴일이라 금요일 시간표 대신 공휴일 시간표(10월: 10:00~19:00, 입장마감 18:00)를 쓴다. 도착 18:30이 입장마감 18:00보다 늦다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "not_applicable",
+                "reason": "입장이 fail이라 체류 검사는 적용되지 않는다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "서울시립미술관 서소문본관",
+                "status": "not_applicable",
+                "reason": "장소가 하나뿐이고 필수 일정이 없어 이동 구간이 없다."
+              }
+            ],
+            "verdict": "infeasible",
+            "message": "10월 9일은 한글날(공휴일)이라 서울시립미술관 서소문본관은 공휴일 시간표에 따라 18:00에 입장이 마감됩니다. 18:30에 도착하면 입장할 수 없습니다."
+          }
+        }
+      ]
+    },
+    {
+      "id": "T17-여섯곳중간겹침",
+      "arm": "llm_with_facts",
+      "expect": "infeasible",
+      "verdicts": {
+        "infeasible": 3
+      },
+      "answers": [
+        {
+          "verdict": "infeasible",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "2026-10-18은 일요일이고 공휴일이 아니다. 정기휴일은 월요일이라 해당하지 않는다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "09:30 도착이고 입장마감은 20:00이다(10월 09:00~21:00)."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "09:30에 60분을 더하면 10:30이고, 폐장 21:00보다 이르다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "덕수궁 → 서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "10:30에 나서서 10분 이동하면 10:40에 닿는다. 시작 11:00까지 여유가 20분이라 권장 여유 10분을 채운다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "일요일이고 휴관일(월요일, 01-01)에 해당하지 않는다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "10월 주말 시간표는 10:00~19:00, 입장마감 18:00이다. 11:00 도착이다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "11:00에 60분을 더하면 12:00이고, 폐장 19:00보다 이르다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "서울시립미술관 서소문본관 → 경복궁",
+                "status": "pass",
+                "reason": "12:00에 나서서 테스트용 이동시간 20분이면 12:20에 닿는다. 시작 13:00까지 여유가 40분이다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "일요일이고 정기휴일은 화요일이다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "10월은 09:00~18:00, 입장마감 17:00이다. 13:00 도착이다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "13:00에 120분을 더하면 15:00이고, 폐장 18:00보다 이르다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "경복궁 → 창덕궁",
+                "status": "fail",
+                "reason": "경복궁을 15:00에 나서는데 창덕궁 시작은 14:30이다. 이동 0분으로도 30분 늦는다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "창덕궁",
+                "status": "pass",
+                "reason": "일요일이고 정기휴일은 월요일이다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "창덕궁",
+                "status": "pass",
+                "reason": "10월은 09:00~18:00, 입장마감 17:00이다. 14:30 도착이다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "창덕궁",
+                "status": "pass",
+                "reason": "14:30에 90분을 더하면 16:00이고, 폐장 18:00보다 이르다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "창덕궁 → 종묘",
+                "status": "pass",
+                "reason": "16:00에 나서서 15분 이동하면 16:15에 닿는다. 시작 16:30까지 여유가 15분으로 권장 여유 10분 이상이다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "종묘",
+                "status": "pass",
+                "reason": "일요일이고 정기휴일은 화요일이다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "종묘",
+                "status": "pass",
+                "reason": "일요일은 일반관람일이다. 10월은 09:00~18:00, 입장마감 17:00이고 16:30 도착이다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "종묘",
+                "status": "pass",
+                "reason": "16:30에 60분을 더하면 17:30이고, 폐장 18:00보다 이르다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "종묘 → 청계천",
+                "status": "pass",
+                "reason": "17:30에 나서서 15분 이동하면 17:45에 닿는다. 시작 18:00까지 여유가 15분이다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "청계천",
+                "status": "unknown",
+                "reason": "휴무 정보가 없고, 상시 개방 여부도 공식 근거로 확인되지 않았다(verified false)."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "청계천",
+                "status": "unknown",
+                "reason": "운영시간(hours)이 없고, 상시 개방 여부도 확인되지 않았다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "청계천",
+                "status": "unknown",
+                "reason": "입장 검사가 unknown이라 체류 검사도 unknown이다."
+              }
+            ],
+            "verdict": "infeasible",
+            "message": "경복궁에서 15:00까지 머물면 14:30에 시작하는 창덕궁에 갈 수 없어 이 일정은 실행할 수 없습니다(청계천 운영 여부도 확인되지 않았습니다)."
+          }
+        },
+        {
+          "verdict": "infeasible",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "2026-10-18은 일요일이고 공휴일이 아니다. 정기휴일은 월요일이다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "09:30 도착. 입장마감 20:00 전이다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "09:30에 60분 머물면 10:30에 끝난다. 폐장은 21:00이다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "덕수궁 → 서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "10:30에 나와 10분 이동하면 10:40에 도착한다. 11:00까지 30분이 남아 이동 10분과 여유 10분을 채운다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "일요일이다. 정기휴관은 월요일, 고정휴관은 1월 1일이다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "10월 주말 시간표는 10:00~19:00, 입장마감 18:00이다. 11:00 도착이라 입장할 수 있다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "11:00에 60분 머물면 12:00에 끝난다. 폐장은 19:00이다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "서울시립미술관 서소문본관 → 경복궁",
+                "status": "pass",
+                "reason": "12:00에 나와 테스트용 이동시간 20분(하한선 아님)으로 간다. 13:00까지 60분이 남아 이동 20분과 여유 10분을 채운다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "일요일이다. 정기휴일은 화요일이다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "10월 시간표는 09:00~18:00, 입장마감 17:00이다. 13:00 도착이라 입장할 수 있다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "13:00에 120분 머물면 15:00에 끝난다. 폐장은 18:00이다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "경복궁 → 창덕궁",
+                "status": "fail",
+                "reason": "경복궁을 15:00에 나서는데 창덕궁 시작은 14:30이다. 이동 0분으로도 늦는다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "창덕궁",
+                "status": "pass",
+                "reason": "일요일이다. 정기휴일은 월요일이다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "창덕궁",
+                "status": "pass",
+                "reason": "10월 입장마감은 17:00이다. 14:30 도착이라 입장할 수 있다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "창덕궁",
+                "status": "pass",
+                "reason": "14:30에 90분 머물면 16:00에 끝난다. 폐장은 18:00이다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "창덕궁 → 종묘",
+                "status": "unknown",
+                "reason": "16:00에 나와 15분 이동하면 16:15에 도착해 16:30 시작에는 닿는다. 다만 남는 15분이 이동 15분과 여유 10분을 더한 25분보다 적다. 택시 대안도 없다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "종묘",
+                "status": "pass",
+                "reason": "일요일이다. 정기휴일은 화요일이다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "종묘",
+                "status": "pass",
+                "reason": "일요일은 일반관람일이다. 10월 입장마감은 17:00이고 16:30 도착이라 입장할 수 있다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "종묘",
+                "status": "pass",
+                "reason": "16:30에 60분 머물면 17:30에 끝난다. 폐장은 18:00이다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "종묘 → 청계천",
+                "status": "pass",
+                "reason": "17:30에 나와 15분 이동한다. 18:00까지 30분이 남아 이동 15분과 여유 10분을 채운다."
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "청계천",
+                "status": "unknown",
+                "reason": "휴무 정보가 없다. 상시 개방 여부도 확인되지 않았다."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "청계천",
+                "status": "unknown",
+                "reason": "운영시간이 없고 상시 개방도 미확인이다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "청계천",
+                "status": "unknown",
+                "reason": "입장 검사가 unknown이라 체류도 unknown이다."
+              }
+            ],
+            "verdict": "infeasible",
+            "message": "경복궁을 15:00에 나서야 하는데 창덕궁 일정이 14:30에 시작해 이 일정은 실행할 수 없으니, 두 일정의 순서나 시각을 조정해 주세요."
+          }
+        },
+        {
+          "verdict": "infeasible",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "2026-10-18은 일요일, 공휴일 아님. 정기휴일 월요일"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "09:30 도착, 입장마감 20:00 이전"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "09:30+60분=10:30, 폐장 21:00 이전"
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "덕수궁 → 서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "10:30 출발+10분=10:40, 11:00까지 20분 여유(권장 10분 충족)"
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "일요일, 휴관은 월요일·01-01"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "일요일 10월 시간표 10:00~19:00, 입장마감 18:00; 11:00 도착"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "서울시립미술관 서소문본관",
+                "status": "pass",
+                "reason": "11:00+60분=12:00, 폐장 19:00 이전"
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "서울시립미술관 서소문본관 → 경복궁",
+                "status": "pass",
+                "reason": "12:00 출발+20분(테스트용, 하한선 아님)=12:20, 13:00까지 40분 여유"
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "일요일, 정기휴일 화요일"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "10월 09:00~18:00, 입장마감 17:00; 13:00 도착"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "13:00+120분=15:00, 폐장 18:00 이전"
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "경복궁 → 창덕궁",
+                "status": "fail",
+                "reason": "경복궁을 15:00에 나서는데 창덕궁 시작이 14:30이라 이동 0분으로도 늦음"
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "창덕궁",
+                "status": "pass",
+                "reason": "일요일, 정기휴일 월요일"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "창덕궁",
+                "status": "pass",
+                "reason": "10월 09:00~18:00, 입장마감 17:00; 14:30 도착"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "창덕궁",
+                "status": "pass",
+                "reason": "14:30+90분=16:00, 폐장 18:00 이전"
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "창덕궁 → 종묘",
+                "status": "pass",
+                "reason": "16:00 출발+15분=16:15, 16:30까지 15분 여유"
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "종묘",
+                "status": "pass",
+                "reason": "일요일, 정기휴일 화요일"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "종묘",
+                "status": "pass",
+                "reason": "일요일은 일반관람, 10월 09:00~18:00 입장마감 17:00; 16:30 도착"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "종묘",
+                "status": "pass",
+                "reason": "16:30+60분=17:30, 폐장 18:00 이전"
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "종묘 → 청계천",
+                "status": "pass",
+                "reason": "17:30 출발+15분=17:45, 18:00까지 15분 여유"
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "청계천",
+                "status": "unknown",
+                "reason": "휴무 정보 없음, 상시개방 미검증"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "청계천",
+                "status": "unknown",
+                "reason": "운영시간 없음, 상시개방 미검증"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "청계천",
+                "status": "unknown",
+                "reason": "입장 unknown이므로 체류도 unknown"
+              }
+            ],
+            "verdict": "infeasible",
+            "message": "경복궁에서 15:00에 나오는데 창덕궁 시작이 14:30이라 일정이 겹쳐 실행할 수 없습니다."
+          }
+        }
+      ]
+    },
+    {
+      "id": "T27-열차여유부족",
+      "arm": "llm_with_facts",
+      "expect": "undetermined",
+      "verdicts": {
+        "undetermined": 3
+      },
+      "answers": [
+        {
+          "verdict": "undetermined",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "2026-10-15는 목요일이고 공휴일 목록에 없다. 정기휴일은 월요일뿐이라 개방일이다(근거 valid_until 2026-12-31)."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "10월 시간표 09:00~21:00, 입장마감 20:00. 18:00 도착은 입장마감 전이다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "18:00 입장에 사용자가 말한 체류 120분을 더하면 20:00으로 폐장 21:00 전에 끝난다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "덕수궁 → 서울역",
+                "status": "unknown",
+                "reason": "20:00 출발, 테스트용 이동시간 20분(하한 아님)이면 20:20 도착으로 KTX 20:30 전에 닿지만, 권장 여유 rail_boarding 15분(20:15까지 도착)을 채우지 못한다. 이동 0분이면 늦지 않으므로 fail은 아니다."
+              }
+            ],
+            "verdict": "undetermined",
+            "message": "덕수궁 관람은 가능하지만, 20:00에 나와 서울역에 20:20쯤 도착하면 20:30 KTX 탑승 권장 여유 15분이 부족해 확정할 수 없습니다. 체류를 5분 이상 줄이는 것을 권합니다."
+          }
+        },
+        {
+          "verdict": "undetermined",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "2026-10-15는 목요일이고 공휴일 목록에 없습니다. 정기휴일은 월요일이므로 개방일입니다(근거 유효기간 2026-12-31)."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "10월 시간표는 09:00~21:00, 입장마감 20:00입니다. 18:00 도착은 입장마감 전입니다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "18:00 입장에 사용자가 말한 체류 120분을 더하면 20:00으로, 폐장 21:00보다 이릅니다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "덕수궁 → 서울역",
+                "status": "unknown",
+                "reason": "20:00에 나와 테스트용 이동시간 20분으로 가면 20:20에 도착해 20:30 KTX 출발 전입니다. 다만 rail_boarding 여유 15분이 필요해 20:15까지 도착해야 하는데 5분이 모자랍니다. 택시 대안은 없습니다."
+              }
+            ],
+            "verdict": "undetermined",
+            "message": "덕수궁 관람은 가능하지만, 20:00에 나서면 서울역 도착이 20:20이라 KTX 탑승 권장 여유 15분에 5분이 모자라서 기차를 탈 수 있다고 확정할 수 없습니다. 체류를 조금 줄이면 여유가 생깁니다."
+          }
+        },
+        {
+          "verdict": "undetermined",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "2026-10-15는 목요일이고 공휴일 목록에 없다. 정기휴일은 월요일이므로 개방한다(근거 valid_until 2026-12-31 이내)."
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "10월 시간표는 09:00~21:00, 입장마감 20:00이다. 18:00 도착은 입장마감보다 이르다."
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "덕수궁",
+                "status": "pass",
+                "reason": "18:00 입장에 사용자가 말한 체류 120분을 더하면 20:00에 끝난다. 폐장 21:00보다 이르다."
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "덕수궁 → 서울역",
+                "status": "unknown",
+                "reason": "20:00에 출발해 테스트용 이동시간 20분이 걸리면 20:20에 도착한다. 20:30 KTX보다 10분 이르지만, 권장 여유 rail_boarding 15분에는 모자란다."
+              }
+            ],
+            "verdict": "undetermined",
+            "message": "덕수궁 관람은 가능합니다. 다만 20:00에 나서면 서울역 도착이 20:20이라 KTX 출발까지 10분밖에 남지 않아, 권장 여유 15분을 채우지 못합니다. 체류를 조금 줄이시는 것을 권합니다."
+          }
+        }
+      ]
+    },
+    {
+      "id": "T28-동네삼청동",
+      "arm": "llm_with_facts",
+      "expect": "undetermined",
+      "verdicts": {
+        "undetermined": 3
+      },
+      "answers": [
+        {
+          "verdict": "undetermined",
+          "checks_wrong": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "삼청동",
+              "status": "unknown",
+              "got": "not_applicable"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "삼청동",
+              "status": "unknown",
+              "got": "not_applicable"
+            }
+          ],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "삼청동",
+                "status": "not_applicable",
+                "reason": "scope가 area인 구역 일정이라 확인할 시설이 없다"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "삼청동",
+                "status": "not_applicable",
+                "reason": "구역(area) 일정이라 입장 검사 대상 시설이 없다"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "삼청동",
+                "status": "not_applicable",
+                "reason": "구역(area) 일정이라 체류 검사 대상 시설이 없다"
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "삼청동 → 경복궁",
+                "status": "unknown",
+                "reason": "구역(area)이 낀 구간이고 '삼청동|경복궁' 이동시간(legs)도 없다"
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "2026-10-15는 목요일이고 공휴일 목록에 없다. 정기휴일은 화요일뿐이라 개방일이다 (valid_until 2026-12-31 이내)"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "10월 시간표 09:00~18:00, 입장마감 17:00. 14:00 도착은 마감 전이라 입장 가능"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "14:00 입장 + 사용자가 말한 체류 120분 = 16:00, 폐장 18:00보다 이르다"
+              }
+            ],
+            "verdict": "undetermined",
+            "message": "경복궁 방문(14:00~16:00)은 운영시간 안이라 문제없지만, 삼청동에서 경복궁으로 가는 이동시간 정보가 없어 일정 전체 가능 여부는 확정하지 못했습니다."
+          }
+        },
+        {
+          "verdict": "undetermined",
+          "checks_wrong": [
+            {
+              "type": "CLOSED_DAY",
+              "target": "삼청동",
+              "status": "unknown",
+              "got": "not_applicable"
+            },
+            {
+              "type": "ADMISSION_NOT_POSSIBLE",
+              "target": "삼청동",
+              "status": "unknown",
+              "got": "not_applicable"
+            }
+          ],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "삼청동",
+                "status": "not_applicable",
+                "reason": "scope가 area인 구역 일정이라 확인할 시설이 없다"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "삼청동",
+                "status": "not_applicable",
+                "reason": "구역(area) 일정이라 입장 검사가 성립하지 않는다"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "삼청동",
+                "status": "not_applicable",
+                "reason": "구역(area) 일정이라 체류 완료 검사가 성립하지 않는다"
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "삼청동 → 경복궁",
+                "status": "unknown",
+                "reason": "구역(area)이 낀 구간이고 '삼청동|경복궁' 이동시간(legs)도 없다"
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "2026-10-15는 목요일이고 공휴일이 아니다. 정기휴일은 화요일뿐이다(valid_until 2026-12-31 이내)"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "10월 시간표 09:00~18:00, 입장마감 17:00. 14:00 도착은 입장마감 전이다"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "14:00 입장에 사용자가 말한 체류 120분을 더하면 16:00이고 폐장 18:00보다 이르다"
+              }
+            ],
+            "verdict": "undetermined",
+            "message": "경복궁은 10월 15일(목) 14:00 입장과 2시간 관람이 가능하지만, 삼청동은 구역만 정해져 있고 삼청동에서 경복궁까지의 이동시간 자료가 없어 그 구간은 확인하지 못했습니다."
+          }
+        },
+        {
+          "verdict": "undetermined",
+          "checks_wrong": [],
+          "consistent": true,
+          "result": {
+            "checks": [
+              {
+                "type": "CLOSED_DAY",
+                "target": "삼청동",
+                "status": "unknown",
+                "reason": "scope가 area로 구역만 정해진 일정이라 확인할 시설이 없고 facts에 정보가 없다"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "삼청동",
+                "status": "unknown",
+                "reason": "구역(area) 일정이라 운영시간을 확인할 대상이 없다"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "삼청동",
+                "status": "unknown",
+                "reason": "구역 일정이고 체류시간도 말하지 않았다"
+              },
+              {
+                "type": "CLOSED_DAY",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "2026-10-15는 목요일이고 공휴일이 아니다. 정기휴일은 화요일(valid_until 2026-12-31)이다"
+              },
+              {
+                "type": "ADMISSION_NOT_POSSIBLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "10월 시간표 09:00~18:00, 입장마감 17:00. 14:00 도착은 입장마감 전이다"
+              },
+              {
+                "type": "DWELL_NOT_COMPLETABLE",
+                "target": "경복궁",
+                "status": "pass",
+                "reason": "14:00 입장 + 체류 120분 = 16:00으로 폐장 18:00 전이다"
+              },
+              {
+                "type": "INSUFFICIENT_TRAVEL_TIME",
+                "target": "삼청동 → 경복궁",
+                "status": "unknown",
+                "reason": "출발지가 구역(area)이고 구간 이동시간(legs)이 없다"
+              }
+            ],
+            "verdict": "undetermined",
+            "message": "경복궁 방문은 문제없지만, 삼청동은 구역만 정해져 있어 운영정보와 경복궁까지의 이동시간을 확인할 수 없어 판정을 보류합니다."
+          }
+        }
+      ]
+    }
+  ]
+}

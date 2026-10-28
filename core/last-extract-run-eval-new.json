@@ -1,0 +1,518 @@
+{
+  "_역할": "추출 실행 기록. 자연어에서 무엇을 뽑았는지, 기대 추출값과 어디가 달랐는지, 모델·비용·지연을 남긴다. run_extract.py 가 덮어쓴다.",
+  "run_id": "extract-20261028-164259",
+  "ran_at": "2026-10-28T07:48:45.762004+00:00",
+  "model": "claude-opus-5-5",
+  "effort": "low",
+  "facts_snapshot": "facts-2026-10-20",
+  "conditions": {
+    "code_commit": "de33aa971de709d49dddc4cffe9423d555206072",
+    "uncommitted": [],
+    "reproducible": true,
+    "fingerprints": {
+      "eval-new.json": "4a1b51d7ed2d",
+      "facts.json": "5e2bb7b1fde0",
+      "policy.json": "1e3605504d71"
+    },
+    "reference_date": "2026-10-22",
+    "libraries": {
+      "anthropic": "1.11.0",
+      "pydantic": "2.13.5"
+    },
+    "prompts": {
+      "extract": "4bfc138952d1",
+      "extract_schema": "58537131558d"
+    }
+  },
+  "responses": {
+    "new": 6,
+    "reused": 0,
+    "received_in": [
+      "extract-20261028-164259"
+    ],
+    "spent_usd": 0.0825
+  },
+  "tokens": {
+    "in": 850,
+    "out": 3095,
+    "cache_read": 21940,
+    "cache_write": 10970
+  },
+  "pricing_per_mtok": {
+    "input": 4.0,
+    "output": 20.0,
+    "cache_write": 5.0,
+    "cache_read": 0.2
+  },
+  "estimated_cost_usd": 0.0825,
+  "estimated_cost_per_case_usd": 0.0137,
+  "results": [
+    {
+      "id": "N01-재방문",
+      "set": "new",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true,
+        "avoid_taxi": true,
+        "outside_only": true
+      },
+      "extracted": {
+        "date": "2026-11-12",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "09:30",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "덕수궁",
+            "start": "11:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "경복궁",
+            "start": "13:00",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "덕수궁",
+            "start": "17:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          }
+        ],
+        "hard_constraints": [],
+        "avoid_taxi": false
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": 6698,
+        "input_tokens": 157,
+        "output_tokens": 620,
+        "cache_read": 0,
+        "cache_write": 5485,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null
+      },
+      "notes": [
+        "경복궁과 덕수궁을 각각 두 번 방문함. 재입장 가능 여부·별도 입장권 필요 여부는 판정 단계에서 확인 필요.",
+        "'저녁 5시에 덕수궁 다시 가서 한 시간 걸을게요'의 '걸을게요'가 궁 안을 걷는 것인지 담장 밖(돌담길 등)을 걷는 것인지 불명확함. 들어가지 않는다는 명시가 없어 outside_only는 false로 둠.",
+        "아이들과 동행한다고 언급함."
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "N02-시각하나빠짐",
+      "set": "new",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true,
+        "avoid_taxi": true,
+        "outside_only": true
+      },
+      "extracted": {
+        "date": "2026-11-17",
+        "date_source": "inferred",
+        "weekday_stated": "TUE",
+        "stops": [
+          {
+            "place": "덕수궁",
+            "start": "10:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "창덕궁",
+            "start_source": "missing",
+            "dwell_minutes": 90,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "경복궁",
+            "start": "15:30",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          }
+        ],
+        "hard_constraints": [],
+        "avoid_taxi": false
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": null,
+        "input_tokens": 112,
+        "output_tokens": 389,
+        "cache_read": 0,
+        "cache_write": 5485,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null,
+        "batch": true
+      },
+      "notes": [
+        "창덕궁 시작 시각은 '그다음'으로만 적혀 있어 null로 둠 (덕수궁 종료 후 이동시간에 따라 결정됨)"
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "infeasible",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "N03-열차시각모름",
+      "set": "new",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true,
+        "avoid_taxi": true,
+        "outside_only": true
+      },
+      "extracted": {
+        "date": "2026-11-19",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "창덕궁",
+            "start": "14:00",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "덕수궁",
+            "start": "16:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          }
+        ],
+        "hard_constraints": [
+          {
+            "id": "HC1",
+            "type": "TRAIN_DEPARTURE",
+            "place": "서울역",
+            "time_source": "missing",
+            "raw": "그다음 서울역에서 KTX를 꼭 타야 하는데 기차 시간은 아직 안 정했어요",
+            "source": "user_stated",
+            "buffer_rule": "rail_boarding"
+          }
+        ],
+        "avoid_taxi": false
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": null,
+        "input_tokens": 131,
+        "output_tokens": 406,
+        "cache_read": 5485,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null,
+        "batch": true
+      },
+      "notes": [
+        "'4시'는 앞의 오후 2시 뒤로 처음 오는 시각으로 읽어 16:00으로 적었다.",
+        "KTX 출발 시각이 정해지지 않아 time을 null로 두었다."
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "N04-열차시각뒤문장",
+      "set": "new",
+      "extraction_ok": false,
+      "extraction_problems": [
+        "HC[0].time_source 기대 explicit → 추출값 inferred"
+      ],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": false,
+        "avoid_taxi": true,
+        "outside_only": true
+      },
+      "extracted": {
+        "date": "2026-12-04",
+        "date_source": "inferred",
+        "weekday_stated": "FRI",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "14:00",
+            "start_source": "explicit",
+            "dwell_minutes": 120,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "16:30",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place",
+            "outside_only": false
+          }
+        ],
+        "hard_constraints": [
+          {
+            "id": "HC1",
+            "type": "TRAIN_DEPARTURE",
+            "place": "서울역",
+            "time": "20:30",
+            "time_source": "inferred",
+            "raw": "8시 반에 서울역에서 KTX를 꼭 타야 해서",
+            "source": "user_stated",
+            "buffer_rule": "rail_boarding"
+          }
+        ],
+        "avoid_taxi": false
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": null,
+        "input_tokens": 128,
+        "output_tokens": 688,
+        "cache_read": 5485,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null,
+        "batch": true
+      },
+      "notes": [
+        "'8시 반'은 오전·오후 표시 없이 일정에서 가장 먼저 나온 시각이라 앞에 기댈 시각이 없음. 다른 일정 뒤(그 전에)라는 문맥으로 20:30으로 추정함.",
+        "연도가 없어 오늘(2026-10-22) 기준 가장 가까운 미래인 2026-12-04로 적음."
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": false,
+      "end_to_end_ok": false
+    },
+    {
+      "id": "N05-택시안탐",
+      "set": "new",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true,
+        "avoid_taxi": true,
+        "outside_only": true
+      },
+      "extracted": {
+        "date": "2026-11-26",
+        "date_source": "inferred",
+        "weekday_stated": "THU",
+        "stops": [
+          {
+            "place": "창덕궁",
+            "start": "10:00",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "덕수궁",
+            "start": "12:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "13:30",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          }
+        ],
+        "hard_constraints": [],
+        "avoid_taxi": true
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": null,
+        "input_tokens": 145,
+        "output_tokens": 345,
+        "cache_read": 5485,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null,
+        "batch": true
+      },
+      "notes": [],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    },
+    {
+      "id": "N06-정오약속",
+      "set": "new",
+      "extraction_ok": true,
+      "extraction_problems": [],
+      "extraction_fields": {
+        "date": true,
+        "date_source": true,
+        "place": true,
+        "start": true,
+        "start_source": true,
+        "dwell": true,
+        "support": true,
+        "hard_constraints": true,
+        "avoid_taxi": true,
+        "outside_only": true
+      },
+      "extracted": {
+        "date": "2026-11-21",
+        "date_source": "inferred",
+        "weekday_stated": "SAT",
+        "stops": [
+          {
+            "place": "경복궁",
+            "start": "09:30",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "창덕궁",
+            "start": "11:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "덕수궁",
+            "start": "14:00",
+            "start_source": "explicit",
+            "dwell_minutes": 60,
+            "scope": "place",
+            "outside_only": false
+          },
+          {
+            "place": "서울시립미술관 서소문본관",
+            "start": "16:00",
+            "start_source": "explicit",
+            "dwell_minutes": 90,
+            "scope": "place",
+            "outside_only": false
+          }
+        ],
+        "hard_constraints": [
+          {
+            "id": "HC1",
+            "type": "ARRIVE_BY",
+            "place": "광화문",
+            "time": "13:00",
+            "time_source": "explicit",
+            "raw": "오후 1시까지는 광화문 앞에서 친구를 꼭 만나야 해요",
+            "source": "user_stated",
+            "buffer_rule": "transit_leg"
+          }
+        ],
+        "avoid_taxi": false
+      },
+      "usage": {
+        "model": "claude-opus-5-5",
+        "effort": "low",
+        "latency_ms": null,
+        "input_tokens": 177,
+        "output_tokens": 647,
+        "cache_read": 5485,
+        "cache_write": 0,
+        "stop_reason": "end_turn",
+        "refusal_category": null,
+        "refusal_explanation": null,
+        "batch": true
+      },
+      "notes": [
+        "광화문 앞 친구 만남은 필수 조건으로 hard_constraints에만 넣고 stops에는 중복하지 않음. 만남 후 체류시간은 입력에 없음.",
+        "'광화문 앞'은 광화문으로 적었으나, 들어가지 않는다는 진술이 아니라 만남 장소 표현으로 보아 별도 outside_only 판단 대상이 아님."
+      ],
+      "label_current": true,
+      "stale_reason": null,
+      "verdict": "undetermined",
+      "verdict_ok": true,
+      "end_to_end_ok": true
+    }
+  ]
+}

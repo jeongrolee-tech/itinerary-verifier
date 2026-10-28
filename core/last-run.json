@@ -1,14 +1,14 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20261025-224526",
+  "run_id": "run-20261028-174205",
   "version": "core-0.2",
-  "ran_at": "2026-10-25T13:45:26.556640+00:00",
+  "ran_at": "2026-10-28T08:42:05.780586+00:00",
   "facts_snapshot": "facts-2026-10-20",
   "holidays_verified": true,
   "suite": "tests.json",
   "labeled_at": "2026-10-14",
   "conditions": {
-    "code_commit": "1caf37caac0b5253056bdc0e83617fcbcc5e4268",
+    "code_commit": "de33aa971de709d49dddc4cffe9423d555206072",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
@@ -316,7 +316,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -3369,7 +3369,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -3678,7 +3678,7 @@
       "expect": "infeasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -6421,7 +6421,7 @@
       "expect": "feasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -6683,7 +6683,7 @@
       "expect": "infeasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {

@@ -1,0 +1,521 @@
+{
+  "_역할": "구조화 추출 반복 기록. 같은 요청을 여러 번 새로 불러 답이 흔들리는지 잰다. 공식 기록(last-extract-run.json)과 따로 둔다. run_extract.py --repeat 이 덮어쓴다.",
+  "run_id": "extract-repeat-20261028-171212",
+  "ran_at": "2026-10-28T08:18:25.883027+00:00",
+  "model": "claude-opus-5-5",
+  "effort": "low",
+  "repeat": 3,
+  "conditions": {
+    "code_commit": "de33aa971de709d49dddc4cffe9423d555206072",
+    "uncommitted": [],
+    "reproducible": true,
+    "fingerprints": {
+      "tests.json": "13845980b4c0",
+      "facts.json": "5e2bb7b1fde0",
+      "policy.json": "1e3605504d71"
+    },
+    "reference_date": "2026-09-22",
+    "libraries": {
+      "anthropic": "1.11.0",
+      "pydantic": "2.13.5"
+    },
+    "prompts": {
+      "extract": "4bfc138952d1",
+      "extract_schema": "58537131558d"
+    }
+  },
+  "spent_usd": 0.1045,
+  "rows": [
+    {
+      "id": "T12-기본값이판정을흔듦",
+      "right": 3,
+      "distinct_answers": 1,
+      "runs": [
+        {
+          "extracted": {
+            "date": "2026-10-08",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "경복궁",
+                "start": "13:00",
+                "start_source": "explicit",
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "광장시장",
+                "start": "15:15",
+                "start_source": "explicit",
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-08",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "경복궁",
+                "start": "13:00",
+                "start_source": "explicit",
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "광장시장",
+                "start": "15:15",
+                "start_source": "explicit",
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-08",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "경복궁",
+                "start": "13:00",
+                "start_source": "explicit",
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "광장시장",
+                "start": "15:15",
+                "start_source": "explicit",
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        }
+      ]
+    },
+    {
+      "id": "T22-오전오후없음",
+      "right": 3,
+      "distinct_answers": 1,
+      "runs": [
+        {
+          "extracted": {
+            "date": "2026-10-08",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "경복궁",
+                "start": "17:30",
+                "start_source": "inferred",
+                "dwell_minutes": 60,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-08",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "경복궁",
+                "start": "17:30",
+                "start_source": "inferred",
+                "dwell_minutes": 60,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-08",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "경복궁",
+                "start": "17:30",
+                "start_source": "inferred",
+                "dwell_minutes": 60,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        }
+      ]
+    },
+    {
+      "id": "T23-앞시각만오후",
+      "right": 3,
+      "distinct_answers": 1,
+      "runs": [
+        {
+          "extracted": {
+            "date": "2026-10-15",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "서울시립미술관 서소문본관",
+                "start": "13:00",
+                "start_source": "explicit",
+                "dwell_minutes": 60,
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "덕수궁",
+                "start": "15:00",
+                "start_source": "explicit",
+                "dwell_minutes": 90,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-15",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "서울시립미술관 서소문본관",
+                "start": "13:00",
+                "start_source": "explicit",
+                "dwell_minutes": 60,
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "덕수궁",
+                "start": "15:00",
+                "start_source": "explicit",
+                "dwell_minutes": 90,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-15",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "서울시립미술관 서소문본관",
+                "start": "13:00",
+                "start_source": "explicit",
+                "dwell_minutes": 60,
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "덕수궁",
+                "start": "15:00",
+                "start_source": "explicit",
+                "dwell_minutes": 90,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        }
+      ]
+    },
+    {
+      "id": "T27-열차여유부족",
+      "right": 3,
+      "distinct_answers": 1,
+      "runs": [
+        {
+          "extracted": {
+            "date": "2026-10-15",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "덕수궁",
+                "start": "18:00",
+                "start_source": "explicit",
+                "dwell_minutes": 120,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [
+              {
+                "id": "HC1",
+                "type": "TRAIN_DEPARTURE",
+                "place": "서울역",
+                "time": "20:30",
+                "time_source": "explicit",
+                "raw": "저녁 8시 반에 서울역에서 KTX 탈 거예요. 꼭 타야 하는 기차예요.",
+                "source": "user_stated",
+                "buffer_rule": "rail_boarding"
+              }
+            ],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-15",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "덕수궁",
+                "start": "18:00",
+                "start_source": "explicit",
+                "dwell_minutes": 120,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [
+              {
+                "id": "HC1",
+                "type": "TRAIN_DEPARTURE",
+                "place": "서울역",
+                "time": "20:30",
+                "time_source": "explicit",
+                "raw": "저녁 8시 반에 서울역에서 KTX 탈 거예요. 꼭 타야 하는 기차예요.",
+                "source": "user_stated",
+                "buffer_rule": "rail_boarding"
+              }
+            ],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-15",
+            "date_source": "inferred",
+            "weekday_stated": "THU",
+            "stops": [
+              {
+                "place": "덕수궁",
+                "start": "18:00",
+                "start_source": "explicit",
+                "dwell_minutes": 120,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [
+              {
+                "id": "HC1",
+                "type": "TRAIN_DEPARTURE",
+                "place": "서울역",
+                "time": "20:30",
+                "time_source": "explicit",
+                "raw": "저녁 8시 반에 서울역에서 KTX 탈 거예요. 꼭 타야 하는 기차예요.",
+                "source": "user_stated",
+                "buffer_rule": "rail_boarding"
+              }
+            ],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        }
+      ]
+    },
+    {
+      "id": "T33-세곳과열차",
+      "right": 3,
+      "distinct_answers": 1,
+      "runs": [
+        {
+          "extracted": {
+            "date": "2026-10-16",
+            "date_source": "inferred",
+            "weekday_stated": "FRI",
+            "stops": [
+              {
+                "place": "창덕궁",
+                "start": "09:30",
+                "start_source": "explicit",
+                "dwell_minutes": 60,
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "경복궁",
+                "start": "11:30",
+                "start_source": "explicit",
+                "dwell_minutes": 120,
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "덕수궁",
+                "start": "14:00",
+                "start_source": "explicit",
+                "dwell_minutes": 90,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [
+              {
+                "id": "HC1",
+                "type": "TRAIN_DEPARTURE",
+                "place": "서울역",
+                "time": "16:30",
+                "time_source": "explicit",
+                "raw": "오후 4시 반에 서울역에서 KTX를 꼭 타야 해요",
+                "source": "user_stated",
+                "buffer_rule": "rail_boarding"
+              }
+            ],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-16",
+            "date_source": "inferred",
+            "weekday_stated": "FRI",
+            "stops": [
+              {
+                "place": "창덕궁",
+                "start": "09:30",
+                "start_source": "explicit",
+                "dwell_minutes": 60,
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "경복궁",
+                "start": "11:30",
+                "start_source": "explicit",
+                "dwell_minutes": 120,
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "덕수궁",
+                "start": "14:00",
+                "start_source": "explicit",
+                "dwell_minutes": 90,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [
+              {
+                "id": "HC1",
+                "type": "TRAIN_DEPARTURE",
+                "place": "서울역",
+                "time": "16:30",
+                "time_source": "explicit",
+                "raw": "오후 4시 반에 서울역에서 KTX를 꼭 타야 해요",
+                "source": "user_stated",
+                "buffer_rule": "rail_boarding"
+              }
+            ],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        },
+        {
+          "extracted": {
+            "date": "2026-10-16",
+            "date_source": "inferred",
+            "weekday_stated": "FRI",
+            "stops": [
+              {
+                "place": "창덕궁",
+                "start": "09:30",
+                "start_source": "explicit",
+                "dwell_minutes": 60,
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "경복궁",
+                "start": "11:30",
+                "start_source": "explicit",
+                "dwell_minutes": 120,
+                "scope": "place",
+                "outside_only": false
+              },
+              {
+                "place": "덕수궁",
+                "start": "14:00",
+                "start_source": "explicit",
+                "dwell_minutes": 90,
+                "scope": "place",
+                "outside_only": false
+              }
+            ],
+            "hard_constraints": [
+              {
+                "id": "HC1",
+                "type": "TRAIN_DEPARTURE",
+                "place": "서울역",
+                "time": "16:30",
+                "time_source": "explicit",
+                "raw": "오후 4시 반에 서울역에서 KTX를 꼭 타야 해요",
+                "source": "user_stated",
+                "buffer_rule": "rail_boarding"
+              }
+            ],
+            "avoid_taxi": false
+          },
+          "wrong_fields": []
+        }
+      ]
+    }
+  ]
+}
