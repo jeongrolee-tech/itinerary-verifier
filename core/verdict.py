@@ -47,6 +47,11 @@ def evidence_usable_on(ev: dict | None, visit_date: str) -> bool:
     return True
 
 
+def _provenance(ev: dict) -> dict:
+    """근거의 출처 · 주소 · 확인한 날 · 적용 기간이다."""
+    return {k: ev.get(k) for k in ("source", "url", "checked_at", "valid_until")}
+
+
 def check(type_: str, target: str, status: str, **extra: Any) -> dict:
     return {
         "type": type_,
@@ -204,14 +209,8 @@ def check_closed_day(name: str, place: dict | None, visit_date: str, facts: dict
 
     cd = place["closed_days"]
     closed = closed_date_for(visit_date, cd, facts["holidays"])
-    evidence = {
-        "weekly": cd["weekly"],
-        "fixed_dates": cd.get("fixed_dates"),
-        "exception_rule": cd.get("exception_rule"),
-        "effective_closed_date": closed,
-        "source": cd.get("source"), "url": cd.get("url"),
-        "checked_at": cd.get("checked_at"), "valid_until": cd.get("valid_until"),
-    }
+    evidence = {"weekly": cd["weekly"], "fixed_dates": cd.get("fixed_dates"),
+                "exception_rule": cd.get("exception_rule"), "effective_closed_date": closed, **_provenance(cd)}
     if visit_date[5:] in (cd.get("fixed_dates") or []):
         return _fixed_date_closure(name, visit_date, cd, facts, evidence)
 
@@ -272,7 +271,7 @@ def _no_data_resolution(place: dict, what: str) -> dict:
 
 def _fixed_date_closure(name: str, visit_date: str, cd: dict, facts: dict, evidence: dict) -> dict:
     # '1월 1일 휴관'과 '월요일이 공휴일이면 개관'이 부딪히는 날은 확정하지 않는다.
-    on_weekly = WEEKDAYS[Date.fromisoformat(visit_date).weekday()] in cd["weekly"]
+    on_weekly = weekday_of(visit_date) in cd["weekly"]
     if _holiday_dependent(cd) and on_weekly and visit_date in facts["holidays"]["dates"]:
         return check("CLOSED_DAY", name, UNKNOWN,
                      unknown_reason="RULE_CONFLICT",
@@ -338,11 +337,8 @@ def _admission_without_hours(name, place, visit_date, start, holidays) -> dict |
     # 상시 개방이라 볼 필요가 없다는 것도 공식 근거가 있어야 not_applicable 이다.
     if adm.get("type") == "always_open":
         if adm.get("verified"):
-            return check("ADMISSION_NOT_POSSIBLE", name, NA,
-                         reason="상시 개방이라 운영시간 개념이 없다",
-                         evidence={"source": adm.get("source"), "url": adm.get("url"),
-                                   "checked_at": adm.get("checked_at"),
-                                   "valid_until": adm.get("valid_until")})
+            return check("ADMISSION_NOT_POSSIBLE", name, NA, reason="상시 개방이라 운영시간 개념이 없다",
+                         evidence=_provenance(adm))
         return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN,
                      unknown_reason="UNVERIFIED_ALWAYS_OPEN",
                      detail=adm.get("unverified_note",
@@ -380,9 +376,7 @@ def _timed_admission(name, adm, visit_date, start) -> dict:
     times = (adm.get("entry_times_ko") or {}).get(season) or []
     others = [t for ts in (adm.get("entry_times_other_languages") or {}).values() for t in ts]
     evidence = {"admission_type": "timed_entry", "entry_kind": "회차", "planned_time": start, "entry_times": times,
-                "tour_minutes": adm.get("dwell_fixed_minutes"), "rule_text": adm.get("rule_text"),
-                "source": adm.get("source"), "url": adm.get("url"),
-                "checked_at": adm.get("checked_at"), "valid_until": adm.get("valid_until")}
+                "tour_minutes": adm.get("dwell_fixed_minutes"), "rule_text": adm.get("rule_text"), **_provenance(adm)}
     if not times:
         return check("ADMISSION_NOT_POSSIBLE", name, UNKNOWN, evidence=evidence,
                      unknown_reason="NO_OPERATING_HOURS_DATA",
@@ -425,12 +419,8 @@ def _admission_by_hours(name, place, visit_date, start, holidays) -> dict:
                      detail=f"운영시간 근거의 적용 기간(~{h.get('valid_until')})을 벗어났다")
 
     limit = h.get("last_admission") or h["close"]
-    evidence = {
-        "open": h["open"], "close": h["close"], "last_admission": h.get("last_admission"),
-        "planned_time": start, "entry_at": start,
-        "source": h.get("source"), "url": h.get("url"),
-        "checked_at": h.get("checked_at"), "valid_until": h.get("valid_until"),
-    }
+    evidence = {"open": h["open"], "close": h["close"], "last_admission": h.get("last_admission"),
+                "planned_time": start, "entry_at": start, **_provenance(h)}
     if to_min(start) > to_min(limit):
         return check("ADMISSION_NOT_POSSIBLE", name, FAIL, evidence=evidence,
                      detail=f"입장마감({limit}) 이후 도착")
@@ -495,8 +485,7 @@ def _dwell_on_tour(name, adm, entry, dwell) -> dict:
     tour = adm.get("dwell_fixed_minutes")
     end = to_min(entry) + dwell["value"]
     evidence = {"dwell_minutes": dwell["value"], "dwell_source": dwell["source"], "end_time": to_hhmm(end),
-                "tour_minutes": tour, "rule_text": adm.get("rule_text"), "source": adm.get("source"),
-                "url": adm.get("url"), "checked_at": adm.get("checked_at"), "valid_until": adm.get("valid_until")}
+                "tour_minutes": tour, "rule_text": adm.get("rule_text"), **_provenance(adm)}
     if dwell["value"] <= tour:
         return check("DWELL_NOT_COMPLETABLE", name, PASS, evidence=evidence)
     return check("DWELL_NOT_COMPLETABLE", name, UNKNOWN, evidence=evidence,

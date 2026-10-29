@@ -94,7 +94,7 @@ def report(result: dict) -> dict:
 # 줄의 상태는 그 줄 검사 중 가장 나쁜 것이다.
 WORST_FIRST = [FAIL, UNKNOWN, PASS, NA]
 INPUT_CHECKS = ("INPUT_REQUIRED", "INPUT_CONFLICT")
-PLACE_CHECKS_IN_ORDER = ("CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE")
+PLACE_CHECKS = ("CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE")
 
 
 def _line(c: dict, name: str) -> dict:
@@ -127,7 +127,7 @@ def timeline(itinerary: dict, result: dict) -> list[dict]:
 
     rows, stops = [], itinerary.get("stops") or []
     for i, s in enumerate(stops):
-        taken = [(t, c) for t in INPUT_CHECKS + PLACE_CHECKS_IN_ORDER if (c := take(t, s["place"]))]
+        taken = [(t, c) for t in INPUT_CHECKS + PLACE_CHECKS if (c := take(t, s["place"]))]
         lines = [_line(c, CHECK_NAMES[t]) for t, c in taken]
         window = next((c["window"] for _, c in taken if c.get("window")), None)
         rows.append(_row("stop", s.get("start") or _window_time(window), s["place"], lines))
@@ -148,14 +148,11 @@ def timeline(itinerary: dict, result: dict) -> list[dict]:
     return rows
 
 
-# 장소 검사의 질문에 장소 이름이 없으면 앞에 붙인다.
-PLACE_CHECKS = {"CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE"}
-
-
 def questions(result: dict) -> list[str]:
     """물을 말을 한 번씩만 모은다. 여러 검사가 같은 것을 모를 때가 많다."""
     asks = {a["id"]: a["ask_user"] for a in result.get("assumptions", [])}
-    rows = [(c, c["target"] if c["type"] in PLACE_CHECKS else None) for c in result["checks"]]
+    # 장소 검사의 질문에 장소 이름이 없으면 앞에 붙인다.
+    rows =[(c, c["target"] if c["type"] in PLACE_CHECKS else None) for c in result["checks"]]
     rows += [(h["policy"], None) for h in result["hard_constraints"]]
     out: list[str] = []
     for r, place in rows:

@@ -25,7 +25,7 @@ from recheck import recheck_revision  # noqa: E402
 from report import questions, report, timeline  # noqa: E402
 from routes import live_legs  # noqa: E402
 from spend import Spend, counting  # noqa: E402
-from verdict import FAIL, PASS, judge, weekday_of  # noqa: E402
+from verdict import FAIL, PASS, WEEKDAYS, judge, weekday_of  # noqa: E402
 
 HERE = Path(__file__).parent
 load = lambda n: json.loads((HERE / n).read_text(encoding="utf-8"))  # noqa: E731
@@ -45,9 +45,6 @@ def first_legs(legs: dict) -> dict:
     today = date.today().isoformat()
     return {k: v for k, v in legs.items()
             if isinstance(v, dict) and v.get("source") == "api_runtime" and v.get("checked_at") == today}
-
-
-WEEKDAY_ORDER = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
 
 def supported_places(facts: dict, policy: dict, today: str) -> list[dict]:
@@ -71,9 +68,9 @@ def supported_places(facts: dict, policy: dict, today: str) -> list[dict]:
 
     places = []
     for place in facts["places"]:
-        unsettled = [wd for wd in WEEKDAY_ORDER if not settled(place, days[wd])]
+        unsettled = [wd for wd in WEEKDAYS if not settled(place, days[wd])]
         on_holiday = holiday is not None and settled(place, holiday)
-        if len(unsettled) < len(WEEKDAY_ORDER) or on_holiday:
+        if len(unsettled) < len(WEEKDAYS) or on_holiday:
             # 되는 요일을 적으면 그날만 연다고 읽혀서 못 하는 요일을 준다.
             places.append({"place": place, "unsettled_weekdays": unsettled, "holiday": on_holiday})
     return places

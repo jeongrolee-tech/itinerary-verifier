@@ -223,18 +223,7 @@ def to_itinerary(ex: Extraction) -> dict:
         "date_source": ex.date_source,
         "weekday_stated": ex.weekday_stated,
         "avoid_taxi": ex.avoid_taxi,
-        "stops": [
-            {k: v for k, v in {
-                "place": s.place,
-                "start": s.start,
-                "start_source": s.start_source,
-                "dwell_minutes": s.dwell_minutes,
-                "scope": s.scope,
-                "scope_note": s.scope_note,
-                "outside_only": s.outside_only,
-            }.items() if v is not None}
-            for s in ex.stops
-        ],
+        "stops": [s.model_dump(exclude={"raw"}) for s in ex.stops],
         "hard_constraints": [
             {"id": f"HC{i + 1}", "type": hc.type, "place": hc.place, "time": hc.time, "time_source": hc.time_source,
              "buffer_rule": BUFFER_RULES[hc.type],
