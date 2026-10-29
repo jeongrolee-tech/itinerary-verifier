@@ -206,7 +206,7 @@ Python 3.10 · 3.13에서 돈다(GitHub Actions). 외부 API를 부르지 않아
 | [`docs/데이터-소스.md`](docs/데이터-소스.md) | 출처와 이용 조건, 이동시간 설계, 장소별 지원 범위 |
 | [`docs/data-policy.md`](docs/data-policy.md) | 제공사별 저장 · 공개 범위 |
 | [`docs/돌려보기.md`](docs/돌려보기.md) | 판정 세 가지의 실행 예와 데모 화면 |
-| [`docs/파일별-역할.md`](docs/파일별-역할.md) | 파일 목록과 파일마다의 설계 근거(코드의 ⭐ 주석) |
+| [`docs/파일별-역할.md`](docs/파일별-역할.md) | 파일 목록과 파일마다의 중요한 결정 |
 | [`docs/개발-과정.md`](docs/개발-과정.md) | 다섯 번의 설계 수정, 최근 완료, 더 멀리 |
 | [`docs/experiments/`](docs/experiments/) | 실험 기록 — 폐기한 후보와 그 이유 |
 
