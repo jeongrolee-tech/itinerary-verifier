@@ -28,7 +28,6 @@ def test_recheck_judges_the_whole_revised_itinerary(facts, policy):
     revised = copy.deepcopy(original)
     revised["stops"][0]["start"] = "16:00"
     result = recheck_revision(original, revised, facts, policy)
-    assert result["rechecked_all"] is True
     assert result["changed_fields"] == ["stops[0].start"]
     assert result["before"]["summary"]["verdict"] == "infeasible"  # 17:30 은 입장마감 17:00 뒤다.
     assert result["after"]["summary"]["verdict"] == "undetermined"  # 광장시장은 여전히 확인 못 한다.

@@ -42,8 +42,6 @@ ALL_ARMS = ["llm_naive", "llm_only", "llm_with_facts", "code"]
 ARMS = flag("--arms", "llm_with_facts" if REPEAT else ",".join(ALL_ARMS)).split(",")
 
 LINE = "═" * 78
-CHECK_TYPES = ["CLOSED_DAY", "ADMISSION_NOT_POSSIBLE",
-               "DWELL_NOT_COMPLETABLE", "INSUFFICIENT_TRAVEL_TIME"]
 
 cases = [c for c in suite["cases"] if not only or c["id"].startswith(tuple(only.split(",")))]
 

@@ -1055,9 +1055,8 @@ def _prepare_stop(i: int, s: dict, facts: dict, policy: dict, assumptions: list[
     scope = "area" if support == "area" else "place"
     place = facts["places"][s["place"]] if support == "supported" else None
 
-    start_source = s.get("start_source", "explicit")
     start_dep = []
-    if start_source == "inferred":
+    if s.get("start_source") == "inferred":
         aid = f"A{len(assumptions) + 1}"
         assumptions.append({
             "id": aid, "field": f"stops[{i}].start", "value": s["start"],
@@ -1081,8 +1080,8 @@ def _prepare_stop(i: int, s: dict, facts: dict, policy: dict, assumptions: list[
         })
         dwell = {"value": value, "source": "system_default", "assumption_id": aid}
     return {"index": i, "name": s["place"], "place": place, "start": s["start"], "entry": s["start"],
-            "start_source": start_source, "start_dep": start_dep, "scope": scope, "support": support,
-            "scope_note": s.get("scope_note"), "dwell": dwell, "outside_only": bool(s.get("outside_only"))}
+            "start_dep": start_dep, "scope": scope, "support": support, "dwell": dwell,
+            "outside_only": bool(s.get("outside_only"))}
 
 
 def _place_checks(stops, visit_date, facts, policy, date_dep) -> list[dict]:

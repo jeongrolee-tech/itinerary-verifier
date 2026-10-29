@@ -14,7 +14,6 @@ TMAP_PRICES = {
     "장소 검색": {"free_per_day": 20000, "won": None},
     "대중교통": {"free_per_day": 10, "won": 0.88},
     "보행자 길찾기": {"free_per_day": 1000, "won": None},
-    "자동차 길찾기": {"free_per_day": 1000, "won": None},
     "택시 예측(타임머신)": {"free_per_day": None, "won": None},
 }
 

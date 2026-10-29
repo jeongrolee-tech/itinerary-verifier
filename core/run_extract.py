@@ -48,9 +48,6 @@ CONDITIONS = run_meta(SUITE_FILE, reference_date=REFERENCE_DATE, libraries=libra
                       prompts={"extract": fingerprint(SYSTEM), "extract_schema": fingerprint(SCHEMA)})
 
 LINE = "═" * 78
-MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
-
-
 
 
 def ask_key() -> str:

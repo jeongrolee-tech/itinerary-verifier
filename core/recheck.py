@@ -36,35 +36,6 @@ def _diff_paths(before: Any, after: Any, path: str = "") -> list[str]:
     return [] if before == after else [path or "(입력 전체)"]
 
 
-def _resolution_hints(result: dict) -> list[dict]:
-    hints: list[dict] = []
-    for check in result.get("checks", []):
-        if check.get("status") not in {"fail", "unknown"}:
-            continue
-        hints.append({
-            "id": check.get("id"),
-            "type": check.get("type"),
-            "target": check.get("target"),
-            "status": check.get("status"),
-            "reason": check.get("unknown_reason") or check.get("reason"),
-            "how_to_resolve": check.get("how_to_resolve", {}),
-        })
-
-    for hard in result.get("hard_constraints", []):
-        policy = hard.get("policy", {})
-        if policy.get("status") not in {"fail", "unknown"}:
-            continue
-        hints.append({
-            "id": hard.get("id"),
-            "type": hard.get("event", {}).get("type"),
-            "target": hard.get("event", {}).get("place"),
-            "status": policy.get("status"),
-            "reason": policy.get("unknown_reason"),
-            "how_to_resolve": policy.get("how_to_resolve", {}),
-        })
-    return hints
-
-
 def _event(hc: dict) -> str:
     """필수 일정을 화면에 쓰는 말로 바꾼다. 예: 열차 출발(18:00 서울역)"""
     return (f"{EVENT_NAMES.get(hc.get('type'), '필수 일정')}"
@@ -115,19 +86,10 @@ def _needs_confirmation(original: dict, revised: dict) -> list[dict]:
 def recheck_revision(original: dict, revised: dict, facts: dict, policy: dict,
                      revised_facts: dict | None = None) -> dict:
     """revised_facts 에는 고친 출발 시각으로 새로 받은 이동시간이 들어 있다."""
-    before = judge(original, facts, policy)
-    after = judge(revised, facts if revised_facts is None else revised_facts, policy)
-    before_verdict = before["summary"]["verdict"]
-    after_verdict = after["summary"]["verdict"]
-
     return {
         "changed_fields": _diff_paths(original, revised),
-        "rechecked_all": True,
-        "before": before,
-        "after": after,
-        "verdict_changed": before_verdict != after_verdict,
+        "before": judge(original, facts, policy),
+        "after": judge(revised, facts if revised_facts is None else revised_facts, policy),
         "needs_confirmation": _needs_confirmation(original, revised),
-        "resolution_hints_before": _resolution_hints(before),
-        "resolution_hints_after": _resolution_hints(after),
     }
 
