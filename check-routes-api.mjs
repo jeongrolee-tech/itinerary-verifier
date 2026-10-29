@@ -16,8 +16,8 @@ const REQUEST_TIMEOUT_MS = 20000;
 // 대중교통은 출발 시각이 필요하다. 내일 오전 10시 KST 로 잡는다.
 const departureTime = (() => {
   const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(1, 0, 0, 0); // UTC 01:00 이 KST 10:00 이다
+  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCHours(1, 0, 0, 0); // UTC 01:00 이 KST 10:00 이다. setHours 는 컴퓨터 시간대로 맞춘다
   return d.toISOString().replace(/\.\d{3}/, "");
 })();
 
