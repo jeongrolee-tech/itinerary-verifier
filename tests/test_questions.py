@@ -1,36 +1,23 @@
 """사용자가 풀 보류에는 물을 말이 있고, 답할 수 없는 것은 묻지 않는지 본다."""
 
-import json
-from pathlib import Path
-
 import pytest
 
 from eval_report import no_question, unknowns
+from helpers import SUITE, estimate, ktx, place_checks
 from labels import case_facts
 from verdict import UNKNOWN, judge
 
-SUITE = json.loads((Path(__file__).parent.parent / "core" / "tests.json").read_text(encoding="utf-8"))
 THURSDAY = "2026-10-15"
-
-
-def leg(minutes):
-    return {"minutes": minutes, "mode": "transit", "is_lower_bound": False,
-            "source": "synthetic_fixture", "method": "synthetic_fixture"}
 
 
 def test_train_buffer_shortfall_asks_the_user(facts, policy):
     """20:00 + 20분 = 20:20 이라 여유가 15분에 못 미쳐 괜찮은지 묻는다."""
-    facts["legs"]["덕수궁|서울역"] = leg(20)
+    facts["legs"]["덕수궁|서울역"] = estimate(20)
     out = judge({"date": THURSDAY, "stops": [{"place": "덕수궁", "start": "18:00", "dwell_minutes": 120}],
-                 "hard_constraints": [{"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30",
-                                       "buffer_rule": "rail_boarding"}]}, facts, policy)
+                 "hard_constraints": [ktx("20:30")]}, facts, policy)
     p = out["hard_constraints"][0]["policy"]
     assert p["unknown_reason"] == "BUFFER_NOT_MET"
     assert p["how_to_resolve"]["user"] == "열차 출발(20:30) 전 여유가 10분뿐인데 괜찮으신가요?"
-
-
-def place_checks(out, name):
-    return {c["type"]: c for c in out["checks"] if c["target"] == name}
 
 
 def test_market_without_hours_asks_which_shop(facts, policy):

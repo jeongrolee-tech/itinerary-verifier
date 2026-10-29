@@ -2,38 +2,8 @@
 
 import pytest
 
+from helpers import DEOKSU, MARKET, MUSEUM, PALACE, THURSDAY, estimate, ktx, train, travel, with_taxi
 from verdict import FAIL, PASS, UNKNOWN, judge
-
-MUSEUM = "서울시립미술관 서소문본관"
-PALACE = "경복궁"
-DEOKSU = "덕수궁"
-MARKET = "광장시장"
-THURSDAY = "2026-10-08"  # 세 곳 모두 열고 공휴일이 아니다.
-
-
-def estimate(minutes, mode="transit"):
-    """판정할 때 받는 구간 모양이다. TMAP 값은 약관상 저장할 수 없어 값을 정해 넣는다."""
-    return {"minutes": minutes, "mode": mode, "is_lower_bound": False,
-            "source": "synthetic_fixture", "method": "synthetic_fixture"}
-
-
-def with_taxi(transit_minutes, taxi_minutes, fare=10000):
-    """대중교통 구간에 택시 구간을 대안으로 붙인다."""
-    leg = estimate(transit_minutes)
-    leg["alternatives"] = [{**estimate(taxi_minutes, mode="taxi"), "fare": fare}]
-    return leg
-
-
-def travel(result, frm, to):
-    hits = [c for c in result["checks"]
-            if c["type"] == "INSUFFICIENT_TRAVEL_TIME" and c["target"] == f"{frm} → {to}"]
-    assert len(hits) == 1, f"{frm} → {to} 이동 검사가 {len(hits)}개다"
-    return hits[0]
-
-
-def train(result):
-    assert len(result["hard_constraints"]) == 1
-    return result["hard_constraints"][0]["policy"]
 
 
 def t01(palace_start="15:00"):
@@ -44,8 +14,7 @@ def t01(palace_start="15:00"):
 
 def market_then_ktx(ktx_time):
     return {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00", "dwell_minutes": 60}],
-            "hard_constraints": [{"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역",
-                                  "time": ktx_time, "buffer_rule": "rail_boarding", "source": "user_stated"}]}
+            "hard_constraints": [ktx(ktx_time)]}
 
 
 # A. 예상 시간에 들어오면 장소가 여럿이어도 feasible
@@ -68,22 +37,17 @@ def test_three_stops_feasible_with_estimates(facts, policy):
     assert judge(it, facts, policy)["summary"]["verdict"] == "feasible"
 
 
-def test_estimate_short_of_buffer_asks_user(facts, policy):
-    """55분이면 14:55 도착이라 15:00 전이지만 권장 여유 10분이 모자란다."""
-    facts["legs"][f"{MUSEUM}|{PALACE}"] = estimate(55)
+# B. 빠듯하거나 늦어 보여도 예상으로는 확정하지 않고 묻는다
+
+@pytest.mark.parametrize("minutes, reason", [
+    (55, "BUFFER_NOT_MET"),  # 14:55 도착이라 15:00 전이지만 권장 여유 10분이 모자란다.
+    (65, "LATE_BY_ESTIMATE"),  # 15:05 도착이지만 앞 열차를 타면 더 일찍 닿을 수 있다.
+])
+def test_tight_or_late_estimate_is_asked_not_failed(facts, policy, minutes, reason):
+    facts["legs"][f"{MUSEUM}|{PALACE}"] = estimate(minutes)
     c = travel(judge(t01(), facts, policy), MUSEUM, PALACE)
     assert c["status"] == UNKNOWN
-    assert c["unknown_reason"] == "BUFFER_NOT_MET"
-
-
-# B. 예상으로는 늦어도 확정하지 않는다
-
-def test_late_by_estimate_is_not_fail(facts, policy):
-    """65분이면 15:05 도착이지만 앞 열차를 타면 더 일찍 닿을 수 있다."""
-    facts["legs"][f"{MUSEUM}|{PALACE}"] = estimate(65)
-    c = travel(judge(t01(), facts, policy), MUSEUM, PALACE)
-    assert c["status"] == UNKNOWN
-    assert c["unknown_reason"] == "LATE_BY_ESTIMATE"
+    assert c["unknown_reason"] == reason
 
 
 def test_late_by_estimate_is_not_train_fail(facts, policy):
@@ -183,8 +147,7 @@ def test_train_from_an_area_is_not_judged(facts, policy):
     """마지막 일정이 구역이면 어디서 출발하는지 몰라 열차 조건도 판정하지 않는다."""
     facts["legs"]["명동|서울역"] = estimate(15)
     it = {"date": THURSDAY, "stops": [{"place": "명동", "start": "18:00", "dwell_minutes": 60, "scope": "area"}],
-          "hard_constraints": [{"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역",
-                                "time": "20:30", "buffer_rule": "rail_boarding", "source": "user_stated"}]}
+          "hard_constraints": [ktx("20:30")]}
     p = train(judge(it, facts, policy))
     assert p["status"] == UNKNOWN and p["unknown_reason"] == "PLACE_NOT_RESOLVED"
     assert p["severity"] == "blocking"

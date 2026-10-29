@@ -1,15 +1,14 @@
 """시각이 빠진 장소의 시간대를 본다. 기대 결과는 판정 코드를 보지 않고 손으로 계산했다."""
 
-from report import questions, timeline
+import pytest
+
+from helpers import THURSDAY, estimate, ktx, place_checks, poi, transit
+from report import PLACE_CHECKS, questions, timeline
 from routes import live_legs
-from test_routes import poi, tmap, transit  # noqa: F401 — tmap 은 가짜 TMAP 을 까는 pytest 픽스처다
-from test_travel_estimate import estimate
 from verdict import FAIL, PASS, UNKNOWN, judge
 
-# 세 궁이 모두 여는 수요일이다. 모두 09:00 에 열고 창덕궁은 17:30 에 닫는다.
+# 세 궁이 모두 여는 수요일이다. 모두 09:00 에 열고 창덕궁은 17:30 에 닫는다. 경복궁은 10월에 입장마감이 17:00 이다.
 WEDNESDAY = "2026-11-18"
-THURSDAY = "2026-10-08"  # 경복궁은 10월에 입장마감이 17:00 이다.
-PLACE = ("CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE")
 
 
 def add_legs(facts):
@@ -24,12 +23,12 @@ def three_palaces(changdeok_dwell=90, palace_start="15:30", deoksu_dwell=60):
         {"place": "경복궁", "start": palace_start, "dwell_minutes": 60}]}
 
 
-def place_checks(result, name):
-    return {c["type"]: c for c in result["checks"] if c["target"] == name}
-
-
 def moves(result):
     return [c for c in result["checks"] if c["type"] == "INSUFFICIENT_TRAVEL_TIME" and "(없음)" not in c["target"]]
+
+
+def asked_time(result, name):
+    return place_checks(result, name)["ADMISSION_NOT_POSSIBLE"]["unknown_reason"] == "MISSING_START_TIME"
 
 
 # 시간대가 있는 경우
@@ -39,39 +38,27 @@ def test_gap_is_found_and_told(facts, policy):
     add_legs(facts)
     result = judge(three_palaces(), facts, policy)
     c = place_checks(result, "창덕궁")
-    assert [c[t]["status"] for t in PLACE] == [PASS, PASS, PASS]
+    assert [c[t]["status"] for t in PLACE_CHECKS] == [PASS, PASS, PASS]
     assert [m["status"] for m in moves(result)] == [PASS, PASS]
     assert "창덕궁에는 11:30~13:35 사이에 들어가면 돼요" in c["ADMISSION_NOT_POSSIBLE"].get("notice", "")
     assert questions(result) == []
     assert result["summary"]["verdict"] == "feasible"
 
 
-def test_first_stop_starts_at_opening(facts, policy):
-    """앞 장소가 없으면 09:00 개장부터, 13:00 − 10 − 15 − 90 = 11:05 까지다."""
+@pytest.mark.parametrize("date, stops, name, told", [
+    # 앞 장소가 없으면 09:00 개장부터, 13:00 − 10 − 15 − 90 = 11:05 까지다.
+    (WEDNESDAY, [{"place": "창덕궁", "dwell_minutes": 90}, {"place": "경복궁", "start": "13:00", "dwell_minutes": 60}],
+     "창덕궁", "창덕궁에는 09:00~11:05 사이에 들어가면 돼요"),
+    # 뒤 장소가 없으면 17:30 폐장 전에 90분을 마치도록 16:00 까지다.
+    (WEDNESDAY, [{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60}, {"place": "창덕궁", "dwell_minutes": 90}],
+     "창덕궁", "창덕궁에는 11:30~16:00 사이에 들어가면 돼요"),
+    # 입장마감 17:00 정각은 공식 안내가 말하지 않아 그 전까지로 알린다.
+    (THURSDAY, [{"place": "경복궁", "dwell_minutes": 60}], "경복궁", "경복궁에는 09:00부터 17:00 전에 들어가면 돼요"),
+], ids=["first-stop", "last-stop", "only-stop"])
+def test_window_is_bounded_by_the_next_stop_or_the_hours(facts, policy, date, stops, name, told):
     add_legs(facts)
-    result = judge({"date": WEDNESDAY, "stops": [{"place": "창덕궁", "dwell_minutes": 90},
-                                                 {"place": "경복궁", "start": "13:00", "dwell_minutes": 60}]},
-                   facts, policy)
-    assert "창덕궁에는 09:00~11:05 사이에 들어가면 돼요" in \
-        place_checks(result, "창덕궁")["ADMISSION_NOT_POSSIBLE"].get("notice", "")
-    assert result["summary"]["verdict"] == "feasible"
-
-
-def test_last_stop_is_bounded_by_its_hours(facts, policy):
-    """뒤 장소가 없으면 17:30 폐장 전에 90분을 마치도록 16:00 까지다."""
-    add_legs(facts)
-    result = judge({"date": WEDNESDAY, "stops": [{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60},
-                                                 {"place": "창덕궁", "dwell_minutes": 90}]}, facts, policy)
-    assert "창덕궁에는 11:30~16:00 사이에 들어가면 돼요" in \
-        place_checks(result, "창덕궁")["ADMISSION_NOT_POSSIBLE"].get("notice", "")
-    assert result["summary"]["verdict"] == "feasible"
-
-
-def test_only_stop_is_bounded_by_its_hours(facts, policy):
-    """입장마감 17:00 정각은 공식 안내가 말하지 않아 그 전까지로 알린다."""
-    result = judge({"date": THURSDAY, "stops": [{"place": "경복궁", "dwell_minutes": 60}]}, facts, policy)
-    assert "경복궁에는 09:00부터 17:00 전에 들어가면 돼요" in \
-        place_checks(result, "경복궁")["ADMISSION_NOT_POSSIBLE"].get("notice", "")
+    result = judge({"date": date, "stops": stops}, facts, policy)
+    assert told in place_checks(result, name)["ADMISSION_NOT_POSSIBLE"].get("notice", "")
     assert result["summary"]["verdict"] == "feasible"
 
 
@@ -90,7 +77,7 @@ def test_no_gap_even_without_travel_is_a_violation(facts, policy):
     result = judge(three_palaces(changdeok_dwell=120, palace_start="14:00", deoksu_dwell=180), facts, policy)
     before, after = moves(result)
     assert after["status"] == FAIL and before["status"] == UNKNOWN
-    assert place_checks(result, "창덕궁")["ADMISSION_NOT_POSSIBLE"]["unknown_reason"] == "MISSING_START_TIME"
+    assert asked_time(result, "창덕궁")
     assert result["summary"]["verdict"] == "infeasible"
 
 
@@ -103,31 +90,22 @@ def test_gap_too_small_by_estimate_is_asked(facts, policy):
     assert result["summary"]["verdict"] == "undetermined"
 
 
-# 시각을 묻는 경우
+# 시각을 묻는 경우 (대조군)
 
-def test_two_missing_in_a_row_are_asked(facts, policy):
-    """대조군: 앞뒤 장소도 시각이 빠지면 가장 이른 시각을 정할 수 없다."""
+@pytest.mark.parametrize("stops, names", [
+    # 앞뒤 장소도 시각이 빠지면 가장 이른 시각을 정할 수 없다.
+    ([{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60}, {"place": "창덕궁", "dwell_minutes": 90},
+      {"place": "경복궁", "dwell_minutes": 60}], ["창덕궁", "경복궁"]),
+    # 체류시간을 말하지 않았으면 다음 장소로 언제 나서는지 모른다.
+    (three_palaces(changdeok_dwell=None)["stops"], ["창덕궁"]),
+    # 저장된 이동시간은 지하철 하한선이라 언제 닿는지 확정할 수 없다.
+    ([{"place": "서울시립미술관 서소문본관", "start": "11:00", "dwell_minutes": 60}, {"place": "경복궁", "dwell_minutes": 60}],
+     ["경복궁"]),
+], ids=["two-missing-in-a-row", "missing-dwell", "lower-bound-travel"])
+def test_missing_time_is_asked_when_no_window_can_be_found(facts, policy, stops, names):
     add_legs(facts)
-    result = judge({"date": WEDNESDAY, "stops": [{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60},
-                                                 {"place": "창덕궁", "dwell_minutes": 90},
-                                                 {"place": "경복궁", "dwell_minutes": 60}]}, facts, policy)
-    for name in ("창덕궁", "경복궁"):
-        assert place_checks(result, name)["ADMISSION_NOT_POSSIBLE"]["unknown_reason"] == "MISSING_START_TIME"
-
-
-def test_missing_dwell_is_asked(facts, policy):
-    """대조군: 체류시간을 말하지 않았으면 다음 장소로 언제 나서는지 몰라 시각을 묻는다."""
-    add_legs(facts)
-    result = judge(three_palaces(changdeok_dwell=None), facts, policy)
-    assert place_checks(result, "창덕궁")["ADMISSION_NOT_POSSIBLE"]["unknown_reason"] == "MISSING_START_TIME"
-
-
-def test_lower_bound_travel_is_asked(facts, policy):
-    """대조군: 저장된 이동시간은 지하철 하한선이라 언제 닿는지 확정할 수 없다."""
-    result = judge({"date": WEDNESDAY, "stops": [{"place": "서울시립미술관 서소문본관", "start": "11:00",
-                                                  "dwell_minutes": 60},
-                                                 {"place": "경복궁", "dwell_minutes": 60}]}, facts, policy)
-    assert place_checks(result, "경복궁")["ADMISSION_NOT_POSSIBLE"]["unknown_reason"] == "MISSING_START_TIME"
+    result = judge({"date": WEDNESDAY, "stops": stops}, facts, policy)
+    assert all(asked_time(result, name) for name in names)
 
 
 def test_train_after_a_missing_last_stop_is_asked(facts, policy):
@@ -135,9 +113,8 @@ def test_train_after_a_missing_last_stop_is_asked(facts, policy):
     add_legs(facts)
     result = judge({"date": WEDNESDAY, "stops": [{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60},
                                                  {"place": "창덕궁", "dwell_minutes": 90}],
-                    "hard_constraints": [{"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "19:00",
-                                          "buffer_rule": "rail_boarding", "source": "user_stated"}]}, facts, policy)
-    assert place_checks(result, "창덕궁")["ADMISSION_NOT_POSSIBLE"]["unknown_reason"] == "MISSING_START_TIME"
+                    "hard_constraints": [ktx("19:00")]}, facts, policy)
+    assert asked_time(result, "창덕궁")
     assert result["hard_constraints"][0]["policy"]["status"] == UNKNOWN
 
 

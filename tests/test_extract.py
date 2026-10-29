@@ -1,42 +1,23 @@
 """구조화 추출의 기준 날짜 · 형식 검증 · 채점을 가짜 Claude 로 본다."""
 
 import copy
-import json
 import re
 from datetime import date
-from pathlib import Path
 
 import pytest
-from anthropic.types import Message
 from pydantic import ValidationError
 
 from extract import Extraction, extract, to_itinerary
+from helpers import NEW, SUITE, Claude
 from labels import grade_extraction
 
-SUITE = json.loads((Path(__file__).parent.parent / "core" / "tests.json").read_text(encoding="utf-8"))
 EMPTY = {"date": None, "date_source": "missing", "weekday_stated": None,
          "stops": [], "hard_constraints": [], "avoid_taxi": False, "notes": []}
 
 
-class Claude:
-    """요청을 sent 에 남기고 빈 추출 결과를 SDK Message 로 돌려주는 가짜 Claude 다."""
-
-    def __init__(self):
-        self.messages = self
-        self.sent = []
-
-    def create(self, **kw):
-        self.sent.append(kw)
-        return Message.model_validate({
-            "id": "msg_test", "type": "message", "role": "assistant", "model": "claude-opus-5-5",
-            "content": [{"type": "text", "text": json.dumps(EMPTY)}],
-            "stop_reason": "end_turn", "stop_sequence": None,
-            "usage": {"input_tokens": 10, "output_tokens": 5}})
-
-
 def test_reference_date_goes_into_the_message():
     """시스템 프롬프트가 그대로여야 캐시가 붙어 기준 날짜는 사용자 메시지에 넣는다."""
-    claude = Claude()
+    claude = Claude(EMPTY)
     extract("10월 8일 목요일 오후 1시에 경복궁", claude, today="2026-09-22")
     assert claude.sent[0]["messages"][0]["content"].startswith("오늘은 2026-09-22 이다.")
 
@@ -44,7 +25,7 @@ def test_reference_date_goes_into_the_message():
 def test_reference_date_is_required():
     """기준 날짜를 빼먹으면 실행한 날로 조용히 채우지 않고 바로 멈춘다."""
     with pytest.raises(TypeError):
-        extract("10월 8일 목요일 오후 1시에 경복궁", Claude())
+        extract("10월 8일 목요일 오후 1시에 경복궁", Claude(EMPTY))
 
 
 def test_expected_dates_resolve_from_the_suite_reference_date():
@@ -118,9 +99,6 @@ def test_flight_gets_no_buffer_rule_from_policy():
 
 
 # 기대 추출값 채점
-
-NEW = json.loads((Path(__file__).parent.parent / "core" / "eval-new.json").read_text(encoding="utf-8"))
-
 
 def as_extracted(case, **change):
     """정답을 추출 결과 모양으로 옮긴다. 라벨에 출처가 없으면 말한 시각으로 본다."""

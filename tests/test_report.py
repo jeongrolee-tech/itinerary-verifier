@@ -1,17 +1,15 @@
 """결과 묶음과 일정 줄이 검사를 한 번씩 담고 판정을 바꾸지 않는지 본다."""
 
 import copy
-import json
-from pathlib import Path
 
 import pytest
 
+from helpers import CORE, SUITE
 from labels import case_facts
 from report import NOT_CHECKED, questions, render, report, timeline
 from verdict import judge
 
-ROOT = Path(__file__).parent.parent
-CASES = json.loads((ROOT / "core" / "tests.json").read_text(encoding="utf-8"))["cases"]
+CASES = SUITE["cases"]
 
 
 def case(prefix):
@@ -84,7 +82,7 @@ def test_render_shows_violations_first(facts, policy):
 
 def test_not_checked_matches_readme():
     """README 와 결과 화면이 다른 약속을 하지 않게 글자까지 대조한다."""
-    lines = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+    lines = (CORE.parent / "README.md").read_text(encoding="utf-8").splitlines()
     start = lines.index("| 검사하는 것 | 검사하지 않는 것 |")
     cells = []
     for line in lines[start + 2:]:

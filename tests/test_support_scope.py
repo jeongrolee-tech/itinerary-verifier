@@ -2,16 +2,12 @@
 
 import pytest
 
+from helpers import THURSDAY, place_checks
 from verdict import judge, support_scope
 
 
 def itinerary(place, scope="place"):
-    return {"date": "2026-10-08",
-            "stops": [{"place": place, "start": "14:00", "dwell_minutes": 60, "scope": scope}]}
-
-
-def place_checks(out, name):
-    return {c["type"]: c for c in out["checks"] if c["target"] == name}
+    return {"date": THURSDAY, "stops": [{"place": place, "start": "14:00", "dwell_minutes": 60, "scope": scope}]}
 
 
 def test_places_fall_into_three_kinds(facts):

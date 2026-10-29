@@ -2,18 +2,15 @@
 
 import json
 import re
-from pathlib import Path
 
 import pytest
-from anthropic.types import Message
 from pydantic import BaseModel
 
+from helpers import CORE, Claude
 from llm import ask
 from model_info import cost_usd
 from response_cache import ResponseCache, confirm_spend, cost_summary, request_key
 from runmeta import fingerprint
-
-CORE = Path(__file__).parent.parent / "core"
 
 
 class Answer(BaseModel):
@@ -46,20 +43,9 @@ def test_same_request_gives_the_same_key():
 
 def test_key_is_made_from_what_ask_actually_sends():
     """지문과 보낸 것이 어긋나면 다른 요청의 응답을 쓰게 되어 보낸 인자로 다시 만든다."""
-    class Client:
-        def __init__(self):
-            self.messages = self
-
-        def create(self, **kw):
-            self.sent = kw
-            return Message.model_validate({
-                "id": "msg_test", "type": "message", "role": "assistant", "model": "claude-opus-5-5",
-                "content": [{"type": "text", "text": '{"verdict": "feasible"}'}], "stop_reason": "end_turn",
-                "stop_sequence": None, "usage": {"input_tokens": 1, "output_tokens": 1}})
-
-    client = Client()
+    client = Claude({"verdict": "feasible"})
     ask(client, **ASK)
-    assert fingerprint(json.dumps(client.sent, ensure_ascii=False, sort_keys=True)) == request_key(**ASK)
+    assert fingerprint(json.dumps(client.sent[0], ensure_ascii=False, sort_keys=True)) == request_key(**ASK)
 
 
 # 저장

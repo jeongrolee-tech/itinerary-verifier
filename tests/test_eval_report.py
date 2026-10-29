@@ -1,14 +1,12 @@
 """평가 보고의 오류 갈래 규칙과 보류 이유 목록이 맞는지 본다."""
 
 import re
-from pathlib import Path
 
 import pytest
 
 from eval_report import (ERROR_TYPES, NO_ANSWER, SOLVER, attribution, error_type, mismatched_conditions,
                          no_question)
-
-CORE = Path(__file__).parent.parent / "core"
+from helpers import CORE
 
 
 @pytest.mark.parametrize("expect, got, kind", [

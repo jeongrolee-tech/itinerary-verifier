@@ -1,22 +1,12 @@
 """반례 일정을 재현한다. 기대 결과는 판정 코드를 보지 않고 정했다."""
 
 import pytest
-from fastapi.testclient import TestClient
 
 import routes
-from app import create_app
+from helpers import MUSEUM, PALACE, THURSDAY, Claude, demo, estimate, ktx, place_checks, travel, with_taxi
 from report import render, report, timeline
 from routes import live_legs
 from verdict import FAIL, NA, PASS, UNKNOWN, judge
-
-MUSEUM = "서울시립미술관 서소문본관"
-PALACE = "경복궁"
-THURSDAY = "2026-10-08"
-
-
-def travel_checks(result, label):
-    return [c for c in result["checks"] if c["type"] == "INSUFFICIENT_TRAVEL_TIME" and c["target"] == label]
-
 
 # 1. 같은 장소를 다시 방문할 때 이동시간이 덮어써진다
 
@@ -54,7 +44,7 @@ def test_revisit_keeps_each_legs_own_travel_time(monkeypatch, facts, policy):
     legs, misses = live_legs(revisit(), "key", facts, policy)
     assert not misses
     result = judge(revisit(), {**facts, "legs": {**facts["legs"], **legs}}, policy)
-    morning, afternoon = travel_checks(result, f"{PALACE} → {MUSEUM}")
+    morning, afternoon = [c for c in result["checks"] if c["target"] == f"{PALACE} → {MUSEUM}"]
     assert morning["status"] == UNKNOWN and morning["unknown_reason"] == "LATE_BY_ESTIMATE"
     assert afternoon["status"] != FAIL
     assert result["summary"]["verdict"] == "undetermined"
@@ -68,8 +58,7 @@ def test_missing_time_elsewhere_keeps_confirmed_violation(facts, policy):
         {"place": MUSEUM, "start": "11:00", "dwell_minutes": 60},
         {"place": "덕수궁"},
     ]}, facts, policy)
-    closed = [c for c in result["checks"] if c["type"] == "CLOSED_DAY" and c["target"] == MUSEUM]
-    assert closed and closed[0]["status"] == FAIL
+    assert place_checks(result, MUSEUM)["CLOSED_DAY"]["status"] == FAIL
     assert any(c.get("unknown_reason") == "MISSING_START_TIME" for c in result["checks"])
     assert result["summary"]["verdict"] == "infeasible"
 
@@ -92,8 +81,7 @@ def test_midday_constraint_is_not_judged_from_the_last_stop(facts, policy):
 def test_last_train_of_the_day_is_still_judged(facts, policy):
     """대조군: 19:00 에 광장시장을 나와 19:00 KTX 는 이동 0분이어도 늦는다."""
     result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}],
-                    "hard_constraints": [{"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "19:00",
-                                          "buffer_rule": "rail_boarding", "source": "user_stated"}]}, facts, policy)
+                    "hard_constraints": [ktx("19:00")]}, facts, policy)
     assert result["hard_constraints"][0]["policy"]["status"] == FAIL
 
 
@@ -108,8 +96,7 @@ def palace_at(dwell):
 
 
 def recheck(revised):
-    client = TestClient(create_app(None, None, today="2026-10-01"), base_url="http://127.0.0.1")
-    return client.post("/api/recheck", json={"original": palace_at(120), "revised": revised})
+    return demo().post("/api/recheck", json={"original": palace_at(120), "revised": revised})
 
 
 @pytest.mark.parametrize("dwell", [-60, "60", 0, 2000])
@@ -126,18 +113,9 @@ def test_recheck_asks_when_dwell_is_unknown():
 
 # 5. 필수 시각을 모르거나 추정한 경우 · 택시를 안 탄다는 조건
 
-from test_travel_estimate import with_taxi  # noqa: E402
-from test_verify import Claude  # noqa: E402
-
-
-def ktx(time, time_source):
-    return {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": time, "time_source": time_source,
-            "buffer_rule": "rail_boarding", "source": "user_stated"}
-
-
 def test_train_without_time_is_kept_and_asked(facts, policy):
     result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}],
-                    "hard_constraints": [ktx(None, "missing")]}, facts, policy)
+                    "hard_constraints": [ktx(None, time_source="missing")]}, facts, policy)
     (hc,) = result["hard_constraints"]
     assert hc["event"]["place"] == "서울역" and hc["event"]["time"] is None
     assert hc["policy"]["status"] == UNKNOWN and "시각" in hc["policy"]["how_to_resolve"]["user"]
@@ -152,8 +130,7 @@ def test_extraction_with_null_train_time_is_asked():
                                         "place": "서울역", "time": None, "time_source": "missing"}],
                   "stops": [{"raw": "광장시장 6시", "place": "광장시장", "start": "18:00", "start_source": "explicit",
                              "dwell_minutes": 60, "scope": "place", "scope_note": None, "outside_only": False}]}
-    client = TestClient(create_app(Claude(extraction), None, today="2026-10-01"), base_url="http://127.0.0.1")
-    res = client.post("/api/check", json={"text": "10월 8일 목요일 6시 광장시장, 서울역에서 KTX 를 꼭 타야 해요"})
+    res = demo(Claude(extraction)).post("/api/check", json={"text": "10월 8일 목요일 6시 광장시장, 서울역에서 KTX 를 꼭 타야 해요"})
     assert res.status_code == 200, res.text
     assert any("시각" in q for q in res.json()["questions"])
 
@@ -161,7 +138,7 @@ def test_extraction_with_null_train_time_is_asked():
 def test_inferred_train_time_does_not_confirm(facts, policy):
     """19:00 에 나와 19:00 KTX 라도 추정한 시각이면 위반으로 확정하지 않는다."""
     result = judge({"date": THURSDAY, "stops": [{"place": "광장시장", "start": "18:00", "dwell_minutes": 60}],
-                    "hard_constraints": [ktx("19:00", "inferred")]}, facts, policy)
+                    "hard_constraints": [ktx("19:00", time_source="inferred")]}, facts, policy)
     policy_eval = result["hard_constraints"][0]["policy"]
     assert policy_eval["status"] == UNKNOWN and policy_eval["unknown_reason"] == "INFERRED_INPUT"
     assert any(a["field"] == "hard_constraints[0].time" for a in result["assumptions"])
@@ -176,26 +153,20 @@ def museum_then_palace(avoid_taxi):
 def test_no_taxi_is_kept(facts, policy):
     """택시를 안 탄다고 했으니 택시 20분은 빼고 늦는 대중교통 65분으로 본다."""
     facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
-    c = travel_checks(judge(museum_then_palace(True), facts, policy), f"{MUSEUM} → {PALACE}")[0]
+    c = travel(judge(museum_then_palace(True), facts, policy), MUSEUM, PALACE)
     assert c["status"] == UNKNOWN and c["unknown_reason"] == "LATE_BY_ESTIMATE"
 
 
 def test_taxi_is_used_when_not_excluded(facts, policy):
     """대조군: 택시를 빼지 않았으면 택시로 통과시키고 그렇게 알린다."""
     facts["legs"][f"{MUSEUM}|{PALACE}"] = with_taxi(65, 20)
-    c = travel_checks(judge(museum_then_palace(False), facts, policy), f"{MUSEUM} → {PALACE}")[0]
+    c = travel(judge(museum_then_palace(False), facts, policy), MUSEUM, PALACE)
     assert c["status"] != UNKNOWN and "택시" in c.get("notice", "")
 
 
 # 6. 새 평가 첫 실행에서 드러난 것
 
-from test_travel_estimate import estimate  # noqa: E402
-
 TUESDAY, MONDAY = "2026-11-17", "2026-11-16"
-
-
-def place_checks(result, name):
-    return {c["type"]: c for c in result["checks"] if c["target"] == name}
 
 
 def test_closed_place_without_time_is_still_caught(facts, policy):
@@ -218,8 +189,7 @@ def test_open_place_without_time_asks_for_entry_and_dwell(facts, policy):
     assert c["CLOSED_DAY"]["status"] == PASS
     assert c["ADMISSION_NOT_POSSIBLE"]["unknown_reason"] == "MISSING_START_TIME"
     assert c["DWELL_NOT_COMPLETABLE"]["status"] == UNKNOWN
-    (move,) = travel_checks(result, f"창덕궁 → {PALACE}")
-    assert move["status"] == UNKNOWN
+    assert travel(result, "창덕궁", PALACE)["status"] == UNKNOWN
     assert result["summary"]["verdict"] == "infeasible"  # 경복궁 휴궁은 그대로 위반이다.
 
 
@@ -247,8 +217,7 @@ def test_travel_to_a_closed_place_is_still_judged(facts, policy):
     result = judge({"date": TUESDAY, "stops": [{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60},
                                                {"place": PALACE, "start": "11:45", "dwell_minutes": 60}]},
                    facts, policy)
-    (move,) = travel_checks(result, f"덕수궁 → {PALACE}")
-    assert move["status"] == PASS
+    assert travel(result, "덕수궁", PALACE)["status"] == PASS
     assert result["summary"]["verdict"] == "infeasible"
 
 
@@ -261,9 +230,8 @@ def test_travel_across_a_midday_constraint_is_unknown(facts, policy):
                                                 {"place": "덕수궁", "start": "14:00", "dwell_minutes": 60}],
                     "hard_constraints": [{"id": "HC1", "type": "ARRIVE_BY", "place": "광화문", "time": "13:00",
                                           "buffer_rule": "transit_leg", "source": "user_stated"}]}, facts, policy)
-    (before,) = travel_checks(result, f"{PALACE} → 창덕궁")
-    (across,) = travel_checks(result, "창덕궁 → 덕수궁")
-    assert before["status"] == PASS
+    across = travel(result, "창덕궁", "덕수궁")
+    assert travel(result, PALACE, "창덕궁")["status"] == PASS
     assert across["status"] == UNKNOWN and across["unknown_reason"] == "MIDDAY_HARD_CONSTRAINT"
 
 
@@ -282,8 +250,7 @@ def test_outside_only_stop_is_not_held_to_its_hours(facts, policy):
     c = place_checks(result, PALACE)
     assert [c[t]["status"] for t in ("CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE")] == [NA, NA, NA]
     assert "휴무일" in c["CLOSED_DAY"]["notice"]
-    (move,) = travel_checks(result, f"{PALACE} → 덕수궁")
-    assert move["status"] == PASS
+    assert travel(result, PALACE, "덕수궁")["status"] == PASS
     assert result["summary"]["verdict"] == "feasible"
 
 
@@ -301,8 +268,7 @@ def test_extraction_keeps_outside_only():
                   "stops": [{"raw": "경복궁 앞에서 한 시간 쉬다 갈게요", "place": PALACE, "start": "10:00",
                              "start_source": "explicit", "dwell_minutes": 60, "scope": "place", "scope_note": None,
                              "outside_only": True}]}
-    client = TestClient(create_app(Claude(extraction), None, today="2026-10-01"), base_url="http://127.0.0.1")
-    res = client.post("/api/check", json={"text": "11월 17일 화요일 10시, 문 닫은 거 알아요. 경복궁 앞에서 한 시간 쉬다 갈게요"})
+    res = demo(Claude(extraction)).post("/api/check", json={"text": "11월 17일 화요일 10시, 문 닫은 거 알아요. 경복궁 앞에서 한 시간 쉬다 갈게요"})
     assert res.status_code == 200, res.text
     assert res.json()["itinerary"]["stops"][0]["outside_only"] is True
     assert res.json()["result"]["summary"]["verdict"] != "infeasible"

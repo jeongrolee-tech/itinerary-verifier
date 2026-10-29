@@ -1,8 +1,7 @@
 """판정 코어는 추출을 안 거친 입력도 받아 틀린 입력을 unknown 으로 돌려준다."""
 
+from helpers import THURSDAY, ktx
 from verdict import judge
-
-THURSDAY = "2026-10-08"
 
 
 def reasons(out):
@@ -19,8 +18,7 @@ def test_unreadable_start_time_is_asked_not_crashed(facts, policy):
 
 def test_unreadable_train_time_is_asked_not_crashed(facts, policy):
     it = {"date": THURSDAY, "stops": [{"place": "광장시장", "start": "19:00", "dwell_minutes": 30}],
-          "hard_constraints": [{"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "8:30pm",
-                                "buffer_rule": "rail_boarding", "source": "user_stated"}]}
+          "hard_constraints": [ktx("8:30pm")]}
     out = judge(it, facts, policy)
     assert out["summary"]["verdict"] == "undetermined"
     # 열차는 판정하지 못해도 꼭 지킬 일정이라 남기고, 광장시장 검사는 계속한다.

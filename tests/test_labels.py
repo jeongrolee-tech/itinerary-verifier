@@ -2,10 +2,10 @@
 
 import pytest
 
+from helpers import MARKET, MUSEUM, PALACE, estimate
 from labels import case_facts, check_mismatches, stale_reason
 
 SUITE = {"labeled_against_snapshot": "s1"}
-MUSEUM, PALACE, MARKET = "서울시립미술관 서소문본관", "경복궁", "광장시장"
 
 
 def facts(*changes):
@@ -58,13 +58,9 @@ def test_unknown_labeled_snapshot_is_stale():
 
 # 케이스별 테스트용 이동시간
 
-def leg(minutes, source="synthetic_fixture"):
-    return {"minutes": minutes, "mode": "transit", "is_lower_bound": False, "source": source, "method": source}
-
-
 def test_case_legs_are_laid_over_the_stored_legs():
-    stored = {"legs": {f"{PALACE}|{MARKET}": leg(4.5, "public_data")}}
-    merged = case_facts({"legs": {f"{MUSEUM}|{PALACE}": leg(20)}}, stored)
+    stored = {"legs": {f"{PALACE}|{MARKET}": estimate(4.5, source="public_data")}}
+    merged = case_facts({"legs": {f"{MUSEUM}|{PALACE}": estimate(20)}}, stored)
     assert set(merged["legs"]) == {f"{PALACE}|{MARKET}", f"{MUSEUM}|{PALACE}"}
     assert set(stored["legs"]) == {f"{PALACE}|{MARKET}"}
 
@@ -77,7 +73,7 @@ def test_case_without_legs_uses_the_stored_data():
 def test_case_legs_must_be_marked_as_test_values():
     """실제 API 값이 평가셋에 섞이지 않게 테스트용 표시가 없는 구간은 받지 않는다."""
     with pytest.raises(ValueError, match="synthetic_fixture"):
-        case_facts({"id": "T99", "legs": {f"{MUSEUM}|{PALACE}": leg(20, "api_runtime")}}, {"legs": {}})
+        case_facts({"id": "T99", "legs": {f"{MUSEUM}|{PALACE}": estimate(20, source="api_runtime")}}, {"legs": {}})
 
 
 # 검사별 대조

@@ -1,14 +1,10 @@
 """tests.json 케이스를 판정해 라벨과 대조한다. 라벨은 판정 코드를 보고 고치지 않는다."""
 
-import json
-from pathlib import Path
-
 import pytest
 
+from helpers import SUITE
 from labels import case_facts, grade, grade_applied, stale_reason
 from verdict import judge
-
-SUITE = json.loads((Path(__file__).parent.parent / "core" / "tests.json").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("case", SUITE["cases"], ids=[c["id"] for c in SUITE["cases"]])

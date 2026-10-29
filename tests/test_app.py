@@ -7,12 +7,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-import routes
 from app import create_app, normalized
-from test_verify import T01, TEXT, Claude, tmap
+from helpers import T01, TEXT, Claude, by_taxi, demo, transit
 
-TODAY = "2026-10-01"
-LOCAL = "http://127.0.0.1"  # 앱은 내 PC 주소로 온 요청만 받는다.
 LEG = "0:서울시립미술관 서소문본관|경복궁"  # 판정할 때 받은 구간은 앞에 구간 번호가 붙는다.
 # 체류시간을 말하지 않은 T08 일정이다.
 PALACE = {"date": "2026-10-08", "date_source": "inferred", "weekday_stated": "THU", "notes": [], "avoid_taxi": False,
@@ -22,10 +19,11 @@ PALACE = {"date": "2026-10-08", "date_source": "inferred", "weekday_stated": "TH
 PALACE_KTX = {**PALACE, "hard_constraints": [
     {"raw": "20:30 서울역 KTX 는 꼭 타야 해요", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30",
      "time_source": "explicit"}]}
-
-
-def client(extraction=None, tmap_key=None):
-    return TestClient(create_app(Claude(extraction) if extraction else None, tmap_key, today=TODAY), base_url=LOCAL)
+ORIGINAL = {"date": "2026-10-08", "date_source": "explicit", "weekday_stated": "THU", "hard_constraints": [],
+            "stops": [{"place": "서울시립미술관 서소문본관", "start": "13:00", "start_source": "explicit",
+                       "dwell_minutes": 60, "scope": "place"},
+                      {"place": "경복궁", "start": "15:00", "start_source": "explicit",
+                       "dwell_minutes": 120, "scope": "place"}]}
 
 
 def check(c, text=TEXT):
@@ -41,13 +39,13 @@ def recheck(c, original, revised, legs=None):
 
 
 def test_page_is_served():
-    res = client().get("/")
+    res = demo().get("/")
     assert res.status_code == 200 and "<title>여행 일정 검증</title>" in res.text
 
 
 def test_supported_places_come_from_the_judge():
     """판정이 확정하는 장소만 오고, 종묘도 회차 입장 덕에 모든 요일이 확정된다."""
-    res = client().get("/api/places")
+    res = demo().get("/api/places")
     assert res.status_code == 200
     places = {p["place"]: p for p in res.json()["places"]}
     assert set(places) == {"경복궁", "창덕궁", "덕수궁", "서울시립미술관 서소문본관", "종묘"}
@@ -56,14 +54,14 @@ def test_supported_places_come_from_the_judge():
 
 def test_requests_to_other_hosts_are_refused():
     """DNS 리바인딩으로 남의 페이지가 이 키로 Claude 를 부르지 못하게 Host 를 본다."""
-    app = create_app(Claude(PALACE), today=TODAY)
+    app = create_app(Claude(PALACE), today="2026-10-01")
     assert TestClient(app, base_url="http://evil.example").post("/api/check", json={"text": TEXT}).status_code == 400
     assert TestClient(app, base_url="http://localhost:8001").get("/").status_code == 200
 
 
 def test_missing_info_is_asked_then_rechecked():
     """체류시간을 묻고 표에 60분을 넣어 다시 검사하면 판정이 난다."""
-    c = client(PALACE)
+    c = demo(Claude(PALACE))
     first = check(c)
     assert first["report"]["verdict"] == "undetermined"
     assert first["questions"] == ["경복궁에서 얼마나 머무르실 예정인가요?"]
@@ -78,7 +76,7 @@ def test_missing_info_is_asked_then_rechecked():
 
 def test_changing_the_must_keep_train_asks_first():
     """꼭 타야 한다던 열차 시각을 바꾸면 판정과 따로 바꿔도 되는지 묻는다."""
-    c = client(PALACE_KTX)
+    c = demo(Claude(PALACE_KTX))
     first = check(c)
     revised = copy.deepcopy(first["itinerary"])
     revised["hard_constraints"][0]["time"] = "21:30"
@@ -93,16 +91,16 @@ def test_buffer_rule_follows_the_type_chosen_in_the_table():
     assert normalized({"hard_constraints": [hc]})["hard_constraints"][0]["buffer_rule"] == "flight_boarding"
 
 
-def test_before_keeps_the_first_travel_times(monkeypatch):
+def test_before_keeps_the_first_travel_times(tmap):
     """원래 일정은 처음 받은 이동시간으로 봐야 수정 전 판정이 처음 화면과 같다."""
-    tmap(monkeypatch, 20)
-    c = client(T01, tmap_key="key")
+    tmap(transit(20 * 60))
+    c = demo(Claude(T01), "key")
     first = check(c)
     assert first["report"]["verdict"] == "feasible" and first["legs"][LEG]["minutes"] == 20
 
-    tmap(monkeypatch, 55)
+    tmap(transit(55 * 60), taxi_reply=by_taxi(70 * 60))
     revised = copy.deepcopy(first["itinerary"])
-    revised["stops"][0]["start"] = "13:30"  # 14:30 에 나와 55분이면 15:25 라 15:00 경복궁에 늦을 듯하다.
+    revised["stops"][0]["start"] = "13:30"  # 14:30 에 나와 55분이면 15:25 라 15:00 경복궁에 늦을 듯하다. 택시도 늦다.
     again = recheck(c, first["itinerary"], revised, first["legs"])
     assert (again["verdict_before"], again["verdict_after"]) == ("feasible", "undetermined")
     assert again["legs"][LEG]["minutes"] == 55
@@ -110,69 +108,54 @@ def test_before_keeps_the_first_travel_times(monkeypatch):
 
 @pytest.mark.parametrize("change", [{"checked_at": "2026-01-01"}, {"source": "public_data"}],
                          ids=["received-another-day", "not-from-tmap"])
-def test_only_todays_tmap_values_are_reused(monkeypatch, change):
+def test_only_todays_tmap_values_are_reused(tmap, change):
     """TMAP 값은 24시간 넘게 쓸 수 없다. 다른 날 값이나 TMAP 에서 받지 않은 구간은 버린다."""
-    tmap(monkeypatch, 20)
-    c = client(T01, tmap_key="key")
+    tmap(transit(20 * 60))
+    c = demo(Claude(T01), "key")
     first = check(c)
     legs = {LEG: {**first["legs"][LEG], **change}}
     again = recheck(c, first["itinerary"], first["itinerary"], legs)
     assert (again["verdict_before"], again["verdict_after"]) == ("undetermined", "feasible")
 
 
-def test_taxi_miss_goes_out_as_a_reason(monkeypatch):
+def test_taxi_miss_goes_out_as_a_reason(tmap):
     """구간 안의 taxi_miss 는 예외 객체라 화면에는 이유 글자만 보낸다."""
-    tmap(monkeypatch, 20)
-    fake = routes.call
-
-    def no_taxi(method, url, key, body=None):
-        if "/prediction" in url:
-            raise routes.Miss("RATE_LIMITED", "HTTP 429")
-        return fake(method, url, key, body)
-    monkeypatch.setattr(routes, "call", no_taxi)
-    first = check(client(T01, tmap_key="key"))
-    assert first["leg_misses"] == {f"{LEG} 택시": "RATE_LIMITED"}
+    tmap(transit(20 * 60), taxi_reply={})
+    first = check(demo(Claude(T01), "key"))
+    assert first["leg_misses"] == {f"{LEG} 택시": "NO_ROUTE"}
     assert "taxi_miss" not in first["legs"][LEG]
 
 
-ORIGINAL = {"date": "2026-10-08", "date_source": "explicit", "weekday_stated": "THU", "hard_constraints": [],
-            "stops": [{"place": "서울시립미술관 서소문본관", "start": "13:00", "start_source": "explicit",
-                       "dwell_minutes": 60, "scope": "place"},
-                      {"place": "경복궁", "start": "15:00", "start_source": "explicit",
-                       "dwell_minutes": 120, "scope": "place"}]}
-
-
-def test_no_route_lookup_when_the_judge_stops_first(monkeypatch):
+def test_no_route_lookup_when_the_judge_stops_first(tmap):
     """판정 코어가 요일부터 묻는 일정이면 길찾기를 부르지 않는다."""
-    sent = tmap(monkeypatch, 20)
-    again = recheck(client(tmap_key="key"), ORIGINAL, {**ORIGINAL, "weekday_stated": "WED"})
-    assert sent == [] and again["verdict_after"] == "undetermined"
+    fake = tmap(transit(20 * 60))
+    again = recheck(demo(tmap_key="key"), ORIGINAL, {**ORIGINAL, "weekday_stated": "WED"})
+    assert fake.sent == [] and again["verdict_after"] == "undetermined"
 
 
-def test_unreadable_time_is_a_bad_request(monkeypatch):
+def test_unreadable_time_is_a_bad_request(tmap):
     """표 밖에서 온 틀린 시각은 추출 결과와 같은 모델로 걸러 422 를 낸다."""
-    sent = tmap(monkeypatch, 20)
+    fake = tmap(transit(20 * 60))
     stops = [{"place": "경복궁", "start": "25:00", "start_source": "explicit", "scope": "place"}]
-    res = client(tmap_key="key").post("/api/recheck", json={"original": ORIGINAL, "revised": {**ORIGINAL, "stops": stops}})
-    assert res.status_code == 422 and sent == []
+    res = demo(tmap_key="key").post("/api/recheck", json={"original": ORIGINAL, "revised": {**ORIGINAL, "stops": stops}})
+    assert res.status_code == 422 and fake.sent == []
 
 
 def test_recheck_works_without_keys():
     """키 없이 켜면 추출은 503 이지만 표로 고친 일정은 다시 검사한다."""
-    c = client()
-    res = c.post("/api/check", json={"text": TEXT})
-    assert res.status_code == 503
+    c = demo()
+    assert c.post("/api/check", json={"text": TEXT}).status_code == 503
     assert recheck(c, ORIGINAL, ORIGINAL)["changed_fields"] == []
 
 
 def test_empty_text_is_refused():
-    res = client(PALACE).post("/api/check", json={"text": "  "})
+    res = demo(Claude(PALACE)).post("/api/check", json={"text": "  "})
     assert res.status_code == 422 and res.json()["detail"] == "일정을 적어 주세요"
 
 
 def test_malformed_extraction_is_refused():
     bad = {**PALACE, "stops": [{**PALACE["stops"][0], "start": "4:30 PM"}]}
-    res = client(bad).post("/api/check", json={"text": TEXT})
+    res = demo(Claude(bad)).post("/api/check", json={"text": TEXT})
     assert res.status_code == 422 and res.json()["detail"].startswith("일정을 추출하지 못했습니다")
 
 
@@ -188,14 +171,14 @@ class Down:
 
 def test_claude_outage_is_reported():
     """Claude API 에 닿지 못하면 500 대신 502 로 무엇이 실패했는지 알린다."""
-    res = TestClient(create_app(Down(), today=TODAY), base_url=LOCAL).post("/api/check", json={"text": TEXT})
+    res = demo(Down()).post("/api/check", json={"text": TEXT})
     assert res.status_code == 502 and "APIConnectionError" in res.json()["detail"]
 
 
-def test_timeline_goes_out_in_itinerary_order(monkeypatch):
+def test_timeline_goes_out_in_itinerary_order(tmap):
     """검사와 다시 검사 응답 모두 일정 순서 줄을 보낸다."""
-    tmap(monkeypatch, 20)
-    c = client(T01, tmap_key="key")
+    tmap(transit(20 * 60))
+    c = demo(Claude(T01), "key")
     first = check(c)
     assert [(r["kind"], r["title"], r["status"]) for r in first["timeline"]] == [
         ("stop", "서울시립미술관 서소문본관", "pass"), ("travel", "서울시립미술관 서소문본관 → 경복궁", "pass"),

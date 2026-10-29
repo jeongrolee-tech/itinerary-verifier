@@ -2,16 +2,17 @@
 
 import pytest
 
+from extract import BUFFER_RULES
+from helpers import MARKET, MUSEUM, PALACE, THURSDAY, check, estimate, ktx, train, travel
 from verdict import FAIL, PASS, UNKNOWN, judge
-
-MUSEUM = "서울시립미술관 서소문본관"
-PALACE = "경복궁"
-MARKET = "광장시장"
-THURSDAY = "2026-10-08"  # 미술관과 경복궁이 모두 열고 공휴일이 아니다.
 
 
 def closed_day(result, name):
-    return next(c for c in result["checks"] if c["type"] == "CLOSED_DAY" and c["target"] == name)
+    return check(result, "CLOSED_DAY", name)
+
+
+def admission(result, name):
+    return check(result, "ADMISSION_NOT_POSSIBLE", name)
 
 
 @pytest.mark.parametrize("date, name, why", [
@@ -26,36 +27,6 @@ def test_closed_day_tells_why_and_what_to_do(facts, policy, date, name, why):
     assert c["status"] == FAIL
     assert c["notice"] == (f"이날은 {name} 휴무일이에요({why}). 다른 날로 옮기거나 다른 곳을 고르세요. "
                            "입장하지 않고 밖에서만 머물 거라면 그렇게 알려 주세요")
-
-
-def travel(result, frm, to):
-    hits = [c for c in result["checks"]
-            if c["type"] == "INSUFFICIENT_TRAVEL_TIME" and c["target"] == f"{frm} → {to}"]
-    assert len(hits) == 1, f"{frm} → {to} 이동 검사가 {len(hits)}개다"
-    return hits[0]
-
-
-def closed_day(result, name):
-    hits = [c for c in result["checks"] if c["type"] == "CLOSED_DAY" and c["target"] == name]
-    assert len(hits) == 1
-    return hits[0]
-
-
-def train(result):
-    assert len(result["hard_constraints"]) == 1
-    return result["hard_constraints"][0]["policy"]
-
-
-def admission(result, name):
-    hits = [c for c in result["checks"]
-            if c["type"] == "ADMISSION_NOT_POSSIBLE" and c["target"] == name]
-    assert len(hits) == 1
-    return hits[0]
-
-
-def ktx_at(time):
-    return {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": time,
-            "buffer_rule": "rail_boarding", "source": "user_stated"}
 
 
 # A. 권장 여유
@@ -94,7 +65,7 @@ def test_raising_travel_buffer_never_creates_fail(facts, policy, buffer):
 def test_raising_rail_buffer_never_creates_fail(facts, policy, buffer):
     policy["buffer_minutes"]["rail_boarding"] = buffer
     it = {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00", "dwell_minutes": 30}],
-          "hard_constraints": [ktx_at("19:45")]}
+          "hard_constraints": [ktx("19:45")]}
     assert train(judge(it, facts, policy))["status"] != FAIL
 
 
@@ -133,8 +104,7 @@ def test_raising_default_dwell_never_creates_fail(facts, policy, palace_default)
 # 광장시장 체류를 말하지 않으면 기본값 60분이다. 서울역까지 하한선은 7.0분이다.
 
 def market_then_ktx(time):
-    return {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00"}],
-            "hard_constraints": [ktx_at(time)]}
+    return {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00"}], "hard_constraints": [ktx(time)]}
 
 
 def test_default_dwell_alone_is_not_train_fail(facts, policy):
@@ -183,7 +153,7 @@ def test_late_even_with_zero_travel_is_fail(facts, policy):
 def test_train_late_even_with_zero_travel_is_fail(facts, policy):
     """광장시장 19:00 에 한 시간 먹고 19:30 KTX 면 이동 0분이어도 늦는다."""
     it = {"date": THURSDAY, "stops": [{"place": MARKET, "start": "19:00", "dwell_minutes": 60}],
-          "hard_constraints": [ktx_at("19:30")]}
+          "hard_constraints": [ktx("19:30")]}
     assert train(judge(it, facts, policy))["status"] == FAIL
 
 
@@ -269,7 +239,7 @@ def test_inferred_year_confirmed_by_stated_weekday(facts, policy):
 def test_inferred_start_does_not_confirm_train_fail(facts, policy):
     it = {"date": THURSDAY, "stops": [
         {"place": MARKET, "start": "19:00", "start_source": "inferred", "dwell_minutes": 60}],
-          "hard_constraints": [ktx_at("19:30")]}
+          "hard_constraints": [ktx("19:30")]}
     p = train(judge(it, facts, policy))
     assert p["status"] == UNKNOWN
     assert p["unknown_reason"] == "INFERRED_INPUT"
@@ -321,16 +291,14 @@ def test_arriving_by_next_opening_is_enough(facts, policy):
 # 열차 · 항공편은 출발 시각이라 그때 닿으면 놓치고, "까지 도착"은 그때 닿아도 된다.
 
 def market_until(time, type_, place="김포공항"):
-    rule = "flight_boarding" if type_ == "FLIGHT_DEPARTURE" else "transit_leg"  # extract.BUFFER_RULES 와 같다.
     return {"date": THURSDAY, "stops": [{"place": MARKET, "start": "18:00", "dwell_minutes": 60}],
             "hard_constraints": [{"id": "HC1", "type": type_, "place": place, "time": time,
-                                  "buffer_rule": rule, "source": "user_stated"}]}
+                                  "buffer_rule": BUFFER_RULES[type_], "source": "user_stated"}]}
 
 
 def to_airport(facts, minutes=20):
     """광장시장에서 김포공항까지 테스트용 예상치 구간을 넣는다."""
-    facts["legs"][f"{MARKET}|김포공항"] = {"minutes": minutes, "mode": "transit", "is_lower_bound": False,
-                                       "source": "synthetic_fixture", "method": "synthetic_fixture"}
+    facts["legs"][f"{MARKET}|김포공항"] = estimate(minutes)
 
 
 def test_flight_message_does_not_say_train(facts, policy):
@@ -370,27 +338,18 @@ def one_stop(place, date, start):
     return {"date": date, "stops": [{"place": place, "start": start, "dwell_minutes": 30}]}
 
 
-def test_exact_last_admission_without_rule_is_unknown(facts, policy):
-    """한글날 17:00 종묘는 실제로 막힌 후기가 있지만 공식 표로는 알 수 없어 보류한다."""
-    a = admission(judge(one_stop("종묘", "2026-10-09", "17:00"), facts, policy), "종묘")
+# 10월 경복궁 입장마감은 17:00 이다. 한글날 종묘는 실제로 막힌 후기가 있지만 공식 표로는 알 수 없다.
+@pytest.mark.parametrize("place, date", [(PALACE, THURSDAY), ("종묘", "2026-10-09")])
+def test_exact_last_admission_without_rule_is_unknown(facts, policy, place, date):
+    a = admission(judge(one_stop(place, date, "17:00"), facts, policy), place)
     assert a["status"] == UNKNOWN and a["unknown_reason"] == "AT_LAST_ADMISSION"
     assert a["how_to_resolve"]["user"]
 
 
-def test_exact_last_admission_at_palace_is_unknown(facts, policy):
-    """10월 경복궁 입장마감은 17:00 이다."""
-    a = admission(judge(one_stop(PALACE, THURSDAY, "17:00"), facts, policy), PALACE)
-    assert a["status"] == UNKNOWN and a["unknown_reason"] == "AT_LAST_ADMISSION"
-
-
-def test_one_minute_before_last_admission_passes(facts, policy):
-    assert admission(judge(one_stop(PALACE, THURSDAY, "16:59"), facts, policy), PALACE)["status"] == PASS
-
-
-def test_one_minute_after_last_admission_fails(facts, policy):
-    assert admission(judge(one_stop(PALACE, THURSDAY, "17:01"), facts, policy), PALACE)["status"] == FAIL
-
-
-def test_until_rule_lets_exact_time_in(facts, policy):
-    """대조군: 미술관은 공식 안내가 '관람 종료 1시간 전까지 입장'이라 정각도 들어간다."""
-    assert admission(judge(one_stop(MUSEUM, "2026-10-14", "19:00"), facts, policy), MUSEUM)["status"] == PASS
+@pytest.mark.parametrize("place, date, start, status", [
+    (PALACE, THURSDAY, "16:59", PASS),
+    (PALACE, THURSDAY, "17:01", FAIL),
+    (MUSEUM, "2026-10-14", "19:00", PASS),  # 대조군: 미술관은 '관람 종료 1시간 전까지 입장'이라 정각도 들어간다.
+])
+def test_around_last_admission(facts, policy, place, date, start, status):
+    assert admission(judge(one_stop(place, date, start), facts, policy), place)["status"] == status

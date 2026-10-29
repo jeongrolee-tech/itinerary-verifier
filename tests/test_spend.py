@@ -1,17 +1,14 @@
 """실행 중 나간 돈을 맞게 세고 검증 명령과 데모 서버가 찍는지 본다."""
 
+import io
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 
 import routes
-from app import create_app
+from helpers import CUT, REFUSAL, T01, TEXT, Claude, demo, reply
 from llm import Refusal
 from spend import Spend, counting
-from test_llm import CUT, REFUSAL, FakeClient
-from test_routes import Body
-from test_verify import T01, TEXT, Claude
 from verify import verify
 
 
@@ -52,7 +49,7 @@ def test_nothing_spent_says_so():
 
 def test_tmap_counts_answered_calls_while_counting(monkeypatch):
     """counting 밖에서 부른 호출은 어느 계량기에도 들어가지 않는다."""
-    monkeypatch.setattr(routes.urllib.request, "urlopen", lambda *a, **kw: Body(b"{}"))
+    monkeypatch.setattr(routes.urllib.request, "urlopen", lambda *a, **kw: io.BytesIO(b"{}"))
     meter = Spend()
     with counting(meter):
         routes.call("GET", routes.POI.format("경복궁"), "key")
@@ -84,6 +81,7 @@ def test_transit_cost_is_a_range():
 
 # 검증 명령 · 데모 서버
 
+@pytest.fixture
 def tmap_answers(monkeypatch):
     """routes.call 은 진짜로 두고 urlopen 만 바꿔야 호출 수가 세진다."""
     def urlopen(req, timeout=None):
@@ -96,13 +94,12 @@ def tmap_answers(monkeypatch):
             body = {"features": [{"properties": {"totalTime": 1200, "taxiFare": 10000}}]}
         else:
             body = {"metaData": {"plan": {"itineraries": [{"totalTime": 1200}]}}}
-        return Body(json.dumps(body).encode())
+        return io.BytesIO(json.dumps(body).encode())
     monkeypatch.setattr(routes.urllib.request, "urlopen", urlopen)
 
 
-def test_verify_counts_claude_and_tmap(monkeypatch, facts, policy):
+def test_verify_counts_claude_and_tmap(tmap_answers, facts, policy):
     """추출 한 번이 입력 100 · 출력 50 토큰이라 $0.0014 다."""
-    tmap_answers(monkeypatch)
     meter = Spend()
     verify(TEXT, Claude(T01), "key", facts, policy, today="2026-10-01", meter=meter)
     assert meter.claude_calls == {"구조화 추출": 1} and meter.claude_usd == pytest.approx(0.0014)
@@ -113,30 +110,27 @@ def test_verify_counts_a_refused_extraction(facts, policy):
     """출력 도중 거부돼도 청구된다. 실패로 끝나도 나간 돈은 센다."""
     meter = Spend()
     with pytest.raises(Refusal):
-        verify(TEXT, FakeClient(CUT, "refusal", REFUSAL, output_tokens=7), "key", facts, policy,
+        verify(TEXT, Claude(reply(CUT, "refusal", REFUSAL, output_tokens=7)), "key", facts, policy,
                today="2026-10-01", meter=meter)
     assert meter.claude_calls == {"구조화 추출": 1} and meter.claude_usd > 0
 
 
-def test_demo_prints_what_each_request_spent(monkeypatch, capsys):
+def test_demo_prints_what_each_request_spent(tmap_answers, capsys):
     """요청 돈과 누적을 찍고, 돈이 드는 호출이 없던 요청은 찍지 않는다."""
-    tmap_answers(monkeypatch)
-    c = TestClient(create_app(Claude(T01), "key", today="2026-10-01"), base_url="http://127.0.0.1")
+    c = demo(Claude(T01), "key")
     first = c.post("/api/check", json={"text": TEXT}).json()
     out = capsys.readouterr().out
     assert "[비용] /api/check — Anthropic $0.0014 — 구조화 추출 1건 / TMAP 장소 검색 2건" in out
     c.post("/api/check", json={"text": TEXT})
     assert "서버를 켠 뒤 누적 — Anthropic $0.0028 — 구조화 추출 2건" in capsys.readouterr().out
 
-    no_tmap = TestClient(create_app(Claude(T01), None, today="2026-10-01"), base_url="http://127.0.0.1")
-    no_tmap.post("/api/recheck", json={"original": first["itinerary"], "revised": first["itinerary"]})
+    demo(Claude(T01)).post("/api/recheck", json={"original": first["itinerary"], "revised": first["itinerary"]})
     assert "[비용]" not in capsys.readouterr().out
 
 
-def test_demo_request_survives_a_console_that_cannot_print(monkeypatch):
+def test_demo_request_survives_a_console_that_cannot_print(tmap_answers, monkeypatch):
     """cp949 서버 창이 비용 줄의 대시를 못 찍어도 돈은 이미 나갔으니 판정을 돌려준다."""
-    tmap_answers(monkeypatch)
-    c = TestClient(create_app(Claude(T01), "key", today="2026-10-01"), base_url="http://127.0.0.1")
+    c = demo(Claude(T01), "key")
 
     def cp949_console(*args, **kwargs):
         raise UnicodeEncodeError("cp949", "—", 0, 1, "illegal multibyte sequence")
