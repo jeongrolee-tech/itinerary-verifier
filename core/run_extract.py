@@ -67,20 +67,24 @@ def ask_key() -> str:
 RUN_ID = f"extract-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 
-def call_all(client, meter: Spend, label: str, todo: dict[str, dict]) -> dict:
+def call_all(client, meter: Spend, label: str, todo: dict[str, dict], keep=None) -> dict:
     """첫 요청만 바로, 나머지는 배치로 불러 값을 절반으로 줄인다."""
-    try:
-        got = ask_many(client, todo)
-    except anthropic.APIError as e:
-        raise SystemExit(f"❌ API 호출 실패: {type(e).__name__} {e}\n{meter.summary()}") from e
-    for name, ans in got.items():
+
+    def paid(name, ans):
+        # 받는 즉시 세고 넘긴다. 뒤에서 배치가 실패해도 그때까지 나간 돈을 찍는다.
         usage = None if isinstance(ans, BatchMiss) else ans.usage if isinstance(ans, Exception) else ans[1]
         if usage is None:
-            continue  # 배치에서 못 받은 답은 청구되지 않는다
+            return  # 배치에서 못 받은 답은 청구되지 않는다
         cost = meter.claude(label, usage)
         print(f"[비용] {name.split('-')[0]} {'배치' if usage.get('batch') else '바로'} "
               f"{'단가 모름' if cost is None else f'${cost:.4f}'} · 이번 실행 누적 ${meter.claude_usd:.4f}")
-    return got
+        if keep:
+            keep(name, ans)
+
+    try:
+        return ask_many(client, todo, on_answer=paid)
+    except anthropic.APIError as e:
+        raise SystemExit(f"❌ API 호출 실패: {type(e).__name__} {e}\n{meter.summary()}") from e
 
 
 def repeat_runs(n: int) -> None:
@@ -146,13 +150,8 @@ if new_calls:
     key = ask_key()
     if not key:
         raise SystemExit("키가 비어 있다.")
-    got = call_all(anthropic.Anthropic(api_key=key), meter, "구조화 추출",
-                   {c["id"]: requests[c["id"]] for c in cases if c["id"] not in stored})
-    missed = []
-    for cid, ans in got.items():
-        if isinstance(ans, BatchMiss):
-            missed.append(f"{cid} — {ans}")
-            continue
+
+    def keep(cid, ans):
         if isinstance(ans, Refusal):
             result, usage = {"error": f"refusal: {ans}"}, ans.usage  # 거부된 호출도 청구될 수 있다
         elif isinstance(ans, InvalidOutput):
@@ -161,6 +160,10 @@ if new_calls:
             # 캐시에는 판정 코드가 읽는 일정과 메모로 둔다.
             result, usage = {"extracted": to_itinerary(ans[0]), "notes": ans[0].notes}, ans[1]
         fetched[cid] = cache.put(keys[cid], run=RUN_ID, label="extract", result=result, usage=usage)
+
+    got = call_all(anthropic.Anthropic(api_key=key), meter, "구조화 추출",
+                   {c["id"]: requests[c["id"]] for c in cases if c["id"] not in stored}, keep)
+    missed = [f"{cid} — {ans}" for cid, ans in got.items() if isinstance(ans, BatchMiss)]
     if missed:
         # 일부만 받은 채로 공식 기록을 쓰지 않는다.
         raise SystemExit(f"❌ 배치에서 {len(missed)}건의 답을 받지 못했다(청구되지 않는다): {' / '.join(missed[:3])}\n"

@@ -125,9 +125,14 @@ class BatchClient:
             yield SimpleNamespace(custom_id=req["custom_id"], result=SimpleNamespace(type=kind, message=msg))
 
 
+REQ = {"model": "claude-opus-5-5", "effort": "low", "system": "system", "content": "content", "schema": Answer}
+
+
 def many(client, names):
-    req = {"model": "claude-opus-5-5", "effort": "low", "system": "system", "content": "content", "schema": Answer}
-    return ask_many(client, {n: req for n in names}, wait=lambda s: None, log=lambda *a: None)
+    seen = {}
+    got = ask_many(client, {n: REQ for n in names}, on_answer=seen.__setitem__, wait=lambda s: None, log=lambda *a: None)
+    assert seen == got  # 돌려준 답은 모두 받는 즉시 on_answer 로도 넘어갔다.
+    return got
 
 
 def test_first_request_warms_the_cache_and_the_rest_go_in_one_batch():
@@ -154,3 +159,18 @@ def test_one_request_needs_no_batch():
     client = BatchClient([])
     many(client, ["a"])
     assert len(client.direct) == 1 and client.batched is None
+
+
+def test_paid_answer_is_handed_over_before_the_batch_fails():
+    """바로 부른 첫 요청은 이미 청구됐다. 배치를 맡기다 오류가 나도 그 답은 먼저 넘어간다."""
+
+    class Down(BatchClient):
+        def create(self, **kw):
+            if "requests" in kw:
+                raise ConnectionError("batches.create 실패")
+            return super().create(**kw)
+
+    seen = {}
+    with pytest.raises(ConnectionError):
+        ask_many(Down([]), {"a": REQ, "b": REQ}, on_answer=seen.__setitem__, wait=lambda s: None, log=lambda *a: None)
+    assert list(seen) == ["a"] and seen["a"][0] == Answer(verdict="feasible")

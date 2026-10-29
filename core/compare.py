@@ -246,26 +246,35 @@ def ask_fresh(req: dict) -> tuple[dict, dict]:
         return as_answer(e)
 
 
-def call_all(todo: dict[str, tuple[str, dict]]) -> tuple[dict, list]:
+def call_all(todo: dict[str, tuple[str, dict]], keep=None) -> tuple[dict, list]:
     """첫 요청만 바로, 나머지는 배치로 불러 값을 절반으로 줄인다."""
     # 첫 요청이 캐시를 데우므로 앞부분이 가장 긴 llm_with_facts 를 맨 앞에 둔다.
     order = sorted(todo, key=lambda name: todo[name][0] != "llm_with_facts")
-    if DRY:  # StubClient 에는 배치가 없다
-        return {name: ask_fresh(todo[name][1]) for name in order}, []
-    try:
-        got = ask_many(client, {name: todo[name][1] for name in order})
-    except APIError as e:
-        raise SystemExit(f"\n  ❌ API 호출 실패: {type(e).__name__} {e}\n{meter.summary()}") from e
     out, missed = {}, []
-    for name in order:
-        arm, ans = todo[name][0], got[name]
+    if DRY:  # StubClient 에는 배치가 없다
+        for name in order:
+            out[name] = ask_fresh(todo[name][1])
+            if keep:
+                keep(name, *out[name])
+        return out, missed
+
+    def paid(name, ans):
+        # 받는 즉시 세고 넘긴다. 뒤에서 배치가 실패해도 그때까지 나간 돈을 찍는다.
+        arm = todo[name][0]
         if isinstance(ans, BatchMiss):
             missed.append(f"{ARM_NAMES[arm]} — {ans}")
-            continue
+            return
         out[name] = as_answer(ans)
         cost = meter.claude(ARM_NAMES[arm], out[name][1])
         print(f"    [비용] {ARM_NAMES[arm]} {'배치' if out[name][1].get('batch') else '바로'} "
               f"{'단가 모름' if cost is None else f'${cost:.4f}'} · 이번 실행 누적 ${meter.claude_usd:.4f}")
+        if keep:
+            keep(name, *out[name])
+
+    try:
+        ask_many(client, {name: todo[name][1] for name in order}, on_answer=paid)
+    except APIError as e:
+        raise SystemExit(f"\n  ❌ API 호출 실패: {type(e).__name__} {e}\n{meter.summary()}") from e
     if missed:
         print(f"\n  ❌ 배치에서 {len(missed)}건의 답을 받지 못했다(청구되지 않는다): " + " / ".join(missed[:3]))
     return out, missed
@@ -280,11 +289,13 @@ def fetch_new() -> None:
                 todo.setdefault(keys[arm], (arm, req))
     if not todo:
         return
-    got, missed = call_all(todo)
-    for key, (result, usage) in got.items():
+
+    def keep(key, result, usage):
         arm = todo[key][0]
         fetched[key] = ({"label": arm, "run": RUN_ID, "result": result, "usage": usage} if DRY  # 가짜 응답은 캐시에 넣지 않는다
                         else cache.put(key, run=RUN_ID, label=arm, result=result, usage=usage))
+
+    _, missed = call_all(todo, keep)
     if missed:
         raise SystemExit("  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.\n"
                          f"{meter.summary()}")

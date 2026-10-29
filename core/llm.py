@@ -86,17 +86,26 @@ def _answer(r, schema, usage: dict, max_tokens: int):
         raise InvalidOutput(f"스키마에 맞지 않는다 ({e.error_count()}곳) — {where}: {first['msg']}", usage) from e
 
 
-def ask_many(client, requests: dict[str, dict], *, poll_seconds: float = 30, wait=time.sleep, log=print) -> dict:
+def ask_many(client, requests: dict[str, dict], *, on_answer=None, poll_seconds: float = 30, wait=time.sleep,
+             log=print) -> dict:
     """답을 쓸 수 없는 요청은 그 자리에 예외를 담아 돌려준다. API 오류는 그대로 올린다."""
     # 배치 안의 요청은 동시에 처리돼 캐시를 놓치기 쉽다. 첫 요청은 바로 불러 캐시를 데운다.
     names = list(requests)
     out: dict = {}
+
+    def got(name, answer):
+        # 받는 즉시 넘긴다. 뒤에서 배치가 실패해도 이미 청구된 답은 비용과 캐시에 남는다.
+        out[name] = answer
+        if on_answer:
+            on_answer(name, answer)
+
     if not names:
         return out
     try:
-        out[names[0]] = ask(client, **requests[names[0]])
+        first = ask(client, **requests[names[0]])
     except (Refusal, InvalidOutput) as e:
-        out[names[0]] = e
+        first = e
+    got(names[0], first)
     ids = {f"q{i:04d}": name for i, name in enumerate(names[1:])}  # custom_id 는 영문, 숫자, -, _ 만 받는다
     if not ids:
         return out
@@ -117,13 +126,15 @@ def ask_many(client, requests: dict[str, dict], *, poll_seconds: float = 30, wai
             continue
         req, res = requests[name], item.result
         if res.type != "succeeded":
-            out[name] = BatchMiss(f"배치에서 답을 받지 못했다 — {res.type}")
+            got(name, BatchMiss(f"배치에서 답을 받지 못했다 — {res.type}"))
             continue
         usage = _usage(res.message, req["model"], req["effort"], None, batch=True)
         try:
-            out[name] = _answer(res.message, req["schema"], usage, req.get("max_tokens", 16000))
+            answer = _answer(res.message, req["schema"], usage, req.get("max_tokens", 16000))
         except (Refusal, InvalidOutput) as e:
-            out[name] = e
+            answer = e
+        got(name, answer)
     for name in ids.values():
-        out.setdefault(name, BatchMiss("배치 결과에 없다"))
+        if name not in out:
+            got(name, BatchMiss("배치 결과에 없다"))
     return out
