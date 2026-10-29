@@ -41,9 +41,10 @@
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
   .status.error { color: var(--fail); }
   .verdict { font-size: 1.2rem; font-weight: 700; }
-  .verdict.feasible { color: var(--pass); }
-  .verdict.infeasible { color: var(--fail); }
-  .verdict.undetermined { color: var(--unknown); }
+  .verdict.feasible, .group.pass h3, .tl-mark.pass { color: var(--pass); }
+  .verdict.infeasible, .group.fail h3, .tl-mark.fail, .tl-line.fail { color: var(--fail); }
+  .verdict.undetermined, .group.unknown h3, .tl-mark.unknown, .tl-line.unknown { color: var(--unknown); }
+  .group.not_applicable h3 { color: var(--na); }
   .questions { background: var(--ask); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
   .scope { margin: 14px 0 4px; }
   .scope-title { font-weight: 700; margin-bottom: 8px; }
@@ -62,10 +63,6 @@
   .questions h3 { margin: 0 0 4px; }
   .questions ul { margin: 0 0 4px; padding-left: 20px; }
   .group h3 .count { color: var(--muted); font-weight: 400; }
-  .group.fail h3 { color: var(--fail); }
-  .group.unknown h3 { color: var(--unknown); }
-  .group.pass h3 { color: var(--pass); }
-  .group.not_applicable h3 { color: var(--na); }
   .item { border-left: 3px solid var(--line); padding: 2px 10px; margin: 6px 0; }
   .group.fail .item { border-color: var(--fail); }
   .group.unknown .item { border-color: var(--unknown); }
@@ -91,14 +88,9 @@
   .tl-row.travel .tl-time { text-align: center; }
   .tl-time.window { white-space: pre-line; font-size: .82em; }
   .tl-mark { font-weight: 700; text-align: center; color: var(--na); }
-  .tl-mark.pass { color: var(--pass); }
-  .tl-mark.fail { color: var(--fail); }
-  .tl-mark.unknown { color: var(--unknown); }
   .tl-title { font-weight: 600; }
   .tl-row.travel .tl-title { font-weight: 400; color: var(--muted); }
   .tl-line, .tl-row .evidence { color: var(--muted); font-size: .9rem; }
-  .tl-line.fail { color: var(--fail); }
-  .tl-line.unknown { color: var(--unknown); }
   details.by-status { margin: 12px 0; }
   details.by-status summary { cursor: pointer; color: var(--accent); }
   ::placeholder { color: var(--muted); opacity: 1; }
@@ -269,19 +261,19 @@ function evidenceLine(found) {
   return el("div", { class: "evidence", text: "근거 · " + parts.join(" · ") + (parts.length && link ? " · " : "") }, link);
 }
 
+// 구간 키는 verdict.segment_key 의 '번호:출발|도착' 꼴이다.
+const legName = (k) => k.replace(/^[^:]*:/, "").replace("|", " → ");
+
 function extraLines(data) {
   const lines = (data.notes || []).map((t) => "추출 메모 · " + t);
   for (const [k, leg] of Object.entries(data.legs || {})) {
-    // 구간 키는 verdict.segment_key 의 '번호:출발|도착' 꼴이다.
-    let line = `TMAP 예상 · ${k.replace(/^[^:]*:/, "").replace("|", " → ")} ${MODES[leg.mode] || leg.mode} ${leg.minutes}분`;
+    let line = `TMAP 예상 · ${legName(k)} ${MODES[leg.mode] || leg.mode} ${leg.minutes}분`;
     for (const t of leg.alternatives || []) {
       line += ` · 택시 ${t.minutes}분` + (t.fare ? ` (약 ${t.fare.toLocaleString("ko-KR")}원)` : "");
     }
     lines.push(line);
   }
-  for (const [k, why] of Object.entries(data.leg_misses || {})) {
-    lines.push(`TMAP 받지 못함 · ${k.replace(/^[^:]*:/, "").replace("|", " → ")} [${why}]`);
-  }
+  for (const [k, why] of Object.entries(data.leg_misses || {})) lines.push(`TMAP 받지 못함 · ${legName(k)} [${why}]`);
   lines.push(data.tmap ? "TMAP 이동시간은 출발 시각 기준 예상값이라 당일 교통에 따라 달라질 수 있습니다. 이 판정에만 쓰고 저장하지 않습니다"
                        : "TMAP 키가 없어 이동시간은 저장해 둔 지하철 최소 이동시간으로만 판정했습니다");
   return lines;
@@ -347,6 +339,11 @@ function showResult(data) {
 }
 
 // 일정 표
+const guessBox = (cls) => el("label", { class: "small" }, el("input", { type: "checkbox", class: cls }), "추측한 시각이 맞아요");
+
+const removeButton = (tr) => Object.assign(el("button", { type: "button", class: "ghost", text: "빼기" }),
+                                           { onclick: () => tr.remove() });
+
 function stopRow(s = {}, index = null) {
   const tr = el("tr");
   // 추측한 시각을 그대로 뒀는지 보려고 처음 일정의 몇 번째 장소인지 남긴다.
@@ -360,14 +357,9 @@ function stopRow(s = {}, index = null) {
   const outside = el("input", { type: "checkbox", "aria-label": "입장 안 함" });
   outside.checked = Boolean(s.outside_only);
   const startCell = el("td", {}, start);
-  if (s.start_source === "inferred") {
-    startCell.append(" ", el("label", { class: "small" }, el("input", { type: "checkbox", class: "start-ok" }),
-                             "추측한 시각이 맞아요"));
-  }
-  const remove = el("button", { type: "button", class: "ghost", text: "빼기" });
-  remove.onclick = () => tr.remove();
+  if (s.start_source === "inferred") startCell.append(" ", guessBox("start-ok"));
   tr.append(el("td", {}, place), startCell, el("td", {}, dwell), el("td", { class: "center" }, area),
-            el("td", { class: "center" }, outside), el("td", {}, remove));
+            el("td", { class: "center" }, outside), el("td", {}, removeButton(tr)));
   return tr;
 }
 
@@ -381,13 +373,8 @@ function hcRow(h = {}) {
   const place = el("input", { type: "text", value: h.place || "", "aria-label": "장소" });
   const time = el("input", { type: "time", value: h.time || "", "aria-label": "시각" });
   const timeCell = el("td", {}, time);
-  if (h.time_source === "inferred") {
-    timeCell.append(" ", el("label", { class: "small" }, el("input", { type: "checkbox", class: "time-ok" }),
-                            "추측한 시각이 맞아요"));
-  }
-  const remove = el("button", { type: "button", class: "ghost", text: "빼기" });
-  remove.onclick = () => tr.remove();
-  tr.append(el("td", {}, type), el("td", {}, place), timeCell, el("td", {}, remove));
+  if (h.time_source === "inferred") timeCell.append(" ", guessBox("time-ok"));
+  tr.append(el("td", {}, type), el("td", {}, place), timeCell, el("td", {}, removeButton(tr)));
   return tr;
 }
 
@@ -408,6 +395,10 @@ function fillTable(it) {
   $("stops").replaceChildren(...it.stops.map((s, i) => stopRow(s, i)));
   $("hcs").replaceChildren(...(it.hard_constraints || []).map((h) => hcRow(h)));
 }
+
+// 추측한 값을 고치지도 맞다고 하지도 않았으면 추측으로 남긴다.
+const sourceOf = (value, before, beforeValue, okBox) =>
+  !value ? "missing" : before === "inferred" && value === beforeValue && !okBox?.checked ? "inferred" : "explicit";
 
 function freshId(used) {
   // 처음 일정의 번호와 겹치면 원래 조건이 바뀐 것으로 잘못 비교된다.
@@ -437,12 +428,10 @@ function readTable() {
     if (!start.checkValidity()) throw new Error(`${place.value.trim()} 시작 시각을 끝까지 적어 주세요`);
     if (!dwell.checkValidity()) throw new Error("체류시간은 1분에서 1440분 사이 정수로 적어 주세요");
     const before = tr.dataset.index === "" ? null : original.stops[Number(tr.dataset.index)];
-    const guessKept = before?.start_source === "inferred" && start.value === before.start
-                      && !tr.querySelector(".start-ok")?.checked;
     // 빈 칸은 키를 뺀다. 처음 일정과 모양이 같아야 바뀐 칸을 바르게 센다.
     const s = { place: place.value.trim() };
     if (start.value) s.start = start.value;
-    s.start_source = !start.value ? "missing" : guessKept ? "inferred" : "explicit";
+    s.start_source = sourceOf(start.value, before?.start_source, before?.start, tr.querySelector(".start-ok"));
     if (dwell.value) s.dwell_minutes = Number(dwell.value);
     s.scope = area.checked ? "area" : "place";
     s.outside_only = outside.checked;
@@ -456,11 +445,10 @@ function readTable() {
     const [place, time] = tr.querySelectorAll("td > input");
     if (!time.checkValidity()) throw new Error("필수 일정의 시각을 끝까지 적어 주세요");
     const before = (original.hard_constraints || []).find((h) => h.id === tr.dataset.id);
-    const guessKept = before?.time_source === "inferred" && time.value === before.time
-                      && !tr.querySelector(".time-ok")?.checked;
     revised.hard_constraints.push({ id: tr.dataset.id || freshId(used), type: tr.querySelector("select").value,
                                     place: place.value.trim() || null, time: time.value || null,
-                                    time_source: !time.value ? "missing" : guessKept ? "inferred" : "explicit",
+                                    time_source: sourceOf(time.value, before?.time_source, before?.time,
+                                                          tr.querySelector(".time-ok")),
                                     raw: tr.dataset.raw || "화면에서 더함" });
   }
   return revised;
