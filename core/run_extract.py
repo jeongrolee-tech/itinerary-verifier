@@ -1,26 +1,5 @@
 #!/usr/bin/env python3
-"""
-추출 평가 + 전체 파이프라인 실행
-
-    python core/run_extract.py            전체 케이스: 자연어 → 추출 → 판정
-    python core/run_extract.py --case T05 한 건만
-    python core/run_extract.py --extract-only   추출만 채점 (판정 생략)
-    python core/run_extract.py --fresh    받아 둔 응답을 쓰지 않고 전부 새로 받는다 (돈이 든다)
-    python core/run_extract.py --reference-date 2026-10-01   기준 날짜를 바꿔서 (기본은 tests.json)
-    python core/run_extract.py --suite eval-new.json   새 평가 문제(회귀셋과 따로) → last-extract-run-eval-new.json
-    python core/run_extract.py --repeat 5   모호한 시각 · 필수 일정 문제를 다섯 번씩 새로 불러 답이 흔들리는지 잰다
-                                            → last-extract-stability.json (돈이 든다. --case T22,T23 으로 문제를 고른다)
-
-추출 문제와 판정 문제를 구분해서 재기 위해 두 단계를 따로 채점한다.
-  · 추출 평가 — 날짜·장소·시각·체류시간·필수 조건을 정확히 옮겼는가. 연도와 시각을 말한 것과 추측한 것으로
-                맞게 나눴는가. 장소를 지원 범위(정보 있는 장소 · 목록 밖 · 구역)에 맞게 나눴는가.
-                입력에 없는 값을 추가했는가. 모호한 것을 미확인으로 남겼는가.
-  · 판정 평가 — 사람이 확인한 구조화 일정을 넣었을 때 코드가 기대한 결과를 내는가 (run.py)
-
-추출은 돈이 든다. 모델이 받는 것이 같은 요청은 응답 캐시(response_cache.py)에 받아 둔 응답을 쓰고,
-새로 부를 것이 있으면 몇 건이고 얼마쯤인지 보여 준 뒤 y 를 받아야 부른다. 부를 때마다 그 호출 비용과
-누적을 찍고, 끝에 이번 실행에서 나간 돈을 찍어 기록(responses.spent_usd)에도 남긴다(spend.py).
-"""
+"""추출 평가. 추출과 판정을 따로 채점해 틀린 곳이 어느 단계인지 가른다."""
 
 import json
 import sys
@@ -51,23 +30,19 @@ args = sys.argv[1:]
 extract_only = "--extract-only" in args
 flag = lambda name, default: next(
     (args[i + 1] for i, a in enumerate(args) if a == name and i + 1 < len(args)), default)
-# 문제 묶음 — 기본은 회귀셋(tests.json). 새 평가(eval-new.json)는 기록도 따로 남는다(runmeta.record_name)
 SUITE_FILE = flag("--suite", "tests.json")
 suite = load(SUITE_FILE)
 only = flag("--case", None)
 REPEAT = int(flag("--repeat", "0"))
-# 반복 실행의 기본 문제 — 3차 피드백 "새 호출은 모호한 시각이나 복합 조건 일부에 한정해도 된다"
-#   T12 · T22 · T23  오전 · 오후가 없는 시각. 10월 1일과 6일 실행에서 이런 시각의 출처가 실행마다 뒤집혔다
-#   T27 · T33        꼭 타야 하는 열차가 있는 일정. T33 은 장소 셋에 열차까지 있다
+# 반복은 답이 흔들렸던 오전 · 오후 없는 시각과 꼭 타야 할 열차 문제만 부른다.
 STABILITY_CASES = "T12,T22,T23,T27,T33"
 only = only or (STABILITY_CASES if REPEAT else None)
 MODEL = flag("--model", DEFAULT_MODEL)
 EFFORT = effort_for(MODEL, flag("--effort", "low"))
 cases = [c for c in suite["cases"] if not only or c["id"].startswith(tuple(only.split(",")))]
 
-# 연도가 빠진 날짜를 푸는 기준 날짜. 실행한 날이 아니라 tests.json 의 값이다 (runmeta.reference_date).
 REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
-# 모델이 받는 것은 시스템 프롬프트와 출력 스키마다. 스키마도 지문으로 남기고, 스키마를 만드는 SDK 버전도 적는다
+# 모델은 출력 스키마도 받으므로 스키마 지문도 남긴다.
 SCHEMA = json.dumps(anthropic.transform_schema(Extraction), ensure_ascii=False, sort_keys=True)
 CONDITIONS = run_meta(SUITE_FILE, reference_date=REFERENCE_DATE, libraries=library_versions(),
                       prompts={"extract": fingerprint(SYSTEM), "extract_schema": fingerprint(SCHEMA)})
@@ -79,7 +54,6 @@ MARK = {"pass": "○", "fail": "✕", "unknown": "?", "not_applicable": "–"}
 
 
 def ask_key() -> str:
-    """환경변수에 있으면 그걸 쓰고, 없으면 물어본다. 입력값은 화면에 안 찍힌다."""
     import os
     from getpass import getpass
     for a in args:
@@ -94,8 +68,7 @@ RUN_ID = f"extract-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 
 def call_all(client, meter: Spend, label: str, todo: dict[str, dict]) -> dict:
-    """요청을 한꺼번에 부른다 — 첫 요청만 바로, 나머지는 배치(llm.ask_many, 값이 절반). 받은 것마다 비용을 찍는다.
-    API 오류(잔액 · 네트워크)면 멈춘다 — 받은 응답만 남고 공식 기록은 건드리지 않는다."""
+    """첫 요청만 바로, 나머지는 배치로 불러 값을 절반으로 줄인다."""
     try:
         got = ask_many(client, todo)
     except anthropic.APIError as e:
@@ -103,7 +76,7 @@ def call_all(client, meter: Spend, label: str, todo: dict[str, dict]) -> dict:
     for name, ans in got.items():
         usage = None if isinstance(ans, BatchMiss) else ans.usage if isinstance(ans, Exception) else ans[1]
         if usage is None:
-            continue  # 배치에서 답을 받지 못한 요청은 청구되지 않는다
+            continue  # 배치에서 못 받은 답은 청구되지 않는다
         cost = meter.claude(label, usage)
         print(f"[비용] {name.split('-')[0]} {'배치' if usage.get('batch') else '바로'} "
               f"{'단가 모름' if cost is None else f'${cost:.4f}'} · 이번 실행 누적 ${meter.claude_usd:.4f}")
@@ -111,11 +84,7 @@ def call_all(client, meter: Spend, label: str, todo: dict[str, dict]) -> dict:
 
 
 def repeat_runs(n: int) -> None:
-    """같은 요청을 n 번 새로 불러 답이 흔들리는지 잰다. 응답 캐시는 읽지도 쓰지도 않는다.
-
-    3차 피드백 — 받아 둔 응답을 지금 코드로 다시 채점한 숫자와, 모델을 새로 불렀을 때 같은 답이 나오는지는
-    다른 질문이다. 공식 기록(last-extract-run.json)은 문제마다 응답 하나로 낸다. 그 응답은 바꾸지 않고 따로 부른다.
-    """
+    """같은 요청을 n 번 새로 불러 답이 흔들리는지 잰다. 공식 기록의 응답은 건드리지 않는다."""
     total = n * len(cases)
     confirm_spend({"구조화 추출 반복": total}, 0,
                   {"구조화 추출 반복": cache.estimate_usd(MODEL, "extract", total, batch=True)})
@@ -156,25 +125,23 @@ def repeat_runs(n: int) -> None:
     print(f"  기록: core/{name}  ({out['run_id']})")
     print(describe(CONDITIONS))
 
-# ⭐ API 를 부르기 전에 요청을 다 만들어 응답 캐시와 맞춰 본다. 모델이 받는 것이 같은 요청은 받아 둔 응답을 쓰고,
-#    새로 부를 것이 있을 때만 비용을 보여 주고 물은 뒤에 키를 받는다. 받은 응답은 바로 캐시에 들어가므로
-#    도중에 멈춰도 다시 돌리면 남은 것만 부른다.
+# 부르기 전에 응답 캐시와 맞춰 보고, 새 호출이 있으면 건수와 예상 비용을 보여 주고 묻는다.
 cache = ResponseCache()
 requests = {c["id"]: request(c["raw"], MODEL, today=REFERENCE_DATE, effort=EFFORT) for c in cases}
 keys = {cid: request_key(**req) for cid, req in requests.items()}
 if REPEAT:
     repeat_runs(REPEAT)
     raise SystemExit
-stored = {}  # 문제 → 받아 둔 응답. --fresh 면 쓰지 않고 전부 새로 받아 바꿔 넣는다
+stored = {}
 if "--fresh" not in args:
     stored = {cid: hit for cid, key in keys.items() if (hit := cache.get(key))}
 new_calls = len(cases) - len(stored)
 confirm_spend({"구조화 추출": new_calls}, len(stored),
               {"구조화 추출": cache.estimate_usd(MODEL, "extract", new_calls, batch=True)})
 
-results, usages, runs = [], [], set()  # usages — 응답마다 하나. 거부된 호출도 들어간다. runs — 응답을 받은 실행
-meter = Spend()  # 이번 실행에서 새로 부른 호출만 센다 — 받아 둔 응답은 돈이 나가지 않는다
-fetched = {}  # 문제 → 이번 실행에서 새로 받은 응답
+results, usages, runs = [], [], set()
+meter = Spend()
+fetched = {}
 if new_calls:
     key = ask_key()
     if not key:
@@ -187,15 +154,15 @@ if new_calls:
             missed.append(f"{cid} — {ans}")
             continue
         if isinstance(ans, Refusal):
-            result, usage = {"error": f"refusal: {ans}"}, ans.usage  # 거부된 호출도 청구될 수 있다(model_info.billed)
+            result, usage = {"error": f"refusal: {ans}"}, ans.usage  # 거부된 호출도 청구될 수 있다
         elif isinstance(ans, InvalidOutput):
-            result, usage = {"error": f"invalid_output: {ans}"}, ans.usage  # 끝까지 온 응답이라 청구된다
+            result, usage = {"error": f"invalid_output: {ans}"}, ans.usage  # 형식 오류도 청구된 호출이다
         else:
-            # 캐시에는 채점에 쓰는 모양(판정 코드가 읽는 일정과 메모)으로 둔다
+            # 캐시에는 판정 코드가 읽는 일정과 메모로 둔다.
             result, usage = {"extracted": to_itinerary(ans[0]), "notes": ans[0].notes}, ans[1]
         fetched[cid] = cache.put(keys[cid], run=RUN_ID, label="extract", result=result, usage=usage)
     if missed:
-        # 공식 기록은 건드리지 않는다. 받은 것은 응답 캐시에 남아 다시 돌리면 남은 것만 부른다
+        # 일부만 받은 채로 공식 기록을 쓰지 않는다.
         raise SystemExit(f"❌ 배치에서 {len(missed)}건의 답을 받지 못했다(청구되지 않는다): {' / '.join(missed[:3])}\n"
                          "  여기까지 받은 응답은 응답 캐시에 남아 있다. 다시 돌리면 남은 것만 부른다.\n"
                          f"{meter.summary()}")
@@ -247,10 +214,10 @@ for case in cases:
            "notes": notes}
 
     if not extract_only:
-        # 라벨을 검토한 뒤 데이터가 바뀌었으면 판정 채점에서 뺀다 — run.py · compare.py 와 같은 규칙
+        # 정답을 확인한 뒤 데이터가 바뀐 문제는 판정 채점에서 뺀다.
         stale = stale_reason(case, suite, facts)
         row["label_current"], row["stale_reason"] = stale is None, stale
-        # 추출 결과를 그대로 판정 코어에 넣는다. 사람이 고치지 않는다.
+        # 사람이 고치지 않은 추출 결과를 그대로 판정한다.
         if got.get("date"):
             out = judge(got, case_facts(case, facts), policy)
             ok = out["summary"]["verdict"] == case["expect"]
@@ -268,7 +235,7 @@ for case in cases:
 
     results.append(row)
 
-# ── 요약 ────────────────────────────────────────────────────────────
+# 요약
 print(f"\n{LINE}\n  요약\n{LINE}")
 print(f"  {pad('문제', 26)}{pad('구조화 추출', 14)}{pad('판정', 8)}전체")
 for r in results:
@@ -279,7 +246,7 @@ for r in results:
 
 n_ex = sum(1 for r in results if r.get("extraction_ok"))
 print(f"\n  구조화 추출 {n_ex}/{len(results)}")
-graded = [r for r in results if "extraction_fields" in r]  # 거부 · 형식 오류는 항목을 채점하지 못했다
+graded = [r for r in results if "extraction_fields" in r]  # 거부 · 형식 오류는 항목 채점이 없다
 print("  항목별 " + " · ".join(
     f"{label} {sum(r['extraction_fields'][k] for r in graded)}/{len(results)}" for k, label in EXTRACTION_FIELDS.items()))
 if not extract_only:
@@ -296,8 +263,8 @@ totals = {"in": sum(u["input_tokens"] for u in usages), "out": sum(u["output_tok
           "cache_read": sum(u["cache_read"] for u in usages),
           "cache_write": sum(u["cache_write"] for u in usages)}
 costs = [cost_usd(MODEL, u) for u in usages]
-cost = None if None in costs else sum(costs)  # 단가를 모르는 모델이면 비용을 적지 않는다
-# 토큰과 비용은 응답을 받을 때 잰 값이다. 받아 둔 응답을 다시 쓴 실행에서도 같은 값이 나온다
+cost = None if None in costs else sum(costs)
+# 응답을 받을 때 든 비용이다. 이번 실행에서 나간 돈은 spent_usd 에 따로 적는다.
 print(f"\n  토큰 in {totals['in']:,} / out {totals['out']:,}"
       f" / 프롬프트 캐시 읽기 {totals['cache_read']:,} 쓰기 {totals['cache_write']:,}")
 print(f"  비용 약 ${cost:.4f}   (건당 ${cost / max(len(results), 1):.4f})" if cost is not None
@@ -318,8 +285,6 @@ run = {
     "effort": EFFORT,
     "facts_snapshot": facts["snapshot_id"],
     "conditions": CONDITIONS,
-    # LLM 응답을 이번에 새로 받았는지, 받아 둔 것을 썼는지와 그 응답을 받은 실행
-    # spent_usd 는 이번 실행에서 실제로 나간 돈이다. 아래 estimated_cost_usd 는 응답을 받을 때 든 값이다
     "responses": {"new": new_calls, "reused": len(stored), "received_in": sorted(runs),
                   "spent_usd": round(meter.claude_usd, 4)},
     "tokens": totals,
@@ -328,7 +293,7 @@ run = {
     "estimated_cost_per_case_usd": None if cost is None else round(cost / max(len(results), 1), 4),
     "results": results,
 }
-# 일부만 돌린 결과(--case · --extract-only)는 공식 기록을 덮어쓰지 않는다 — compare.py 와 같은 규칙
+# 공식 기록은 전체 실행만 쓴다. 일부만 돌린 결과는 따로 남긴다.
 RECORD = record_name("last-extract-run-subset.json" if only or extract_only else "last-extract-run.json", SUITE_FILE)
 (HERE / RECORD).write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
 print(f"  기록: core/{RECORD}  ({run['run_id']})")

@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""
-공휴일 캘린더 확보 — 한국천문연구원 특일 정보 (공공데이터포털)
-
-    python core/fetch_holidays.py
-    → 실행하면 서비스키를 물어본다 (입력값은 화면에 안 찍힌다)
-
-getRestDeInfo 로 연 단위 공휴일을 받아서
-  - core/holidays-2026.json  원본 응답 스냅샷
-  - core/facts.json 의 holidays 갱신 (verified=true)
-까지 한다.
-
-대체공휴일이 여기 들어 있어야 궁궐 휴무일 예외 규칙을 판정할 수 있다.
-"""
+"""한국천문연구원 특일 정보로 한 해 공휴일을 받아 facts.json 에 넣는다."""
 
 import json
 import sys
@@ -41,10 +29,8 @@ def ask_key() -> str:
 
 
 def build_url(key: str, month: int) -> str:
-    # 포털이 인증키를 두 형태로 준다.
-    #   Encoding 키 : 이미 URL 인코딩됨 (% 포함) → 그대로 붙인다
-    #   Decoding 키 : 원문 → 우리가 인코딩한다
-    # 잘못 고르면 SERVICE_KEY_IS_NOT_REGISTERED_ERROR 가 난다.
+    # 포털 키는 이미 인코딩된 것과 원문 두 가지라 % 가 있으면 그대로 붙인다.
+    # 잘못 붙이면 SERVICE_KEY_IS_NOT_REGISTERED_ERROR 가 난다.
     service_key = key if "%" in key else urllib.parse.quote(key, safe="")
     params = urllib.parse.urlencode(
         {"solYear": YEAR, "solMonth": f"{month:02d}", "numOfRows": 100, "_type": "json"}
@@ -59,7 +45,7 @@ def fetch(url: str) -> dict:
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
-        # 키가 안 풀리면 JSON 요청이어도 XML 에러가 돌아온다
+        # 키가 틀리면 JSON 을 요청해도 XML 오류가 온다.
         raise SystemExit(
             "JSON 이 아닌 응답이 왔다. 서비스키 형태(Encoding/Decoding)를 바꿔서 다시 시도해봐라.\n"
             "발급 직후에는 몇 분 걸리기도 한다.\n\n" + raw[:600]
@@ -107,7 +93,7 @@ for r in records:
     flag = "휴일" if r["is_holiday"] else "    "
     print(f"  {r['date']}  {flag}  {r['name']}")
 
-# 대체공휴일은 이름에 '대체'가 들어간다. 이게 없으면 케이스 4를 풀 수 없다.
+# 대체공휴일은 이름에 '대체'가 들어간다. 궁궐 휴무일 예외를 판정할 때 필요하다.
 substitutes = [r for r in records if r["is_holiday"] and "대체" in (r["name"] or "")]
 print(f"\n공휴일 {len(holiday_dates)}건 / 그중 대체공휴일 {len(substitutes)}건")
 for s in substitutes:

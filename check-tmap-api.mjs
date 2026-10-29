@@ -1,32 +1,14 @@
 #!/usr/bin/env node
-/**
- * TMAP 길찾기 API 가 서울 구간에서 수단별로 경로를 주는지 확인한다
- *
- *   node check-tmap-api.mjs
- *   → 앱 키를 물어본다 (입력값은 화면에 안 찍히고 셸 기록에도 안 남는다).
- *     TMAP_KEY 환경변수가 있으면 그걸 쓴다.
- *
- * 확인하는 것
- *   장소     — 장소 검색으로 이름이 같은 곳의 입구 좌표가 오나 (좌표는 저장하지 않고 판정할 때 받는다)
- *   대중교통 — 경로가 오나, 출발 시각(searchDttm)을 몇 달 뒤로 넣어도 되나, 아주 가까운 구간은 어떻게 오나
- *   걷기     — 보행자 경로가 오나
- *   자동차   — 경로와 택시 요금이 오나
- *   자동차 예측 — 타임머신 자동차 길 안내. 출발 시각을 넣으면 그 시각 교통으로 도착을 예측하나, 몇 달 뒤도 되나
- *   자전거   — TMAP 공개 API 목록에 없어서 부르지 않는다
- *
- * 값은 화면에만 보여 주고 파일로 남기지 않는다. TMAP 약관상 받은 데이터는
- * 저장 후 24시간 넘게 쓸 수 없다 — docs/data-policy.md 참조.
- */
+/** TMAP 길찾기 API 가 서울 구간에서 수단별 경로를 주는지 확인한다. */
 
 import readline from "node:readline";
 
-// ── 앱 키를 터미널에서 입력받는다 (fetch-travel-times.mjs 와 같은 방식) ──
 function askKey() {
   if (process.env.TMAP_KEY) return Promise.resolve(process.env.TMAP_KEY.trim());
   return new Promise(resolve => {
     const prompt = "TMAP 앱 키 입력: ";
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    // 입력값이 화면에 남지 않도록 가린다 (셸 기록에도 안 남는다)
+    // 입력한 키가 화면에 보이지 않게 가린다.
     let asked = false;
     rl._writeToOutput = s => {
       if (!asked) { process.stdout.write(prompt); asked = true; return; }
@@ -49,11 +31,10 @@ const PEDESTRIAN = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1
 const CAR = "https://apis.openapi.sk.com/tmap/routes?version=1";
 const PREDICTION = "https://apis.openapi.sk.com/tmap/routes/prediction?version=1";
 
-// 돈을 세는 이름과 요금 — core/spend.py 의 TMAP_PRICES 와 같은 표다. 대중교통은 하루 10건 무료, 넘으면 건당
-// 0.88원(docs/data-policy.md, 2026-10-02 확인). 무료 제공량은 tmapapi.tmapmobility.com "POI 검색 일 2만 건, 경로탐색 일 1천건"
-// (2026-10-14 확인). 넘은 뒤 단가를 확인하지 못한 것은 null 이다 — 지어내지 않는다.
 const API_NAMES = { [POI.split("?")[0]]: "장소 검색", [TRANSIT]: "대중교통", [PEDESTRIAN.split("?")[0]]: "보행자 길찾기",
                     [CAR.split("?")[0]]: "자동차 길찾기", [PREDICTION.split("?")[0]]: "택시 예측(타임머신)" };
+// core/spend.py 의 TMAP_PRICES 와 같은 표다. 확인하지 못한 단가는 지어내지 않고 null 로 둔다.
+// 대중교통 0.88원은 docs/data-policy.md(2026-10-02 확인), 무료 제공량은 tmapapi.tmapmobility.com(2026-10-14 확인)에서 왔다.
 const TMAP_PRICES = {
   "장소 검색": { freePerDay: 20000, won: null },
   "대중교통": { freePerDay: 10, won: 0.88 },
@@ -61,10 +42,9 @@ const TMAP_PRICES = {
   "자동차 길찾기": { freePerDay: 1000, won: null },
   "택시 예측(타임머신)": { freePerDay: null, won: null },
 };
-const SPENT = {};  // API 이름 → 응답을 받은 건수. 429 로 다시 물은 것과 오류 응답은 세지 않는다
+const SPENT = {};  // API 별로 응답을 받은 호출만 세어 나간 돈을 찍는다
 
-// 429(너무 빨리 부름)면 기다렸다 다시 묻는다 — core/routes.py 와 같은 규칙이다. 기다릴 시간(Retry-After)을
-// 주면 그만큼, 안 주면 1 · 2 · 4초. 세 번 다시 물어도 막히면 429 응답을 그대로 돌려준다.
+// 429 를 받으면 기다렸다가 세 번까지 다시 묻는다.
 async function fetchTmap(url, init) {
   for (let attempt = 0; ; attempt++) {
     const controller = new AbortController();
@@ -86,11 +66,10 @@ async function fetchTmap(url, init) {
   }
 }
 
-// 장소 좌표는 TMAP 장소 검색으로 받는다(core/routes.py 와 같은 규칙). 이름이 같은 곳의 입구 좌표를
-// 쓰고, 입구 좌표가 없으면 중심점을 쓴다. "경복궁" 을 찾았는데 "경복궁역" 을 쓰면 안 된다.
-// TMAP 이름이 다른 곳은 core/routes.py 의 TMAP_NAMES 와 같은 표로 맞춘다.
+// TMAP 에서 이름이 다른 곳이다. core/routes.py 의 TMAP_NAMES 와 같아야 한다.
 const TMAP_NAMES = { "서울시립미술관 서소문본관": "서울시립미술관", "서울역": "서울역[KTX정차역]" };
 
+// 이름이 같은 곳만 쓴다. "경복궁"을 찾다가 "경복궁역" 좌표를 쓰면 안 된다.
 async function findPlace(name) {
   try {
     const res = await fetchTmap(POI + encodeURIComponent(name), {
@@ -102,7 +81,7 @@ async function findPlace(name) {
     const same = s => (s ?? "").replaceAll(" ", "") === target.replaceAll(" ", "");
     const hit = pois.find(p => same(p.name));
     if (!hit) return { ok: false, detail: `'${target}'과 이름이 같은 곳 없음. 받은 이름: ${pois.slice(0, 5).map(p => p.name).join(", ") || "없음"}` };
-    // 맞는 곳을 찾았는지 사람이 보고 확인할 수 있게 주소를 같이 보여 준다
+    // 맞는 곳인지 사람이 확인하게 주소를 같이 보여 준다.
     const address = [hit.upperAddrName, hit.middleAddrName, hit.roadName, hit.firstBuildNo].filter(Boolean).join(" ");
     const found = `TMAP '${hit.name}' · ${address || "주소 없음"}`;
     const front = Number(hit.frontLat) && Number(hit.frontLon);
@@ -134,10 +113,8 @@ function requestFor({ mode, from, to, at }) {
   }
   const coord = { reqCoordType: "WGS84GEO", resCoordType: "WGS84GEO" };
   if (mode === "자동차 예측") {
-    // 요청 모양은 SK open API 문서의 예제를 따랐다.
-    // ⭐ predictionType 이름이 헷갈린다. "departure" 는 출발 시각을 '예측' 한다 — 도착 시각을 넣으면 언제
-    //    떠나야 하는지를 준다. 2026-10-05 에 departure 로 19:30 을 넣자 도착 19:30, 출발 19:05 가 왔다.
-    //    우리는 출발 시각을 넣고 도착을 받아야 하므로 "arrival"(도착 시각을 예측)을 쓴다.
+    // predictionType 은 예측할 시각이다. "departure" 에 19:30 을 넣으면 19:30 도착, 19:05 출발이 온다.
+    // 출발 시각을 넣고 도착을 받아야 하므로 "arrival" 을 쓴다.
     const point = (name, p) => ({ name, lon: String(p.lng), lat: String(p.lat) });
     return { url: PREDICTION, body: { routesInfo: { departure: point(from, s), destination: point(to, e),
                                                     predictionType: "arrival", predictionTime: at } } };
@@ -148,7 +125,6 @@ function requestFor({ mode, from, to, at }) {
   return { url: CAR, body: { ...xy, ...coord } };
 }
 
-// 응답에서 시간을 읽는다. 대중교통은 metaData.plan.itineraries[0], 걷기·자동차는 features[0].properties 에 있다.
 function readRoute(mode, json) {
   if (mode === "대중교통") {
     const it = json?.metaData?.plan?.itineraries?.[0];
@@ -188,12 +164,13 @@ async function probe(c) {
   }
   const route = res.ok ? readRoute(c.mode, json) : null;
   if (route) return { ok: true, ...route };
-  // 경로가 없으면 TMAP 이 준 응답을 통째로 보여 준다. 대중교통은 HTTP 200 에 status 로 온다(11 = 가까움).
-  // status 가 result 안에 오는지 맨 위에 오는지 보려고 일부만 골라 찍지 않는다.
+  // 대중교통은 경로가 없어도 HTTP 200 에 status 로 온다. 11 은 너무 가깝다는 뜻이다.
+  // status 가 어디에 오는지 몰라 응답을 골라 찍지 않고 통째로 보여 준다.
   const verdict = res.ok ? "NO_ROUTE" : res.status === 429 ? "RATE_LIMITED" : "HTTP_ERROR";
   return { ok: false, verdict, detail: `HTTP ${res.status} ${JSON.stringify(json).slice(0, 200)}` };
 }
 
+// TMAP 약관상 받은 값은 저장 후 24시간 넘게 쓸 수 없어 파일로 남기지 않는다.
 console.log("값은 화면에만 보여 주고 저장하지 않는다 (TMAP 약관: 저장 후 24시간 넘게 사용 불가)\n");
 const PLACES = {};
 for (const name of new Set(CASES.flatMap(c => [c.from, c.to]))) {
@@ -223,7 +200,7 @@ for (const mode of ["대중교통", "걷기", "자동차", "자동차 예측"]) 
   console.log(`${mode}: ${rs.filter(r => r.ok).length}/${rs.length} 경로 받음`);
 }
 
-// 무료 제공량은 하루 전체 사용량에 걸린다. 오늘 이미 몇 건을 썼는지는 TMAP 콘솔에만 있어서 범위로만 말한다
+// 무료 제공량은 하루 단위인데 오늘 쓴 양은 TMAP 콘솔에만 있어 범위로 찍는다.
 console.log("\n--- 이번 실행에서 나간 돈 (TMAP) ---");
 if (!Object.keys(SPENT).length) console.log("없다. 응답을 받은 호출이 없다.");
 for (const [api, n] of Object.entries(SPENT)) {

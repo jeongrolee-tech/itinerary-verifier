@@ -1,9 +1,4 @@
-"""
-추출 — 연도가 빠진 날짜를 푸는 기준 날짜 (2차 피드백 4번).
-
-기준 날짜는 시스템 시계가 아니라 부르는 쪽이 넣는다. 평가에서는 tests.json 의 reference_date 를 쓴다.
-Claude 는 가짜로 끼운다(test_verify.py 와 같은 방식). 진짜로 부르지 않으니 키도 요금도 들지 않는다.
-"""
+"""구조화 추출의 기준 날짜 · 형식 검증 · 채점을 가짜 Claude 로 본다."""
 
 import copy
 import json
@@ -24,7 +19,7 @@ EMPTY = {"date": None, "date_source": "missing", "weekday_stated": None,
 
 
 class Claude:
-    """messages.create 에 들어온 요청을 남기고, 빈 추출 결과를 SDK 의 Message 로 돌려준다."""
+    """요청을 sent 에 남기고 빈 추출 결과를 SDK Message 로 돌려주는 가짜 Claude 다."""
 
     def __init__(self):
         self.messages = self
@@ -40,7 +35,7 @@ class Claude:
 
 
 def test_reference_date_goes_into_the_message():
-    """기준 날짜는 사용자 메시지 맨 앞에 '오늘은 … 이다' 로 들어간다. 시스템 프롬프트는 그대로라 캐시가 붙는다."""
+    """시스템 프롬프트가 그대로여야 캐시가 붙어 기준 날짜는 사용자 메시지에 넣는다."""
     claude = Claude()
     extract("10월 8일 목요일 오후 1시에 경복궁", claude, today="2026-09-22")
     assert claude.sent[0]["messages"][0]["content"].startswith("오늘은 2026-09-22 이다.")
@@ -53,19 +48,16 @@ def test_reference_date_is_required():
 
 
 def test_expected_dates_resolve_from_the_suite_reference_date():
-    """
-    연도를 말하지 않은 케이스의 기대 날짜는 기준 날짜 다음에 오는 가장 가까운 그날이어야 한다.
-    기준 날짜를 바꾸거나 새 케이스를 넣을 때 라벨과 어긋나면 여기서 잡힌다.
-    """
+    """연도 없는 케이스의 기대 날짜는 기준 날짜 뒤 가장 가까운 그날이어야 한다."""
     ref = date.fromisoformat(SUITE["reference_date"])
     for case in SUITE["cases"]:
         if re.search(r"\d{4}년", case["raw"]):
-            continue  # 연도를 말한 입력은 기준 날짜와 상관없다
+            continue  # 연도를 말한 입력은 기준 날짜와 상관없다.
         want = date.fromisoformat(case["date"])
         assert ref < want <= ref.replace(year=ref.year + 1), case["id"]
 
 
-# ── 받자마자 형식을 검증한다 (2차 피드백 4번) ─────────────────────────
+# 형식 검증
 
 VALID = {
     "date": "2026-10-08", "date_source": "inferred", "weekday_stated": "THU", "notes": [], "avoid_taxi": False,
@@ -86,32 +78,31 @@ def changed(path, value):
 
 
 def test_valid_extraction_reaches_the_judge_as_text():
-    """검증을 통과한 날짜는 판정 코어가 읽는 문자열(YYYY-MM-DD)로 넘어간다."""
     assert to_itinerary(Extraction.model_validate(VALID))["date"] == "2026-10-08"
 
 
 @pytest.mark.parametrize("path, value", [
-    (("date",), "2026-02-30"),                  # 없는 날
+    (("date",), "2026-02-30"),  # 없는 날이다.
     (("date",), "10월 8일"),
-    (("weekday_stated",), "목요일"),             # THU 처럼 옮겨야 한다
+    (("weekday_stated",), "목요일"),  # THU 처럼 옮겨야 한다.
     (("stops", 0, "start"), "1:00 PM"),
-    (("stops", 0, "start"), "9:00"),            # 두 자리로
+    (("stops", 0, "start"), "9:00"),  # 두 자리로 써야 한다.
     (("stops", 0, "start"), "24:00"),
     (("stops", 0, "dwell_minutes"), 0),
     (("hard_constraints", 0, "time"), "8:30pm"),
 ])
 def test_malformed_values_are_rejected(path, value):
-    """형식이 틀린 값은 판정 코어로 넘기지 않는다. 넘기면 계산하다 멈추거나 엉뚱한 시각으로 판정한다."""
+    """틀린 형식이 판정 코어로 가면 계산하다 멈추거나 엉뚱한 시각으로 판정한다."""
     with pytest.raises(ValidationError):
         Extraction.model_validate(changed(path, value))
 
 
 @pytest.mark.parametrize("path, value", [
-    (("date",), None),                          # 날짜가 없는데 출처가 inferred
-    (("date_source",), "missing"),              # 날짜가 있는데 출처가 missing
-    (("stops", 0, "start"), None),              # 시각이 없는데 출처가 explicit
-    (("stops", 0, "start_source"), "missing"),  # 시각이 있는데 출처가 missing
-    (("hard_constraints", 0, "time"), None),               # 필수 일정도 같다
+    (("date",), None),  # 날짜가 없는데 출처가 inferred 다.
+    (("date_source",), "missing"),  # 날짜가 있는데 출처가 missing 이다.
+    (("stops", 0, "start"), None),  # 시각이 없는데 출처가 explicit 이다.
+    (("stops", 0, "start_source"), "missing"),  # 시각이 있는데 출처가 missing 이다.
+    (("hard_constraints", 0, "time"), None),  # 필수 일정도 같다.
     (("hard_constraints", 0, "time_source"), "missing"),
 ])
 def test_value_and_its_source_must_agree(path, value):
@@ -121,20 +112,18 @@ def test_value_and_its_source_must_agree(path, value):
 
 
 def test_flight_gets_no_buffer_rule_from_policy():
-    """항공편은 flight_boarding 으로 옮긴다. 정책에 그 기준이 없어서 판정 코어가 pass 를 내지 않는다."""
+    """정책에 flight_boarding 기준이 없어 판정이 항공편에 pass 를 내지 않는다."""
     ex = Extraction.model_validate(changed(("hard_constraints", 0, "type"), "FLIGHT_DEPARTURE"))
     assert to_itinerary(ex)["hard_constraints"][0]["buffer_rule"] == "flight_boarding"
 
 
-# ── 기대 추출값 채점 (labels.grade_extraction) ─────────────────────────────
-# 3차 피드백으로 필수 일정 시각 출처와 '택시 안 탐' 을 옮기게 했다. 둘 다 채점한다 — 놓치면 사용자가 모른다고 한
-# 열차 시각을 확정하거나, 사용자가 뺀 택시로 통과시킨다
+# 기대 추출값 채점
 
 NEW = json.loads((Path(__file__).parent.parent / "core" / "eval-new.json").read_text(encoding="utf-8"))
 
 
 def as_extracted(case, **change):
-    """정답을 구조화 추출 결과 모양(extract.to_itinerary)으로 옮긴다. 라벨에 출처가 없으면 말한 시각이다."""
+    """정답을 추출 결과 모양으로 옮긴다. 라벨에 출처가 없으면 말한 시각으로 본다."""
     got = {"date": case["date"], "date_source": case["date_source"], "weekday_stated": case.get("weekday_stated"),
            "avoid_taxi": case.get("avoid_taxi", False),
            "stops": [{**s, "start_source": s.get("start_source", "explicit" if s.get("start") else "missing"),
@@ -150,7 +139,7 @@ def wrong(case, got, facts):
 
 @pytest.mark.parametrize("case", SUITE["cases"] + NEW["cases"], ids=lambda c: c["id"])
 def test_extraction_equal_to_the_label_has_nothing_wrong(case, facts):
-    """정답 그대로 옮긴 추출은 어느 항목도 틀리지 않는다 — 새 평가 문제의 정답 모양도 채점기와 맞는지 본다."""
+    """새 평가 문제의 정답 모양도 채점기와 맞는지 본다."""
     assert wrong(case, as_extracted(case), facts) == {}
 
 
@@ -166,8 +155,7 @@ def test_guessing_an_unknown_train_time_is_wrong(facts):
 
 
 def test_train_time_source_is_graded(facts):
-    """N04 의 '8시 반' 은 뒤 문장('그 전에 오후 2시')이 정해 주는 말한 시각이다(2026-10-23 사용자 결정).
-    추정으로 옮기면 판정이 물을 필요 없는 것을 묻는다 — 시각 출처도 채점한다."""
+    """N04 의 8시 반은 뒤 문장이 정해 주는 말한 시각이라 추정으로 옮기면 틀린다."""
     case = by_id("N04")
     hc = {**case["hard_constraints"][0], "time_source": "inferred"}
     assert set(wrong(case, as_extracted(case, hard_constraints=[hc]), facts)) == {"hard_constraints"}
@@ -179,7 +167,7 @@ def test_missing_the_no_taxi_wish_is_wrong(facts):
 
 
 def test_missing_the_outside_only_wish_is_wrong(facts):
-    """'문 닫은 거 알아요, 앞에서 쉬다 갈게요' 를 옮기지 못하면 휴무 위반으로 불가능이 나온다 — 따로 채점한다."""
+    """밖에서만 머문다는 말을 놓치면 휴무 위반으로 불가능이 나온다."""
     case = by_id("N01")
     want = {**case, "stops": [{**case["stops"][0], "outside_only": True}, *case["stops"][1:]]}
     assert set(wrong(want, as_extracted(case), facts)) == {"outside_only"}

@@ -1,49 +1,5 @@
 #!/usr/bin/env python3
-"""
-비교 실험 — 판정 방식 4종을 같은 케이스로 돌려 비교한다.
-
-    python core/compare.py                  4종 전부        → last-compare.json
-    python core/compare.py --fresh          받아 둔 응답을 쓰지 않고 전부 새로 받는다 (돈이 든다)
-    python core/compare.py --dry-run        API 없이 배선만 확인 → last-compare-dryrun.json
-    python core/compare.py --arms code      코드만 (API 키 불필요) → last-compare-subset.json
-    python core/compare.py --case T05       한 건만         → last-compare-subset.json
-    python core/compare.py --model claude-sonnet-5-5
-    python core/compare.py --reference-date 2026-10-01   기준 날짜를 바꿔서 (기본은 tests.json)
-    python core/compare.py --suite eval-new.json   새 평가 문제(회귀셋과 따로) → last-compare-eval-new.json
-    python core/compare.py --repeat 5       판정 규칙이 여럿 겹치는 문제를 'LLM에 사실 데이터 줌' 으로 다섯 번씩
-                                            새로 불러 답이 흔들리는지 잰다 → last-compare-stability.json (돈이 든다)
-
-arm 을 나눈 이유는 **개선이 어디서 왔는지 구분**하기 위해서다.
-
-    arm 0  llm_naive       자연어 일정만. 상태 정의만 주고 지시는 주지 않는다
-    arm 1  llm_only        같은 입력 + "근거 없으면 unknown 으로 둬라" 지시
-    arm 2  llm_with_facts  구조화 일정 + 사실 + 정책 + 판정 규칙. 판정은 LLM
-    arm 3  code            같은 입력 · 같은 규칙.      판정은 verdict.py
-
-    arm 0 → 1   지시 효과      프롬프트로 보류를 유도하면 달라지는가
-    arm 1 → 2   정보 제공 효과 — 사실 데이터와 판정 규칙에 입력 구조화가 섞여 있다. arm 1 은 자연어를,
-                arm 2 는 사람이 쓴 구조화 일정을 받는다. 셋을 따로 떼어 재지 않는다
-    arm 2 → 3   판정 방식 효과  입력과 판정 규칙이 같으므로 그 차이만 남는다
-
-판정 규칙(RULES)은 arm 2 에만 준다. 3차 피드백 — T15 에서 '공휴일 시간표가 요일 시간표보다 먼저' 라는
-규칙을 판정 코드만 알고 있었다. 그러면 arm 2 와 arm 3 의 차이를 판정 방식 효과로만 읽을 수 없다.
-사실 데이터가 없는 arm 0 · 1 에는 규칙을 적용할 값이 없어서 주지 않는다.
-
-arm 0 이 따로 있는 이유: 1차 실험에서 arm1 이 15건 전부 undetermined 였는데,
-그건 "근거 없이 추측하지 말라"고 **지시했기 때문**이다. 지시를 따른 결과를
-발견으로 읽으면 안 된다. 근거가 없을 때 실제로 무엇을 하는지는 arm0 이 본다.
-
-채점은 라벨이 현재 데이터 스냅샷 기준으로 검토된 케이스에만 한다.
-미검토 라벨로 점수를 내면 세 arm 전부 틀린 점수가 나온다.
-
-전체 판정과 검사를 따로 채점한다(3차 피드백). 전체 판정이 맞아도 검사가 틀릴 수 있다 — T28 은 전체가 보류라
-맞았지만 삼청동 휴무 · 입장을 unknown 대신 not_applicable 로 답했다. 검사와 전체 판정이 서로 어긋난 답도 센다 —
-T27 에는 검사 하나가 fail 인데 전체가 feasible 인 답이 있었다. 사용자는 어느 검사가 틀렸는지를 보고 일정을 고친다.
-
-LLM arm 은 돈이 든다. 모델이 받는 것이 같은 요청은 응답 캐시(response_cache.py)에 받아 둔 응답을 쓰고,
-새로 부를 것이 있으면 몇 건이고 얼마쯤인지 보여 준 뒤 y 를 받아야 부른다. 부를 때마다 그 호출 비용과
-누적을 찍고, 끝에 이번 실행에서 나간 돈을 찍어 기록(responses.spent_usd)에도 남긴다(spend.py).
-"""
+"""비교 실험. 판정 방식 네 가지를 같은 문제로 돌려 차이가 어디서 오는지 가른다."""
 
 import json
 import sys
@@ -60,7 +16,6 @@ from runmeta import describe, fingerprint, library_versions, record_name, refere
 from spend import Spend  # noqa: E402
 from verdict import judge, verdict_of  # noqa: E402
 
-# 비교 방식의 답 — 판정 세 가지 밖에 거부 · 형식 오류가 있다
 ANSWER_NAMES = {**VERDICT_NAMES, "refused": "거부", "invalid": "형식 오류"}
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -73,20 +28,17 @@ facts, policy = load("facts.json"), load("policy.json")
 args = sys.argv[1:]
 flag = lambda name, d: next(
     (args[i + 1] for i, a in enumerate(args) if a == name and i + 1 < len(args)), d)
-# 문제 묶음 — 기본은 회귀셋(tests.json). 새 평가(eval-new.json)는 기록도 따로 남는다(runmeta.record_name)
 SUITE_FILE = flag("--suite", "tests.json")
 suite = load(SUITE_FILE)
 only = flag("--case", None)
 REPEAT = int(flag("--repeat", "0"))
-# 반복 실행의 기본 — 판정 규칙이 여럿 겹치는 문제(3차 피드백 "새 호출은 복합 조건 일부에 한정해도 된다")
-#   T15 공휴일 시간표 우선 · T17 장소 여섯 곳 중간 겹침 · T27 열차 권장 여유 부족(검사와 판정이 어긋난 답이 있었다)
-#   · T28 동네와 궁궐(전체는 맞고 검사가 틀린 답이 있었다)
+# 반복은 판정 규칙이 여럿 겹치는 문제만 부른다.
 STABILITY_CASES = "T15,T17,T27,T28"
 only = only or (STABILITY_CASES if REPEAT else None)
 MODEL = flag("--model", DEFAULT_MODEL)
 EFFORT = effort_for(MODEL, flag("--effort", "low"))
 ALL_ARMS = ["llm_naive", "llm_only", "llm_with_facts", "code"]
-# 반복 실행은 기본으로 'LLM에 사실 데이터 줌' 만 부른다 — 판정 코드와 비교하는 방식이다
+# 반복은 판정 코드와 입력이 같은 llm_with_facts 만 부른다.
 ARMS = flag("--arms", "llm_with_facts" if REPEAT else ",".join(ALL_ARMS)).split(",")
 
 LINE = "═" * 78
@@ -96,12 +48,11 @@ CHECK_TYPES = ["CLOSED_DAY", "ADMISSION_NOT_POSSIBLE",
 cases = [c for c in suite["cases"] if not only or c["id"].startswith(tuple(only.split(",")))]
 
 
-# ── 라벨 유효성 (run.py 와 같은 규칙) ────────────────────────────────
 def label_is_current(case: dict) -> bool:
     return stale_reason(case, suite, facts) is None
 
 
-# ── LLM arm 의 출력 스키마 — 코드 출력과 같은 모양이어야 비교가 된다 ──
+# 코드 출력과 같은 모양으로 받아야 같은 기준으로 채점한다.
 def build_models():
     from pydantic import BaseModel, Field
 
@@ -120,20 +71,8 @@ def build_models():
     return Judgment
 
 
-# ── 프롬프트 ────────────────────────────────────────────────────────
-# ⭐ 비교 실험을 설계할 때 제일 쉽게 틀리는 지점이다.
-#    1차 실험에서 arm1 이 15건 전부 undetermined 였다. "LLM 도 보류를 잘 하네"
-#    라고 읽을 뻔했는데, 사실은 내가 프롬프트에 "추측하지 말고 unknown 으로
-#    둬라" 고 **지시**했기 때문이었다. 지시를 따른 결과는 발견이 아니다.
-#
-# 정의와 지시를 분리해 둔다.
-#
-# STATES 는 **라벨의 정의**다. 이게 없으면 모델이 unknown 이라는 선택지가
-# 있다는 것조차 모르므로, 네 arm 전부에 준다.
-#
-# GUIDANCE 는 **우리 정책의 지시**다. "근거가 없으면 unknown 으로 둬라" 는
-# 지시이고, 이것을 준 arm 이 unknown 을 많이 내는 것은 발견이 아니라 순응이다.
-# 그래서 llm_naive 에는 주지 않는다.
+# 프롬프트
+# STATES 는 정의, GUIDANCE 는 지시다. 지시를 따라 낸 unknown 은 발견이 아니다.
 
 STATES = """검사 하나당 네 상태 중 하나를 고른다.
 
@@ -162,7 +101,7 @@ GUIDANCE = """검사가 **불필요**하면 not_applicable, 검사가 **필요�
   undetermined   위반은 없지만 필수 검사가 미확인이다
   feasible       필요한 검사가 모두 통과했다"""
 
-# arm 0 — 지시 없이 검토만 요청한다. 근거가 없을 때 무엇을 하는지 본다.
+# 지시 없이 물어 근거가 없을 때 무엇을 하는지 본다.
 SYSTEM_LLM_NAIVE = f"""너는 여행 일정의 실행 가능성을 검증한다.
 
 {STATES}"""
@@ -176,9 +115,7 @@ SYSTEM_LLM_ONLY = f"""너는 여행 일정의 실행 가능성을 검증한다.
 **사실 데이터는 주어지지 않는다.** 운영시간·휴무일·이동시간을 확보하지 못한 상태다.
 근거 없이 추측해서 pass 나 fail 을 내지 말고, 확보하지 못한 근거가 필요한 검사는 unknown 으로 둔다."""
 
-# ⭐ 판정 코드(verdict.py)가 쓰는 규칙을 그대로 적는다 — docs/판정-규칙.md 의 표와 같은 내용이다.
-#    3차 피드백: 같은 facts.json 을 줘도 적용 규칙이 다르면 LLM 31/33 과 코드 33/33 의 차이를 판정 방식 효과로만
-#    설명할 수 없다(T15 공휴일 우선 · 권장 여유 미달 처리). 판정 코드의 규칙을 고치면 여기도 고친다
+# 판정 코드와 같은 규칙을 줘야 방식 차이만 남는다. verdict.py 를 고치면 여기도 고친다.
 RULES = """판정 규칙 — 판정 코드가 쓰는 규칙과 같다. 이 규칙대로 판정한다.
 
 시간표와 휴무일
@@ -265,18 +202,7 @@ def itinerary_for(case: dict) -> dict:
 
 
 def facts_for_llm(f: dict) -> dict:
-    """
-    arm 2 와 arm 3 은 **완전히 같은 사실 데이터**를 받아야 한다.
-    그래야 둘의 차이가 판정 방식 차이만 남는다 — 그것이 이 실험의 목적이다.
-
-    케이스별로 부분집합을 주면 arm 2 만 정보가 줄어들어, 차이가 판정 방식 때문인지
-    정보량 때문인지 다시 구분할 수 없게 된다. 그래서 전체를 준다. 케이스에 테스트용 이동시간이
-    있으면 arm 3 은 그것을 얹은 사실 데이터(labels.case_facts)를 받고, arm 2 는 같은 이동시간을 일정 옆에
-    따로 받는다(llm_requests) — 내용은 같다.
-    """
-    # ⭐ 실제로 이 버그를 한 번 냈다. arm2 에는 케이스별 부분집합을, arm3 에는
-    #    전체 facts 를 주고 있었다. 그러면 arm2 가 못 맞힌 게 판정 능력 때문인지
-    #    정보가 적어서인지 알 수 없다. 비교 실험은 **바꾸는 변수 하나만** 달라야 한다.
+    """code 방식과 같은 사실 데이터 전체다. 입력이 같아야 판정 방식 차이만 남는다."""
     return {k: v for k, v in f.items() if k != "snapshot_history"}
 
 
@@ -284,13 +210,10 @@ SYSTEMS = {"llm_naive": SYSTEM_LLM_NAIVE, "llm_only": SYSTEM_LLM_ONLY, "llm_with
 
 
 def llm_requests(case: dict) -> dict[str, dict]:
-    """LLM 방식마다 llm.ask 가 받는 인자. 이것으로 요청 지문을 만들고 그대로 부른다."""
-    # arm0 과 arm1 은 입력이 완전히 같다. 시스템 프롬프트만 다르다.
+    """방식별 llm.ask 인자. 이 값으로 요청 지문을 만들고 그대로 부른다."""
     raw = f"오늘은 {REFERENCE_DATE} 이다.\n\n[일정]\n{case['raw']}"
-    # ⭐ 사실 데이터와 정책(약 9,400토큰)은 문제마다 같다. 전에는 문제마다 다른 일정 뒤에 붙여 보내 프롬프트 캐시가
-    #    걸리지 않았고, 호출 한 번 비용의 절반이 이 부분을 매번 새로 읽는 값이었다(2026-10-26 사용량으로 확인). 같은
-    #    부분을 앞에 두고 캐시에 올리면 두 번째 호출부터 읽기 단가가 1/20 이다(model_info.PRICES 의 cache_read).
-    #    문제마다 다른 테스트용 이동시간은 사실 데이터에 얹지 않고 일정과 함께 뒤에 둔다
+    # 문제마다 같은 사실 데이터와 정책은 앞에 두고 프롬프트 캐시에 올려 값을 줄인다.
+    # 문제마다 다른 테스트용 이동시간은 일정과 함께 뒤에 둔다.
     shared = (f"[사실 데이터]\n{json.dumps(facts_for_llm(facts), ensure_ascii=False, indent=1)}\n\n"
               f"[정책]\n{json.dumps(policy, ensure_ascii=False, indent=1)}")
     own = f"[구조화 일정]\n{json.dumps(itinerary_for(case), ensure_ascii=False, indent=1)}"
@@ -304,21 +227,19 @@ def llm_requests(case: dict) -> dict[str, dict]:
 
 
 def as_answer(got) -> tuple[dict, dict]:
-    """llm.ask 의 (결과, 사용량)이나 예외를 (답, 사용량)으로. 거부와 형식 오류도 답으로 돌려준다 — 지표가 판정과 따로 센다."""
+    """거부와 형식 오류도 답으로 바꾼다. 지표는 따로 세고 사용량은 비용에 넣는다."""
     if isinstance(got, Refusal):
-        # 거부는 판정이 아니다. 지표가 따로 세도록 verdict 를 "refused" 로 남긴다
         return {"verdict": "refused", "checks": [], "message": "",
                 "stop_details": {"category": got.usage["refusal_category"],
                                  "explanation": got.usage["refusal_explanation"]}}, got.usage
     if isinstance(got, InvalidOutput):
-        # 형식이 틀린 응답도 판정이 아니다. 따로 세고, 청구된 사용량은 비용에 넣는다
         return {"verdict": "invalid", "checks": [], "message": str(got)}, got.usage
     j, usage = got
     return j.model_dump(), usage
 
 
 def ask_fresh(req: dict) -> tuple[dict, dict]:
-    """모델을 한 번 바로 부른다 — --dry-run 의 가짜 응답만 이 길로 간다. 실제로 부를 때는 call_all 이 모아서 부른다."""
+    """--dry-run 의 가짜 응답만 쓴다. 실제 호출은 call_all 이 모아서 한다."""
     try:
         return as_answer(ask(client, **req))
     except (Refusal, InvalidOutput) as e:
@@ -326,11 +247,10 @@ def ask_fresh(req: dict) -> tuple[dict, dict]:
 
 
 def call_all(todo: dict[str, tuple[str, dict]]) -> tuple[dict, list]:
-    """{이름: (방식, 요청)}을 한꺼번에 부른다 — 첫 요청만 바로, 나머지는 배치(llm.ask_many, 값이 절반).
-    ({이름: (답, 사용량)}, 답을 받지 못한 요청)을 돌려준다. 받은 것마다 비용을 찍는다."""
-    # 첫 요청이 프롬프트 캐시를 데운다 — 앞부분이 가장 긴 '사실 데이터 줌'을 맨 앞에 둔다
+    """첫 요청만 바로, 나머지는 배치로 불러 값을 절반으로 줄인다."""
+    # 첫 요청이 캐시를 데우므로 앞부분이 가장 긴 llm_with_facts 를 맨 앞에 둔다.
     order = sorted(todo, key=lambda name: todo[name][0] != "llm_with_facts")
-    if DRY:  # 가짜 응답은 배치가 없다. 돈도 나가지 않는다
+    if DRY:  # StubClient 에는 배치가 없다
         return {name: ask_fresh(todo[name][1]) for name in order}, []
     try:
         got = ask_many(client, {name: todo[name][1] for name in order})
@@ -352,8 +272,7 @@ def call_all(todo: dict[str, tuple[str, dict]]) -> tuple[dict, list]:
 
 
 def fetch_new() -> None:
-    """받아 둔 응답이 없는 요청을 한꺼번에 불러(call_all) 응답 캐시에 넣는다. 못 받은 것이 있으면 멈춘다 —
-    받은 것은 캐시에 남아 다시 돌리면 남은 것만 부른다. 공식 기록은 건드리지 않는다."""
+    """캐시에 없는 요청만 불러 바로 캐시에 넣는다. 못 받은 것이 있으면 기록 전에 멈춘다."""
     todo = {}
     for _, _, reqs, keys in plan:
         for arm, req in reqs.items():
@@ -372,34 +291,23 @@ def fetch_new() -> None:
 
 
 def answer(key: str) -> dict:
-    """LLM 방식 하나의 답 — 받아 둔 응답이거나, 이번에 fetch_new 가 받은 응답이다."""
     return stored[key] if key in stored else fetched[key]
 
 
-# ── 채점 ────────────────────────────────────────────────────────────
+# 채점
 def graded(case: dict, ans: dict) -> dict:
-    """한 방식의 답 하나를 정답과 대조한다 — 전체 판정, 기대 검사마다 상태, 검사와 전체 판정이 맞물리나."""
+    """전체 판정이 맞아도 검사가 틀릴 수 있어 검사도 따로 채점한다."""
     wrong = check_mismatches(case.get("expect_checks", []), ans["checks"])
-    # 거부 · 형식 오류는 판정이 아니라 앞뒤를 맞춰 볼 것이 없다. 판정 코드는 필수 일정 상태도 함께 본다
+    # 판정 코드는 필수 일정 상태까지 넣어 전체 판정을 낸다.
     statuses = [c["status"] for c in ans["checks"]] + [h["status"] for h in ans.get("hard_constraints", [])]
     return {"verdict_ok": ans["verdict"] == case["expect"],
             "checks_expected": len(case.get("expect_checks", [])), "checks_wrong": wrong,
             "consistent": verdict_of(statuses) == ans["verdict"] if ans["verdict"] in VERDICT_NAMES else None}
 
 
-# ── 지표 ────────────────────────────────────────────────────────────
+# 지표
 def metrics(scored: list[dict]) -> dict:
-    """
-    전체 정확도 하나로 끝내지 않는다. 다섯 갈래로 나눠 본다.
-    모든 일정을 미확인으로 처리하면 잘못된 확신은 줄지만 사용자가 얻는 결과도 없어지므로,
-    얼마나 맞혔는지와 함께 **얼마나 많은 요청에 유효한 판단을 제공했는지**도 본다.
-    """
-    # ⭐ 정확도 하나만 보면 안 되는 이유:
-    #    모든 일정을 undetermined 로 내는 검증기는 "틀린 확신" 이 0 이다.
-    #    누출 0, 오탐 0 — 지표가 완벽해 보이는데 사용자는 아무 답도 못 받는다.
-    #    그래서 decisive_rate(유효 판단 제공 비율)를 같이 본다. 이 둘의 트레이드오프가
-    #    실제로 드러났다 — 10월 2일 기록에서 llm_with_facts 는 유효 판단 0.6 에 누출 1,
-    #    code 는 0.533 에 누출 0 이었다.
+    """모두 보류로 내면 틀린 확신이 0 이 되므로 답을 준 비율도 같이 본다."""
     n = len(scored)
     if not n:
         return {"n": 0}
@@ -415,28 +323,18 @@ def metrics(scored: list[dict]) -> dict:
     return {
         "n": n,
         "verdict_accuracy": round(sum(1 for r in scored if got(r) == want(r)) / n, 3),
-        # 기대 검사 중 상태가 맞은 비율 · 아예 답하지 않은 검사 · 검사와 전체 판정이 어긋난 답
         "check_accuracy": round(1 - sum(len(r["checks_wrong"]) for r in scored) / expected, 3) if expected else None,
         "checks_missing": sum(1 for r in scored for w in r["checks_wrong"] if w["got"] is None),
         "verdict_inconsistent": sum(1 for r in scored if r["consistent"] is False),
-        # 오류로 표시한 것 중 실제 오류 비율
         "precision_on_infeasible": round(tp / len(flagged), 3) if flagged else None,
-        # 실제 오류 중 찾아낸 비율
         "recall_on_infeasible": round(tp / len(actual_bad), 3) if actual_bad else None,
-        # 정상 일정의 오탐
         "false_alarm_on_feasible": sum(1 for r in actual_ok if got(r) == "infeasible"),
-        # 잘못된 일정의 정상 통과 — 가장 치명적
         "false_pass_on_infeasible": sum(1 for r in actual_bad if got(r) == "feasible"),
-        # 미확인이어야 하는데 통과로 낸 건수
         "leaked_undetermined_as_feasible": sum(
             1 for r in scored if want(r) == "undetermined" and got(r) == "feasible"),
-        # 판정 보류 비율
         "undetermined_rate": round(sum(1 for r in scored if got(r) == "undetermined") / n, 3),
-        # 유효한 판단(feasible · infeasible)을 제공한 비율. 거부(refused)는 판단이 아니다
         "decisive_rate": round(sum(1 for r in scored if got(r) in ("feasible", "infeasible")) / n, 3),
-        # 모델이 응답을 거부한 건수
         "refused": sum(1 for r in scored if got(r) == "refused"),
-        # 형식이 틀린 응답 건수. 보류와 섞지 않는다
         "invalid_output": sum(1 for r in scored if got(r) == "invalid"),
         "counts": {"actual_infeasible": len(actual_bad), "actual_feasible": len(actual_ok),
                    "actual_undetermined": n - len(actual_bad) - len(actual_ok)},
@@ -444,11 +342,7 @@ def metrics(scored: list[dict]) -> dict:
 
 
 def repeat_runs(n: int) -> None:
-    """같은 요청을 n 번 새로 불러 답이 흔들리는지 잰다. 응답 캐시는 읽지도 쓰지도 않는다.
-
-    3차 피드백 — 받아 둔 응답을 지금 코드로 다시 채점한 숫자(last-compare.json)와, 모델을 새로 불렀을 때 같은 답이
-    나오는지는 다른 질문이다. 공식 기록에 쓴 응답은 바꾸지 않고 따로 부른다. 기록은 last-compare-stability.json.
-    """
+    """같은 요청을 n 번 새로 불러 답이 흔들리는지 잰다. 공식 기록의 응답은 건드리지 않는다."""
     rows = []
     todo = {f"{i}|{arm}|{r}": (arm, req) for i, (_, _, reqs, _) in enumerate(plan)
             for arm, req in reqs.items() for r in range(n)}
@@ -481,15 +375,9 @@ def repeat_runs(n: int) -> None:
     print(meter.summary())
 
 
-# ── 실행 ────────────────────────────────────────────────────────────
+# 실행
 class StubClient:
-    """
-    --dry-run 용. API 를 부르지 않고 배선만 통과시킨다.
-
-    이게 있는 이유: LLM arm 은 키가 있어야 돌아가서, 키 없이 편집하면
-    NameError 같은 것도 발견되지 않는다. 실제로 그렇게 두 번 깨진 파일을 넘겼다.
-    키를 넣기 전에 `--dry-run` 으로 세 arm 의 경로를 전부 지나가 볼 수 있다.
-    """
+    """--dry-run 용 가짜 클라이언트. 키 없이 LLM 방식의 코드 경로를 끝까지 돌려 본다."""
 
     class _Usage:
         input_tokens = output_tokens = 0
@@ -507,7 +395,7 @@ class StubClient:
             assert kw["system"][0]["text"].strip(), "system 프롬프트가 비어 있다"
             assert kw["output_config"]["format"]["schema"], "출력 스키마가 비어 있다"
             StubClient._Messages.calls += 1
-            # 응답 본문은 llm.ask 가 Judgment 로 검증한다 — 스키마와 어긋나면 dry-run 에서 걸린다
+            # 이 본문도 Judgment 로 검증하므로 스키마가 어긋나면 dry-run 에서 걸린다.
             return type("R", (), {"usage": StubClient._Usage(), "stop_reason": "end_turn",
                                   "stop_details": None, "content": [StubClient._Text()]})()
 
@@ -518,24 +406,20 @@ class StubClient:
 DRY = "--dry-run" in args
 need_llm = any(a.startswith("llm") for a in ARMS)
 RUN_ID = f"cmp-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-# LLM arm 이 연도 없는 날짜를 푸는 기준. 고정해 둬야 언제 돌려도 같은 입력이 된다.
-# 추출 채점과 같은 값을 tests.json 에서 읽는다 (runmeta.reference_date).
 REFERENCE_DATE = reference_date(suite, flag("--reference-date", None))
 
 client = cache = Judgment = JUDGMENT_SCHEMA = None
-stored = {}  # 요청 지문 → 받아 둔 응답. 이번 실행에서 다시 쓸 것만 담는다
-fetched = {}  # 요청 지문 → 이번 실행에서 새로 받은 응답(fetch_new)
-meter = Spend()  # 이번 실행에서 새로 부른 호출만 센다 — 받아 둔 응답은 돈이 나가지 않는다
+stored = {}
+fetched = {}
+meter = Spend()
 if need_llm:
-    # anthropic 이 있어야 읽힌다. 코드 arm 만 돌릴 때는 읽지 않는다
+    # 코드 방식만 돌릴 때는 anthropic 없이도 돌아간다.
     from anthropic import APIError, transform_schema  # noqa: E402
     from llm import BatchMiss, InvalidOutput, Refusal, ask, ask_many  # noqa: E402
     from response_cache import ResponseCache, confirm_spend, cost_summary, request_key  # noqa: E402
     Judgment = build_models()
     JUDGMENT_SCHEMA = fingerprint(json.dumps(transform_schema(Judgment), ensure_ascii=False, sort_keys=True))
 
-# 문제마다 그 문제의 사실 데이터(테스트용 이동시간이 있으면 얹은 것 — arm 2 와 arm 3 이 같이 쓴다),
-# LLM 방식별 요청, 요청 지문을 먼저 만든다
 plan = []
 for case in cases:
     case_f = case_facts(case, facts)
@@ -547,11 +431,9 @@ if need_llm and DRY:
     client = StubClient()
     print("  [--dry-run] API 를 부르지 않는다. 배선만 확인한다. 응답 캐시도 쓰지 않는다.\n")
 elif need_llm:
-    # ⭐ API 를 부르기 전에 응답 캐시와 맞춰 본다. 모델이 받는 것이 같은 요청은 받아 둔 응답을 쓰고,
-    #    새로 부를 것이 있을 때만 비용을 보여 주고 물은 뒤에 키를 받는다. 받은 응답은 바로 캐시에 들어가므로
-    #    도중에 멈춰도 다시 돌리면 남은 것만 부른다.
+    # 부르기 전에 응답 캐시와 맞춰 보고, 새 호출이 있으면 건수와 예상 비용을 보여 주고 묻는다.
     cache = ResponseCache()
-    if "--fresh" not in args and not REPEAT:  # --fresh 와 반복 실행은 받아 둔 응답을 쓰지 않고 전부 새로 부른다
+    if "--fresh" not in args and not REPEAT:
         stored = {key: hit for _, _, _, keys in plan for key in keys.values() if (hit := cache.get(key))}
     counts = {arm: (REPEAT or 1) * sum(1 for _, _, _, keys in plan if arm in keys and keys[arm] not in stored)
               for arm in SYSTEMS}
@@ -571,25 +453,22 @@ elif need_llm:
             raise SystemExit("키가 비어 있다.")
         client = anthropic.Anthropic(api_key=key)
 
-# 프롬프트 지문 — llm_with_facts 의 지문에 판정 규칙(RULES)도 들어 있다
+# RULES 는 llm_with_facts 프롬프트 지문에 들어 있다.
 CONDITIONS = run_meta(SUITE_FILE, reference_date=REFERENCE_DATE, libraries=library_versions(), prompts={
     "llm_naive": fingerprint(SYSTEM_LLM_NAIVE), "llm_only": fingerprint(SYSTEM_LLM_ONLY),
     "llm_with_facts": fingerprint(SYSTEM_LLM_FACTS), "judgment_schema": JUDGMENT_SCHEMA})
-# ⭐ last-compare.json 에는 모든 arm · 모든 케이스를 한 조건에서 돌린 결과만 둔다.
-#    일부만 돌린 결과를 이전 기록에 얹었더니 한 기록 안에 다른 라벨 · 다른 코드로 낸
-#    판정이 섞였다 — 옛 기대값이 남은 행이 멘토 피드백 3번에서 지적됐다. 일부 실행은
-#    따로 적는다.
+# 공식 기록은 전체 실행만 쓴다. 일부를 얹으면 다른 코드로 낸 판정이 섞인다.
 FULL_RUN = set(ARMS) == set(ALL_ARMS) and not only
 OUT_NAME = record_name("last-compare-dryrun.json" if DRY else
                        "last-compare.json" if FULL_RUN else "last-compare-subset.json", SUITE_FILE)
 
-if REPEAT:  # 반복 실행은 공식 기록과 따로 남기고 끝낸다
+if REPEAT:
     repeat_runs(REPEAT)
     raise SystemExit
 
 if need_llm:
     fetch_new()
-rows, used = [], {}  # used — LLM 방식마다 이번 기록에 쓴 응답
+rows, used = [], {}
 for case, case_f, reqs, keys in plan:
     rec = {"id": case["id"], "set": case["set"], "expect": case["expect"],
            "label_current": label_is_current(case), "arms": {}}
@@ -613,7 +492,7 @@ for case, case_f, reqs, keys in plan:
         f"{ARM_NAMES.get(a, a)} {ANSWER_NAMES.get(rec['arms'][a]['verdict'], rec['arms'][a]['verdict'])}"
         for a in ARMS if a in rec["arms"]))
 
-# ── 채점 ────────────────────────────────────────────────────────────
+# 채점
 scorable = [r for r in rows if r["label_current"]]
 stale = [r for r in rows if not r["label_current"]]
 
@@ -667,7 +546,7 @@ if stale:
     print(f"\n  정답 재확인 필요 {len(stale)}건 — 출력은 저장했다. "
           f"워크시트를 채우면 재실행 없이 채점된다.")
 
-# 비용과 지연은 응답을 받을 때 잰 값이다. 받아 둔 응답을 다시 쓴 실행에서도 같은 값이 나온다
+# 응답을 받을 때 든 비용이다. 이번 실행에서 나간 돈은 spent_usd 에 따로 적는다.
 cost_report = {}
 for arm, hits in used.items():
     cost_report[arm] = c = cost_summary(MODEL, hits, cache.totals if cache else {})
@@ -676,7 +555,6 @@ for arm, hits in used.items():
     print(f"\n  {ARM_NAMES.get(arm, arm)}: {c['n']}건  {money}  {lat}")
 
 hits = [h for arm_hits in used.values() for h in arm_hits]
-# spent_usd 는 이번 실행에서 실제로 나간 돈이다. 위 cost 는 응답을 받을 때 든 값이다
 responses = {"new": sum(h["run"] == RUN_ID for h in hits), "reused": sum(h["run"] != RUN_ID for h in hits),
              "received_in": sorted({h["run"] for h in hits}), "spent_usd": round(meter.claude_usd, 4)}
 if need_llm and not DRY:
@@ -691,7 +569,6 @@ out = {"_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·
        "facts_snapshot": facts["snapshot_id"], "model": MODEL, "effort": EFFORT,
        "pricing_per_mtok": PRICES.get(MODEL), "conditions": CONDITIONS,
        "arms": ARMS, "scored": len(scorable), "total": len(rows),
-       # LLM 응답을 이번에 새로 받았는지, 받아 둔 것을 썼는지와 그 응답을 받은 실행
        "responses": responses,
        "metrics": report, "cost": cost_report, "rows": rows}
 (HERE / OUT_NAME).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")

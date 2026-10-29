@@ -1,21 +1,9 @@
 #!/usr/bin/env node
-/**
- * §6-4 이동시간 표를 채우기 위한 실제 호출 스크립트
- *
- *   node fetch-travel-times.mjs
- *   → 실행하면 API 키를 물어본다 (입력값은 화면에 안 찍힘)
- *
- * 한국에서 WALK 모드가 막혀 있으므로 전부 TRANSIT으로 호출하고,
- * 짧은 구간은 하버사인 도보 근사와 비교해서 도보 분기 기준의 재료로 쓴다.
- *
- * 결과는 travel-times.json 으로 저장된다. 원본 응답을 그대로 담으므로
- * 벤치마크 스냅샷으로 쓸 수 있다.
- */
+/** Google Routes 로 구간별 대중교통 이동시간을 받아 스냅샷으로 남긴다. */
 
 import { writeFileSync } from "node:fs";
 import readline from "node:readline";
 
-// ── API 키를 터미널에서 입력받는다 ───────────────────────────────
 function askKey() {
   const fromArg = process.argv.find(a => a.startsWith("--key="));
   if (fromArg) return Promise.resolve(fromArg.slice(6).trim());
@@ -27,7 +15,7 @@ function askKey() {
       output: process.stdout,
       terminal: true,
     });
-    // 입력값이 화면에 남지 않도록 가린다 (셸 히스토리에도 안 남는다)
+    // 입력한 키가 화면에 보이지 않게 가린다.
     let asked = false;
     rl._writeToOutput = s => {
       if (!asked) { process.stdout.write(prompt); asked = true; return; }
@@ -43,7 +31,7 @@ if (!KEY) {
   process.exit(1);
 }
 
-// ── 좌표 ────────────────────────────────────────────────────────
+// 좌표
 const P = {
   "경복궁":                   { latitude: 37.5796, longitude: 126.9770 },
   "북촌한옥마을":             { latitude: 37.5826, longitude: 126.9850 },
@@ -54,7 +42,7 @@ const P = {
   "명동":                     { latitude: 37.5636, longitude: 126.9850 },
 };
 
-// ── 채울 구간 ───────────────────────────────────────────────────
+// 채울 구간
 const LEGS = [
   { from: "서울시립미술관 서소문본관", to: "경복궁",       for: "예시 5-1 정상" },
   { from: "경복궁",                   to: "서울시립미술관 서소문본관", for: "예시 5-2 위반" },
@@ -65,8 +53,7 @@ const LEGS = [
   { from: "덕수궁",                   to: "명동",         for: "§6-4" },
 ];
 
-// 출발 시각을 고정해야 스냅샷이 결정론적이 된다.
-// 내일 14:00 KST = 05:00 UTC
+// 스냅샷 조건을 맞추려고 출발 시각을 내일 14:00 KST(05:00 UTC)로 고정한다.
 const DEPARTURE = (() => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + 1);
@@ -75,7 +62,7 @@ const DEPARTURE = (() => {
 })();
 
 const ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
-let CALLS = 0;  // 응답을 받은(HTTP 200) 호출 수 — 끝에 나간 돈을 찍는다
+let CALLS = 0;  // 응답을 받은 호출만 세어 끝에 나간 돈을 찍는다
 const REQUEST_TIMEOUT_MS = 20000;
 const FIELDS = [
   "routes.duration",
@@ -85,7 +72,7 @@ const FIELDS = [
   "routes.legs.steps.distanceMeters",
 ].join(",");
 
-// ── 하버사인 도보 근사 (우회계수 1.3, 보행속도 4km/h) ───────────
+// 하버사인 도보 근사. 우회계수 1.3, 보행속도 4km/h 를 쓴다.
 function straightMeters(a, b) {
   const R = 6371000, rad = x => (x * Math.PI) / 180;
   const dLat = rad(b.latitude - a.latitude);
@@ -115,7 +102,7 @@ async function call(leg) {
       body: JSON.stringify({
         origin:      { location: { latLng: P[leg.from] } },
         destination: { location: { latLng: P[leg.to] } },
-        travelMode: "TRANSIT",
+        travelMode: "TRANSIT",  // 한국은 WALK 를 주지 않는다
         departureTime: DEPARTURE,
         languageCode: "ko",
         units: "METRIC",
@@ -172,17 +159,17 @@ async function call(leg) {
   return {
     ok: true,
     http: res.status,
-    duration_min: min(total),          // 대기 포함. 판정에 쓰는 값
-    static_min: min(staticTotal),      // 순수 이동
-    wait_min: min(total - staticTotal),// 배차 대기 추정
-    walk_step_min: min(walkOnly),      // 경로 안의 도보만
+    duration_min: min(total),  // 대기를 포함한 값이라 판정에 쓴다
+    static_min: min(staticTotal),
+    wait_min: min(total - staticTotal),  // 배차 대기 추정이다
+    walk_step_min: min(walkOnly),
     transit_steps: steps.filter(s => s.travelMode === "TRANSIT").length,
     meters: route.distanceMeters,
-    raw: json,                         // 스냅샷용 원본
+    raw: json,
   };
 }
 
-// ── 실행 ────────────────────────────────────────────────────────
+// 실행
 console.log(`\n출발 시각 (고정): ${DEPARTURE}\n`);
 
 const rows = [];
@@ -199,9 +186,8 @@ for (const leg of LEGS) {
     continue;
   }
 
-  // 도보/대중교통 분기는 TMAP 실제 도보시간이 있어야 판단할 수 있다.
-  // 하버사인 근사는 우회계수 1.3과 보행속도 4km/h가 전부 system_default라
-  // 판정 근거로 쓸 수 없다. (실측 대조 결과 경복궁→북촌에서 53% 과소평가)
+  // 하버사인 근사는 계수가 전부 system_default 라 도보 분기 근거로 쓰지 않는다.
+  // 실측과 대조하니 경복궁에서 북촌까지 53% 과소평가했다.
   const flag = r.transit_steps === 0
     ? "경로에 대중교통 구간 없음 → 사실상 도보 구간"
     : "도보 분기 여부: 판단 불가 (TMAP 도보시간 필요)";
@@ -226,7 +212,7 @@ for (const leg of LEGS) {
     transit_steps: r.transit_steps,
     route_meters: r.meters,
     note: flag,
-    raw_response: r.raw,   // 원본 응답. 근거로 쓰려면 이게 남아 있어야 한다
+    raw_response: r.raw,  // 근거로 쓰려면 원본 응답이 남아 있어야 한다
   });
 }
 
@@ -240,7 +226,6 @@ const snapshot = {
 };
 writeFileSync("travel-times.json", JSON.stringify(snapshot, null, 2));
 
-// ── §6-4에 붙일 표 ──────────────────────────────────────────────
 console.log("--- §6-4 표에 붙일 내용 ---\n");
 console.log("| 출발 → 도착 | 직선 | ② 구글 TRANSIT | ③ 대조값 | 도보시간 | 쓸 값 |");
 console.log("| --- | --- | --- | --- | --- | --- |");
@@ -256,11 +241,10 @@ console.log(
 console.log(`\n스냅샷 ID: ${snapshot.snapshot_id}`);
 console.log("저장: travel-times.json");
 
-// ── 이번 실행에서 나간 돈 ─────────────────────────────────────────
-// Routes API Compute Routes Essentials — 1,000건에 $5, 매달 1만 건까지 무료. TRAFFIC_AWARE 같은 고급 기능을 쓰면 Pro 인데 쓰지 않는다
-// (https://developers.google.com/maps/billing-and-pricing/pricing — 2026-10-08 갱신본을 2026-10-14 확인). 무료 사용량은 한 달 전체에 걸리는데 이번 달에
-// 이미 몇 건을 썼는지는 Google Cloud 콘솔에만 있어서 범위로만 말한다. 응답을 받은(HTTP 200) 호출만 센다.
+// Compute Routes Essentials 는 1,000건에 $5, 매달 1만 건 무료다. TRAFFIC_AWARE 같은 기능은 Pro 라 쓰지 않는다.
+// 출처 https://developers.google.com/maps/billing-and-pricing/pricing (2026-10-08 갱신본, 2026-10-14 확인)
 const PER_CALL_USD = 5 / 1000;
 console.log("\n--- 이번 실행에서 나간 돈 ---");
+// 무료 사용량은 달 단위인데 이번 달에 쓴 양은 Google Cloud 콘솔에만 있어 범위로 찍는다.
 console.log(`Google Routes ${CALLS}건 — 매달 10,000건까지 무료, 넘은 건은 건당 $${PER_CALL_USD}`
             + ` ($0 ~ $${(CALLS * PER_CALL_USD).toFixed(3)})`);

@@ -1,10 +1,4 @@
-"""
-실행 조건 기록 — 2차 피드백 3번.
-
-"한 번의 실행마다 입력/정답 라벨/사실 데이터 버전/코드 커밋/모델/프롬프트/기준 날짜를
-함께 고정해 주세요." 숫자를 인용할 때 그 숫자가 어떤 조건에서 나왔는지 기록만 보고
-알 수 있어야 한다.
-"""
+"""인용한 숫자의 실행 조건을 기록만 보고 알 수 있는지 본다."""
 
 import pytest
 
@@ -22,7 +16,7 @@ def test_fingerprint_changes_with_one_character():
 
 
 def test_run_outputs_do_not_count_as_uncommitted():
-    """실행 기록과 응답 캐시는 출력이다. 변경으로 세면 한 번 돌린 뒤의 모든 실행이 재현 불가가 된다."""
+    """출력인 실행 기록 · 응답 캐시를 변경으로 세면 모든 실행이 재현 불가가 된다."""
     status = (" M core/last-run.json\n M core/response-cache.json\n M core/verdict.py\n"
               "?? core/new_rule.py\nR  core/a.py -> core/b.py\n")
     assert uncommitted(status) == ["core/b.py", "core/new_rule.py", "core/verdict.py"]
@@ -37,7 +31,7 @@ def test_conditions_name_code_inputs_and_reference_date():
 
 
 def test_without_git_the_run_is_not_reproducible(monkeypatch):
-    """압축 파일로 받은 경우처럼 git 을 못 쓰면 코드 버전을 모른다. 재현 가능하다고 적으면 안 된다."""
+    """압축 파일로 받아 git 이 없으면 코드 버전을 몰라 재현 가능이 아니다."""
     monkeypatch.setattr(runmeta, "_git", lambda *args: None)
     meta = run_meta()
     assert meta["code_commit"] is None
@@ -46,8 +40,7 @@ def test_without_git_the_run_is_not_reproducible(monkeypatch):
 
 
 def test_reference_date_comes_from_the_suite_not_the_clock():
-    """연도가 빠진 날짜를 푸는 기준은 tests.json 의 값이다. 실행한 날을 쓰면 날짜가 지날수록
-    같은 입력이 다른 연도로 옮겨진다 (2차 피드백 4번)."""
+    """실행한 날을 쓰면 날짜가 지날수록 같은 입력이 다른 연도로 옮겨진다."""
     assert reference_date({"reference_date": "2026-09-22"}) == "2026-09-22"
 
 
@@ -56,20 +49,20 @@ def test_reference_date_can_be_set_when_running():
 
 
 def test_reference_date_must_be_a_real_date():
-    """13월 같은 값은 실행을 시작하기 전에 멈춘다. 이상한 날짜로 돌린 기록이 남지 않게."""
+    """이상한 날짜로 돌린 기록이 남지 않게 13월 같은 값은 시작 전에 멈춘다."""
     with pytest.raises(ValueError):
         reference_date({"reference_date": "2026-09-22"}, "2026-13-01")
 
 
 def test_library_versions_are_recorded():
-    """모델이 받는 스키마는 SDK 버전에 따라 달라질 수 있다. 같은 커밋이라도 버전을 함께 남긴다."""
+    """모델이 받는 스키마가 SDK 버전에 따라 달라질 수 있어 버전도 남긴다."""
     versions = library_versions()
     assert set(versions) == {"anthropic", "pydantic"}
-    assert all(versions.values())  # 테스트 환경에는 둘 다 설치돼 있다
+    assert all(versions.values())  # 테스트 환경에는 둘 다 설치돼 있다.
 
 
 def test_new_evaluation_records_do_not_overwrite_the_regression_records():
-    """새 평가(eval-new.json)를 돌려도 README 가 인용하는 회귀셋 기록(last-run.json)은 그대로다."""
+    """README 가 인용하는 회귀셋 기록을 새 평가 실행이 덮어쓰지 않는다."""
     assert record_name("last-run.json", "tests.json") == "last-run.json"
     assert record_name("last-run.json", "eval-new.json") == "last-run-eval-new.json"
     assert record_name("last-compare-subset.json", "eval-new.json") == "last-compare-subset-eval-new.json"

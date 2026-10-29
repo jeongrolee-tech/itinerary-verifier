@@ -1,18 +1,5 @@
 #!/usr/bin/env node
-/**
- * Google Places API (New) — 영업시간 채움률 및 휴무일 정확도 검증
- *
- *   $env:GKEY = "발급받은키"
- *   node check-places-api.mjs
- *
- * 확인하는 것
- *   1. regularOpeningHours 필드가 채워져 있는가 (채움률)
- *   2. 채워져 있다면 그 값이 공식 출처와 일치하는가 (정확도)
- *
- * 2번이 더 중요하다. 필드가 있어도 틀리면 쓸 수 없다.
- *
- * 결과는 places-api-check.json 으로 저장된다.
- */
+/** Google Places 영업시간이 채워져 있는지, 휴무일이 공식 출처와 맞는지 확인한다. */
 
 import { writeFileSync } from "node:fs";
 
@@ -23,16 +10,13 @@ if (!KEY) {
 }
 
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchText";
-let CALLS = 0;  // 응답을 받은(HTTP 200) 호출 수 — 끝에 나간 돈을 찍는다
+let CALLS = 0;  // 응답을 받은 호출만 세어 끝에 나간 돈을 찍는다
 const REQUEST_TIMEOUT_MS = 20000;
 
-// Places API의 day: 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토
+// Places API 의 day 는 일요일이 0 이다.
 const DAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
 
-/**
- * expectedClosedDay: 공식 출처로 확인된 정기휴일 (숫자 = 위 day 코드)
- *   null 이면 정답을 모르는 상태 — 채움률만 보고 정확도는 판정하지 않는다.
- */
+/** expectedClosedDay 는 공식 출처로 확인한 정기휴일의 day 값이다. */
 const TARGETS = [
   { query: "경복궁",                  expectedClosedDay: 2,    source: "국가유산청 궁능유적본부", note: "9~10월 09:00-18:00, 입장마감 17:00" },
   { query: "창덕궁",                  expectedClosedDay: 1,    source: "국가유산청 궁능유적본부" },
@@ -40,7 +24,7 @@ const TARGETS = [
   { query: "창경궁",                  expectedClosedDay: 1,    source: "국가유산청 궁능유적본부" },
   { query: "종묘",                    expectedClosedDay: 2,    source: "국가유산청 궁능유적본부" },
   { query: "서울시립미술관 서소문본관", expectedClosedDay: 1,    source: "sema.seoul.go.kr" },
-  // 정답 미확보 — 채움률만 본다
+  // 정답을 아직 모르는 곳은 채움률만 본다.
   { query: "국립중앙박물관",           expectedClosedDay: null },
   { query: "국립민속박물관",           expectedClosedDay: null },
   { query: "남산서울타워",             expectedClosedDay: null },
@@ -114,14 +98,13 @@ async function search(textQuery) {
   return { place: json?.places?.[0] ?? null, failure_type: json?.places?.length ? null : "NO_RESULT", http: res.status, raw: json };
 }
 
-/** periods 에서 실제로 여는 요일 집합을 뽑는다 */
 function openDaysFrom(hours) {
   if (!hours?.periods?.length) return null;
   const days = new Set();
   for (const p of hours.periods) {
     if (typeof p?.open?.day === "number") days.add(p.open.day);
   }
-  // 24시간 영업은 periods 가 1개(day 0, close 없음)로 오는 경우가 있다
+  // 24시간 영업은 close 가 없는 day 0 period 하나로 오기도 한다.
   if (hours.periods.length === 1 && !hours.periods[0].close) return "ALWAYS_OPEN";
   return days;
 }
@@ -166,7 +149,6 @@ for (const t of TARGETS) {
     periods_count: hours.periods?.length ?? 0,
   };
 
-  // 정확도 판정
   if (t.expectedClosedDay === null) {
     console.log(`✅ ${t.query.padEnd(20)} → ${name}  |  영업시간 있음 (정답 미확보)`);
     record.accuracy = "UNVERIFIED";
@@ -190,7 +172,6 @@ for (const t of TARGETS) {
   results.push(record);
 }
 
-// ---- 요약 ----
 const total = results.length;
 const hasHours = results.filter(r => r.status === "HAS_HOURS").length;
 const verified = results.filter(r => r.accuracy === "MATCH" || r.accuracy === "MISMATCH");
@@ -227,11 +208,10 @@ writeFileSync(
 );
 console.log("\n결과 저장: places-api-check.json");
 
-// ── 이번 실행에서 나간 돈 ─────────────────────────────────────────
-// Places API Text Search Enterprise — regularOpeningHours 를 요청하면 이 등급이다. 1,000건에 $35, 매달 1천 건까지 무료
-// (https://developers.google.com/maps/billing-and-pricing/pricing — 2026-10-08 갱신본을 2026-10-14 확인). 무료 사용량은 한 달 전체에 걸리는데 이번 달에
-// 이미 몇 건을 썼는지는 Google Cloud 콘솔에만 있어서 범위로만 말한다. 응답을 받은(HTTP 200) 호출만 센다.
+// regularOpeningHours 를 요청하면 Text Search Enterprise 요금이다. 1,000건에 $35, 매달 1천 건 무료다.
+// 출처 https://developers.google.com/maps/billing-and-pricing/pricing (2026-10-08 갱신본, 2026-10-14 확인)
 const PER_CALL_USD = 35 / 1000;
 console.log("\n--- 이번 실행에서 나간 돈 ---");
+// 무료 사용량은 달 단위인데 이번 달에 쓴 양은 Google Cloud 콘솔에만 있어 범위로 찍는다.
 console.log(`Google Places ${CALLS}건 — 매달 1,000건까지 무료, 넘은 건은 건당 $${PER_CALL_USD}`
             + ` ($0 ~ $${(CALLS * PER_CALL_USD).toFixed(3)})`);

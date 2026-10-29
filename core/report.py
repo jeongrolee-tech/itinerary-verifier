@@ -1,11 +1,4 @@
-"""
-판정 결과를 사용자에게 보여줄 묶음으로 나눈다 — 2차 피드백 2번.
-
-    어긋난 것 · 확인하지 못한 것 · 확인한 것 · 해당 없음 · 검사하지 않는 것
-
-판정은 verdict.py 가 하고, 여기서는 그 결과를 읽기만 한다. judge() 결과를
-바꾸지 않으므로 골든 라벨과 채점에는 영향이 없다.
-"""
+"""판정 결과를 화면에 보여 줄 묶음과 줄로 나눈다. 판정 결과는 읽기만 한다."""
 
 from __future__ import annotations
 
@@ -22,8 +15,7 @@ CHECK_NAMES = {
     "INPUT_CONFLICT": "입력",
 }
 
-# 읽는 말 — 코드와 데이터에는 영어 값이 남고, 화면과 문서에는 이 말을 쓴다(docs/용어.md '읽는 말과 코드 값').
-# 화면에 찍는 run.py · run_extract.py · compare.py · eval_report.py · labels.py 가 여기서 가져다 쓴다
+# 화면에 쓰는 말이다. 코드와 데이터에는 영어 값이 그대로 남는다.
 VERDICT_NAMES = {"feasible": "가능", "infeasible": "불가능", "undetermined": "보류"}
 STATUS_NAMES = {PASS: "통과", FAIL: "위반", UNKNOWN: "미확인", NA: "해당 없음"}
 SEVERITY_NAMES = {"blocking": "치명", "warning": "주의"}
@@ -38,17 +30,16 @@ RESOLVER_NAMES = {"user": "사용자", "system": "시스템"}
 
 
 def width(text) -> int:
-    """터미널에서 차지하는 칸 수. 한글처럼 넓은 글자는 두 칸이다."""
+    """터미널에서 차지하는 칸 수를 센다. 한글은 두 칸이다."""
     return sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in str(text))
 
 
 def pad(text, cols: int) -> str:
-    """칸 수 기준으로 오른쪽을 채운다. len() 으로 채우면 한글이 섞인 표의 열이 어긋난다."""
+    """칸 수로 채운다. len() 으로 채우면 한글이 섞인 열이 어긋난다."""
     return f"{text}" + " " * max(cols - width(text), 1)
 
-# 고칠 것이 먼저 보이도록 어긋난 것부터 적는다.
-# ⭐ 해당 없음도 보여준다. "입장 여부가 확정되지 않아 체류 검사가 성립하지 않는다" 같은
-#    이유를 숨기면, 검사가 불필요하다는 주장을 근거 없이 하는 셈이 된다.
+# 고칠 것이 먼저 보이게 어긋난 것부터 적는다.
+# 해당 없음도 이유와 함께 보여 준다. 숨기면 검사를 건너뛴 근거가 사라진다.
 GROUPS = [
     (FAIL, "어긋난 것", "✕"),
     (UNKNOWN, "확인하지 못한 것", "?"),
@@ -56,10 +47,7 @@ GROUPS = [
     (NA, "해당 없음", "–"),
 ]
 
-# ⭐ 검사하지 않는 것을 결과마다 붙인다. feasible 은 "이 목록을 뺀 범위에서 위반을
-#    찾지 못했다" 는 뜻이다. 목록이 없으면 통과한 결과만 보고 식당 대기나 예약까지
-#    확인한 것으로 읽는다. README 지원 범위의 '검사하지 않는 것' 칸과 글자까지 같아야
-#    한다 — tests/test_report.py 가 대조한다.
+# 검사하지 않는 것을 결과마다 붙인다. 가능은 이 목록 밖에서 위반을 못 찾았다는 뜻이다.
 NOT_CHECKED = [
     "식당 대기시간 · 혼잡도 — 공식 출처가 없다",
     "당일 임시 휴무 · 행사 · 현장 상황 — 근거는 확인한 날의 공식 안내 페이지다",
@@ -91,7 +79,7 @@ def _rows(result: dict) -> list[tuple[str, dict]]:
 
 
 def report(result: dict) -> dict:
-    """judge() 결과를 상태별 묶음으로 나눈다. result 는 바꾸지 않는다."""
+    """judge() 결과를 상태별 묶음으로 나눈다."""
     rows = _rows(result)
     return {
         "verdict": result["summary"]["verdict"],
@@ -103,7 +91,7 @@ def report(result: dict) -> dict:
     }
 
 
-# 줄의 상태는 그 줄 검사 중 가장 나쁜 것이다. 장소 줄의 검사는 이 순서로 적는다
+# 줄의 상태는 그 줄 검사 중 가장 나쁜 것이다.
 WORST_FIRST = [FAIL, UNKNOWN, PASS, NA]
 INPUT_CHECKS = ("INPUT_REQUIRED", "INPUT_CONFLICT")
 PLACE_CHECKS_IN_ORDER = ("CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE")
@@ -120,24 +108,18 @@ def _row(kind: str, time: str | None, title: str, lines: list[dict]) -> dict:
 
 
 def _window_time(window: dict | None) -> str | None:
-    """시각을 말하지 않은 장소의 시각 칸 — 판정 코드가 계산한 들어갈 시간대(verdict._with_window). 없으면 빈칸이다."""
+    """시각을 말하지 않은 장소의 시각 칸이다. 판정 코드가 계산한 시간대를 쓴다."""
     if not window:
         return None
     return f"{window['from']}~{window['to']}" + (" 전" if window["before"] else "")
 
 
 def timeline(itinerary: dict, result: dict) -> list[dict]:
-    """일정 순서대로 줄을 만든다 — 장소마다 한 줄, 장소 사이 이동 한 줄, 끝에 필수 일정. result 는 바꾸지 않는다.
-
-    ⭐ 상태별 묶음(report)만 있으면 장소가 네다섯 곳일 때 어느 장소가 문제인지 일정과 다시 맞춰 봐야 한다
-       (2026-10-14 사용자 제안). 줄의 상태는 그 줄 검사 중 가장 나쁜 것이다 — 위반 > 미확인 > 통과 > 해당 없음.
-       미확인은 통과로도 위반으로도 보이지 않게 따로 둔다. 입력이 모자라 판정 코드가 장소를 검사하지 않았으면
-       그 줄은 상태가 없다(None).
-    """
+    """장소와 이동을 일정 순서대로 한 줄씩 적는다. 문제가 난 장소를 바로 찾게 한다."""
     pending = list(result["checks"])
 
     def take(type_: str, target: str) -> dict | None:
-        # 같은 장소가 두 번 나오면 검사 대상 이름이 겹친다. 판정 코드가 일정 순서로 내므로 앞에서부터 하나씩 가져간다
+        # 같은 장소를 두 번 가면 대상 이름이 겹쳐 앞에서부터 하나씩 가져간다.
         c = next((c for c in pending if c["type"] == type_ and c["target"] == target), None)
         if c is not None:
             pending.remove(c)
@@ -153,7 +135,7 @@ def timeline(itinerary: dict, result: dict) -> list[dict]:
             target = f"{s['place']} → {stops[i + 1]['place']}"
             c = take("INSUFFICIENT_TRAVEL_TIME", target)
             rows.append(_row("travel", None, target, [_line(c, "이동")] if c else []))
-    # 장소에 붙지 않은 검사 — 날짜 같은 입력 검사. 마지막 장소 뒤 '(없음)' 구간은 일정에 없는 줄이라 뺀다
+    # 남은 것은 날짜 같은 입력 검사다. 마지막 장소 뒤 '(없음)' 구간은 일정에 없어 뺀다.
     rest = [c for c in pending if not c["target"].endswith("→ (없음)")]
     if rest:
         rows.insert(0, _row("input", None, "일정 전체",
@@ -166,17 +148,12 @@ def timeline(itinerary: dict, result: dict) -> list[dict]:
     return rows
 
 
-# 장소 검사 — 질문에 장소 이름이 없으면("방문할 점포를 알려주세요") 앞에 붙인다
+# 장소 검사의 질문에 장소 이름이 없으면 앞에 붙인다.
 PLACE_CHECKS = {"CLOSED_DAY", "ADMISSION_NOT_POSSIBLE", "DWELL_NOT_COMPLETABLE"}
 
 
 def questions(result: dict) -> list[str]:
-    """사용자에게 물을 말을 한 번씩만 모은다. result 는 바꾸지 않는다 (데모 화면 core/app.py 가 쓴다).
-
-    여러 검사가 같은 것을 모를 때가 많다. T12 는 경복궁 체류시간을 몰라 체류 검사가 "얼마나 머무르실",
-    다음 구간이 "몇 시에 나오실" 로 묻고, 광장시장 휴무일과 입장이 똑같이 점포를 묻는다 — 질문 넷, 답할 것 둘.
-    판정이 기댄 가정(체류시간 기본값 · 추정한 날짜와 시각)이 있으면 그 가정의 질문으로 묻고, 같은 말은 한 번만 적는다.
-    """
+    """물을 말을 한 번씩만 모은다. 여러 검사가 같은 것을 모를 때가 많다."""
     asks = {a["id"]: a["ask_user"] for a in result.get("assumptions", [])}
     rows = [(c, c["target"] if c["type"] in PLACE_CHECKS else None) for c in result["checks"]]
     rows += [(h["policy"], None) for h in result["hard_constraints"]]
@@ -185,6 +162,7 @@ def questions(result: dict) -> list[str]:
         ask = (r.get("how_to_resolve") or {}).get("user")
         if not ask:
             continue
+        # 판정이 기댄 가정이 있으면 그 가정의 질문으로 묻는다.
         found = [asks[a] for a in r.get("depends_on_assumptions") or [] if a in asks]
         for q in found or [f"{place} — {ask}" if place and place not in ask else ask]:
             if q not in out:
@@ -193,7 +171,7 @@ def questions(result: dict) -> list[str]:
 
 
 def render(rep: dict) -> str:
-    """report() 결과를 화면용 글로 만든다. 빈 묶음은 적지 않는다."""
+    """report() 결과를 화면용 글로 만든다."""
     marks = {status: mark for status, _, mark in GROUPS}
     lines = [f"[결과]  {VERDICT_NAMES.get(rep['verdict'], rep['verdict'])} — {rep['message']}"]
     for group in rep["groups"]:

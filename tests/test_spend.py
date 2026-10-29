@@ -1,7 +1,4 @@
-"""
-이번 실행에서 나간 돈 — Claude 호출 비용을 맞게 더하는지, TMAP 은 응답을 받은 호출만 세는지,
-검증 명령과 데모 서버가 돈이 나간 만큼 찍는지를 본다. 진짜 API 는 부르지 않는다.
-"""
+"""실행 중 나간 돈을 맞게 세고 검증 명령과 데모 서버가 찍는지 본다."""
 
 import json
 
@@ -23,10 +20,10 @@ def usage(model="claude-opus-5-5", input_tokens=1000, output_tokens=500, stop_re
             "cache_write": 0, "stop_reason": stop_reason, "refusal_category": category}
 
 
-# ── Claude ─────────────────────────────────────────────────────────
+# Claude
 
 def test_claude_costs_add_up():
-    """Opus 5.5 는 입력 $4 · 출력 $20 (100만 토큰당). 1,000 + 500 토큰이면 $0.014 이고 두 번이면 $0.028 이다."""
+    """Opus 5.5 는 100만 토큰당 입력 $4 · 출력 $20 이라 1,000 + 500 토큰이면 $0.014 다."""
     meter = Spend()
     assert meter.claude("구조화 추출", usage()) == pytest.approx(0.014)
     meter.claude("구조화 추출", usage())
@@ -35,7 +32,6 @@ def test_claude_costs_add_up():
 
 
 def test_refusal_before_output_costs_nothing_but_is_counted():
-    """출력 전에 거부되면 청구되지 않는다(model_info.billed). 부른 건 세고 돈은 0 이다."""
     meter = Spend()
     assert meter.claude("구조화 추출", usage(output_tokens=0, stop_reason="refusal")) == 0
     assert meter.claude_line() == "Anthropic $0.0000 — 구조화 추출 1건"
@@ -52,10 +48,10 @@ def test_nothing_spent_says_so():
     assert Spend().line() == "돈이 드는 호출 없음"
 
 
-# ── TMAP ───────────────────────────────────────────────────────────
+# TMAP
 
 def test_tmap_counts_answered_calls_while_counting(monkeypatch):
-    """세는 중일 때 응답을 받은 호출만 센다. 밖에서 부른 호출은 어느 계량기에도 들어가지 않는다."""
+    """counting 밖에서 부른 호출은 어느 계량기에도 들어가지 않는다."""
     monkeypatch.setattr(routes.urllib.request, "urlopen", lambda *a, **kw: Body(b"{}"))
     meter = Spend()
     with counting(meter):
@@ -76,7 +72,7 @@ def test_tmap_failed_call_is_not_counted(monkeypatch):
 
 
 def test_transit_cost_is_a_range():
-    """대중교통은 하루 10건까지 무료다. 오늘 몇 건을 썼는지 몰라서 0원부터 전부 유료일 때까지로 말한다."""
+    """하루 10건 무료를 오늘 얼마나 썼는지 몰라 0원부터 전부 유료까지로 말한다."""
     meter = Spend()
     for _ in range(3):
         meter.tmap("대중교통")
@@ -86,10 +82,10 @@ def test_transit_cost_is_a_range():
     assert "택시 예측(타임머신) 1건(요금을 확인하지 못했다)" in line
 
 
-# ── 검증 명령 · 데모 서버 ────────────────────────────────────────────
+# 검증 명령 · 데모 서버
 
 def tmap_answers(monkeypatch):
-    """urlopen 에 장소 검색 · 대중교통 · 택시 답을 준다. routes.call 은 진짜를 쓰므로 호출 수가 세진다."""
+    """routes.call 은 진짜로 두고 urlopen 만 바꿔야 호출 수가 세진다."""
     def urlopen(req, timeout=None):
         url = req.full_url
         if "/pois" in url:
@@ -105,7 +101,7 @@ def tmap_answers(monkeypatch):
 
 
 def test_verify_counts_claude_and_tmap(monkeypatch, facts, policy):
-    """T01 — 추출 1번(입력 100 · 출력 50 토큰 → $0.0014), 장소 검색 2번, 대중교통 1번, 택시 1번."""
+    """추출 한 번이 입력 100 · 출력 50 토큰이라 $0.0014 다."""
     tmap_answers(monkeypatch)
     meter = Spend()
     verify(TEXT, Claude(T01), "key", facts, policy, today="2026-10-01", meter=meter)
@@ -123,7 +119,7 @@ def test_verify_counts_a_refused_extraction(facts, policy):
 
 
 def test_demo_prints_what_each_request_spent(monkeypatch, capsys):
-    """요청마다 서버 창에 그 요청의 돈과 서버를 켠 뒤 누적을 찍는다. 돈이 드는 호출이 없던 요청은 찍지 않는다."""
+    """요청 돈과 누적을 찍고, 돈이 드는 호출이 없던 요청은 찍지 않는다."""
     tmap_answers(monkeypatch)
     c = TestClient(create_app(Claude(T01), "key", today="2026-10-01"), base_url="http://127.0.0.1")
     first = c.post("/api/check", json={"text": TEXT}).json()
@@ -138,7 +134,7 @@ def test_demo_prints_what_each_request_spent(monkeypatch, capsys):
 
 
 def test_demo_request_survives_a_console_that_cannot_print(monkeypatch):
-    """서버 창이 cp949 면 비용 줄의 '—' 를 찍지 못한다(2026-10-14 에 실제로 났다). 그래도 판정은 돌려준다 — 돈은 이미 나갔다."""
+    """cp949 서버 창이 비용 줄의 대시를 못 찍어도 돈은 이미 나갔으니 판정을 돌려준다."""
     tmap_answers(monkeypatch)
     c = TestClient(create_app(Claude(T01), "key", today="2026-10-01"), base_url="http://127.0.0.1")
 

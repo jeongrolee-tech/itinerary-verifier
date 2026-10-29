@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""
-판정 코어 채점기 겸 실행 기록기
-
-    python core/run.py                 요약표 + 틀린 케이스만 상세
-    python core/run.py --all           전부 상세
-    python core/run.py --case T05      한 케이스만 상세
-    python core/run.py --json          결과 JSON
-    python core/run.py --suite eval-new.json   새 평가 문제(회귀셋과 따로) → last-run-eval-new.json
-
-화면 완성도보다 중간 결과와 실패 원인을 확인할 수 있는 실행 기록이 먼저다.
-최종 판정만 남기지 않고 어떤 값이 추출됐고, 어떤 기본값을 적용했으며,
-어떤 근거와 규칙으로 판정했는지를 함께 남긴다.
-"""
+"""판정 코어를 정답 라벨로 채점하고, 검사별 근거까지 실행 기록에 남긴다."""
 
 import json
 import sys
@@ -38,13 +26,10 @@ args = sys.argv[1:]
 json_only = "--json" in args
 show_all = "--all" in args
 only = next((args[i + 1] for i, a in enumerate(args) if a == "--case" and i + 1 < len(args)), None)
-# 문제 묶음 — 기본은 회귀셋(tests.json). 새 평가(eval-new.json)는 기록도 따로 남는다(runmeta.record_name)
+# 새 평가(eval-new.json)는 회귀셋과 기록 파일을 따로 쓴다.
 SUITE_FILE = next((args[i + 1] for i, a in enumerate(args) if a == "--suite" and i + 1 < len(args)), "tests.json")
 suite = load(SUITE_FILE)
 
-# --case 를 주면 해당 접두사로 시작하는 케이스만 실행한다.
-# 예전에는 상세 출력만 줄이고 전체 케이스를 계속 돌려서,
-# 특정 케이스를 확인하려는 사용자가 전체 결과와 섞인 출력을 봐야 했다.
 cases = [c for c in suite["cases"] if not only or c["id"].startswith(only)]
 if only and not cases:
     raise SystemExit(f"문제를 찾지 못했다: {only}")
@@ -57,7 +42,6 @@ LABEL_SNAPSHOT = suite.get("labeled_against_snapshot")
 
 
 def label_is_current(case: dict) -> bool:
-    """라벨이 지금 데이터에서도 유효한가. 판단은 core/labels.py — run_extract · compare 와 같은 규칙이다."""
     return stale_reason(case, suite, facts) is None
 
 
@@ -107,7 +91,7 @@ def detail(case, out, problems):
         print(f"\n[필수 일정 {h['id']}]  \"{e['raw']}\"")
         print(f"  사용자가 말한 것   {EVENT_NAMES.get(e['type'], e['type'])} {e['place']} {e['time'] or '시각 모름'}  "
               f"({SOURCE_NAMES.get(e['source'], e['source'])})")
-        if "required_arrival" in p:  # 시각을 모르거나 하루 중간인 필수 일정은 권장 기준을 계산하지 않는다
+        if "required_arrival" in p:  # 시각을 모르거나 하루 중간인 필수 일정에는 없다
             print(f"  서비스 권장 기준   도착 {p['required_arrival']} (여유 {p['buffer_minutes']}분, "
                   f"{SOURCE_NAMES.get(p['buffer_source'], p['buffer_source'])})")
         if p.get("estimated_arrival"):
@@ -147,12 +131,12 @@ for case in cases:
     if not json_only and (show_all or (only and case["id"].startswith(only)) or (not only and problems)):
         detail(case, out, problems)
 
-# ── 요약 ────────────────────────────────────────────────────────────
+# 요약
 if not json_only:
     print(f"\n{LINE}\n  요약   데이터 버전 {FACTS_SNAPSHOT}\n{LINE}")
     print(f"  {pad('문제', 26)}{pad('묶음', 10)}{pad('정답', 10)}{pad('답', 10)}결과")
     for case, out, problems in rows:
-        # 미검토 라벨과 일치했다고 ✅ 를 주면 안 된다. 검토되지 않은 정답과 맞은 것뿐이다.
+        # 검토하지 않은 정답과 일치한 것은 맞았다고 표시하지 않는다.
         if not label_is_current(case):
             mark = "⚠ 재확인 필요(일치)" if not problems else "⚠ 재확인 필요(불일치)"
         else:
@@ -169,10 +153,7 @@ if not json_only:
         label = SET_NAMES[name]
         print(f"\n  {pad(label, 9)}{hit}/{len(sub)} 일치" if sub else f"\n  {pad(label, 9)}채점 대상 없음")
 
-    # ⭐ 이 프로젝트의 게이트 지표. 0 이 아니면 나머지 숫자는 볼 필요가 없다.
-    #    정확도가 높아도 "확인 못 한 일정을 통과시켰다" 가 한 건 있으면
-    #    검증 서비스로서는 실패다. 그래서 정확도와 따로 세고 따로 보여준다.
-    #    라벨 미검토 케이스를 분모에 넣으면 거짓 경보가 나므로 제외한다.
+    # 가장 먼저 보는 지표다. 보류인데 가능으로 낸 것이 한 건이라도 있으면 실패다.
     leaked = [r for r in scored
               if r["expect"] == "undetermined" and r["summary"]["verdict"] == "feasible"]
     print(f"\n  보류인데 가능으로 낸 건수: {len(leaked)} / 채점 {len(scored)}건"
@@ -199,7 +180,7 @@ run = {
     "conditions": run_meta(SUITE_FILE),
     "results": results,
 }
-# 일부만 돌린 결과(--case)는 공식 기록을 덮어쓰지 않는다 — compare.py 와 같은 규칙. README 가 인용하는 것은 전체 실행이다
+# 일부만 돌린 결과는 전체 실행 기록을 덮어쓰지 않는다.
 RECORD = record_name("last-run-subset.json" if only else "last-run.json", SUITE_FILE)
 (HERE / RECORD).write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
 

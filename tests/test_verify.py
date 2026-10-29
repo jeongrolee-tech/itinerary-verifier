@@ -1,11 +1,4 @@
-"""
-일정 하나 검증 — Claude 와 TMAP 을 가짜로 끼워 자연어 일정부터 [결과] 까지 끝까지 돌린다.
-
-Claude 응답은 SDK 의 Message 로 만들고(test_llm.py 와 같은 이유), TMAP 은 routes.call 을 바꿔 끼운다.
-진짜로 부르지 않으니 키도 요금도 들지 않는다. 진짜 호출은 사람이 키를 넣어 한 번 돌려 확인한다.
-가짜 응답의 시간 · 요금은 테스트용으로 정한 값이다. 실제로 받은 값은 약관상 저장할 수 없어서
-일부러 겹치지 않는 둥근 값을 쓴다.
-"""
+"""가짜 Claude 와 TMAP 으로 자연어 일정부터 [결과] 까지 끝까지 돌린다."""
 
 import json
 
@@ -42,7 +35,7 @@ class Claude:
 
 
 def tmap(monkeypatch, transit_minutes, taxi_minutes=70):
-    """장소 검색 · 대중교통 · 택시(타임머신)에 정해 둔 답을 준다. 받은 요청 주소를 남긴다."""
+    """가짜 TMAP 이다. 실제 값은 약관상 저장할 수 없어 둥근 값을 쓴다."""
     sent = []
 
     def call(method, url, key, body=None):
@@ -63,7 +56,7 @@ def run(extraction, facts, policy):
 
 
 def test_t01_is_feasible_end_to_end(monkeypatch, facts, policy):
-    """TMAP 이 20분이라고 하면 14:20 도착, 권장 여유를 더해도 15:00 전이다. 저장된 하한선이면 보류였던 일정이다."""
+    """20분이면 14:20 도착이라 여유를 더해도 15:00 전이다."""
     tmap(monkeypatch, 20)
     out = run(T01, facts, policy)
     assert "서울시립미술관 서소문본관 → 경복궁  대중교통 20분" in out
@@ -71,16 +64,16 @@ def test_t01_is_feasible_end_to_end(monkeypatch, facts, policy):
 
 
 def test_late_by_estimate_is_shown_but_not_confirmed(monkeypatch, facts, policy):
-    """TMAP 이 65분이라고 하면 늦을 것 같지만, 예상치라 '안 된다' 를 확정하지 않는다."""
+    """65분이면 늦을 듯하지만 예상치라 확정하지 않는다."""
     tmap(monkeypatch, 65)
     out = run(T01, facts, policy)
     assert "[결과]  보류" in out
     assert "예상 이동시간(65분) 기준이라 확정하지 않는다" in out
-    assert "택시로도 시간 안에 닿기 어렵다" in out  # 택시 70분이라 택시로도 늦는다
+    assert "택시로도 시간 안에 닿기 어렵다" in out  # 택시 70분이라 택시로도 늦는다.
 
 
 def test_taxi_makes_it_and_says_so(monkeypatch, facts, policy):
-    """대중교통 65분이면 늦지만 택시 20분이면 된다. 택시 시간과 요금, 택시로 가야 한다는 안내가 보인다."""
+    """대중교통 65분은 늦지만 택시 20분이면 되어 택시 안내가 보인다."""
     tmap(monkeypatch, 65, taxi_minutes=20)
     out = run(T01, facts, policy)
     assert "대중교통 65분 · 택시 20분(약 10,000원)" in out
@@ -88,7 +81,7 @@ def test_taxi_makes_it_and_says_so(monkeypatch, facts, policy):
 
 
 def test_miss_falls_back_to_stored_lower_bound(monkeypatch, facts, policy):
-    """TMAP 에서 받지 못하면 이유를 보여 주고, 저장해 둔 지하철 하한선으로 판정한다 — 그러면 보류다."""
+    """받지 못하면 이유를 보이고 저장된 지하철 하한선으로 판정해 보류가 된다."""
     def throttled(method, url, key, body=None):
         raise routes.Miss("RATE_LIMITED", "HTTP 429")
     monkeypatch.setattr(routes, "call", throttled)
@@ -98,7 +91,6 @@ def test_miss_falls_back_to_stored_lower_bound(monkeypatch, facts, policy):
 
 
 def test_no_date_asks_first_and_calls_no_tmap(monkeypatch, facts, policy):
-    """날짜가 없으면 TMAP 을 부르지 않는다. 판정 코어가 날짜부터 묻는다."""
     sent = tmap(monkeypatch, 20)
     out = run({**T01, "date": None, "date_source": "missing", "weekday_stated": None}, facts, policy)
     assert sent == []
@@ -106,7 +98,6 @@ def test_no_date_asks_first_and_calls_no_tmap(monkeypatch, facts, policy):
 
 
 def test_malformed_extraction_stops_before_tmap(monkeypatch, facts, policy):
-    """Claude 가 '1:00 PM' 처럼 형식이 틀린 시각을 내면 판정 코어와 TMAP 에 넘기지 않고 멈춘다."""
     sent = tmap(monkeypatch, 20)
     bad = {**T01, "stops": [{**T01["stops"][0], "start": "1:00 PM"}, T01["stops"][1]]}
     with pytest.raises(InvalidOutput):

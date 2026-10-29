@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""
-일정 하나 검증 — 자연어 일정을 구조화 추출하고(Claude), 구간마다 이동시간을 받고(TMAP), 판정한다.
-
-    python core/verify.py "10월 8일 목요일 오후 1시에 서울시립미술관 서소문본관 한 시간, 3시에 경복궁 두 시간"
-    python core/verify.py              → 일정을 물어본다
-
-키는 환경변수(ANTHROPIC_API_KEY · TMAP_KEY)에 있으면 그걸 쓰고, 없으면 물어본다. 입력은 화면에 안 찍힌다.
-TMAP 에서 받은 좌표와 이동시간은 화면에만 보여 주고 저장하지 않는다 — 약관상 24시간 넘게 쓸 수 없다.
-그래서 기록 파일도 남기지 않는다. 평가 기록은 run.py · run_extract.py · compare.py 가 남긴다.
-끝나면 이번에 나간 돈(Claude 호출 비용 · TMAP 호출 건수)을 찍는다 — 실패로 끝나도 찍는다(spend.py).
-"""
+"""일정 하나를 검증해 화면에만 찍는다. TMAP 값은 약관상 저장할 수 없어 기록도 없다."""
 
 import json
 import os
@@ -33,19 +23,19 @@ HERE = Path(__file__).parent
 
 def verify(text: str, claude, tmap_key: str, facts: dict, policy: dict, today: str,
            meter: Spend | None = None) -> str:
-    """자연어 일정 → 화면에 보여 줄 글. 아무것도 저장하지 않는다. meter 를 주면 돈이 드는 호출을 거기에 센다."""
+    """자연어 일정을 화면에 보여 줄 글로 만든다. meter 를 주면 돈이 드는 호출을 센다."""
     try:
         ex, usage = extract(text, claude, today=today)
     except (Refusal, InvalidOutput) as e:
         if meter:
-            meter.claude("구조화 추출", e.usage)  # 거부 · 형식 오류로 끝나도 청구될 수 있다(model_info.billed)
+            meter.claude("구조화 추출", e.usage)  # 거부나 형식 오류로 끝나도 청구될 수 있다
         raise
     if meter:
         meter.claude("구조화 추출", usage)
     itinerary = to_itinerary(ex)
     with counting(meter):
         legs, misses = live_legs(itinerary, tmap_key, facts, policy)
-    # 받은 구간이 저장해 둔 지하철 하한선 구간을 대신한다. 받지 못한 구간은 저장해 둔 것이 있으면 그걸 쓴다.
+    # 받은 구간이 지하철 하한선을 대신하고, 받지 못한 구간은 저장해 둔 값을 쓴다.
     out = judge(itinerary, {**facts, "legs": {**facts["legs"], **legs}}, policy)
 
     lines = ["[추출한 일정]", f"  날짜 {itinerary['date'] or '없음'}"]
@@ -92,7 +82,7 @@ def main() -> None:
         print(f"일정을 추출하지 못했다 — {why}: {e}")
         raise SystemExit(1) from e
     finally:
-        print(f"\n{meter.summary()}")  # 실패로 끝나도 그때까지 나간 돈은 찍는다
+        print(f"\n{meter.summary()}")
 
 
 if __name__ == "__main__":

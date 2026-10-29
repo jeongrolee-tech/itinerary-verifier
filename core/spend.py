@@ -1,15 +1,4 @@
-"""
-이번 실행에서 나간 돈 — Anthropic 호출과 TMAP 호출을 세서 화면에 찍는다.
-
-    meter = Spend()
-    meter.claude("구조화 추출", usage)      # llm.ask 가 준 사용량. 거부 · 형식 오류로 끝난 호출도 넣는다
-    with counting(meter):                  # 이 안에서 routes.call 이 응답을 받을 때마다 meter 에 센다
-        legs, misses = live_legs(...)
-    print(meter.summary())
-
-평가 실행(run_extract.py · compare.py)의 기록에 남는 '비용'은 응답을 받을 때 든 값이라, 받아 둔 응답을 다시 쓴
-실행에서도 같은 숫자가 나온다. 이것은 그와 달리 이번 실행에서 실제로 나간 돈이다 — 새로 부른 호출만 센다.
-"""
+"""Anthropic 과 TMAP 호출을 세서 이번 실행에서 나간 돈을 찍는다."""
 
 from __future__ import annotations
 
@@ -19,11 +8,8 @@ from contextvars import ContextVar
 
 from model_info import cost_usd
 
-# TMAP 요금. 대중교통은 docs/data-policy.md '길찾기 플랫폼별로 되는 것'(2026-10-02 확인 — 하루 10건 무료, 넘으면 건당 0.88원).
-# 무료 제공량은 https://tmapapi.tmapmobility.com 첫 화면 "POI 검색 일 2만 건, 경로탐색 일 1천건"(2026-10-14 확인).
-# ⭐ 무료 제공량을 넘은 뒤의 건당 단가는 대중교통만 확인했다. 모르는 값은 None 으로 두고 지어내지 않는다.
-#    무료 제공량은 하루 전체 사용량에 걸리는데, 오늘 이미 몇 건을 썼는지는 TMAP 콘솔에만 있다. 그래서 한 번의
-#    실행이 쓴 돈은 범위(0원 ~ 전부 유료일 때)로만 말할 수 있다.
+# 무료 제공량은 https://tmapapi.tmapmobility.com 첫 화면 "POI 검색 일 2만 건, 경로탐색 일 1천건"(2026-10-14 확인)
+# 넘은 뒤 단가는 대중교통만 확인했다. docs/data-policy.md '길찾기 플랫폼별로 되는 것'(2026-10-02 확인)
 TMAP_PRICES = {
     "장소 검색": {"free_per_day": 20000, "won": None},
     "대중교통": {"free_per_day": 10, "won": 0.88},
@@ -36,16 +22,16 @@ _current: ContextVar[Spend | None] = ContextVar("spend", default=None)
 
 
 class Spend:
-    """한 번의 실행(또는 데모의 요청 하나)에서 돈이 드는 호출을 센다."""
+    """호출마다 바로 센다. 실행이 실패로 끝나도 그때까지 나간 돈을 찍을 수 있다."""
 
     def __init__(self):
-        self.claude_calls: Counter[str] = Counter()  # 이름 → 건수
-        self.unpriced: Counter[str] = Counter()      # 단가를 모르는 모델로 부른 건수 — 비용에 넣지 못했다
+        self.claude_calls: Counter[str] = Counter()
+        self.unpriced: Counter[str] = Counter()
         self.claude_usd = 0.0
-        self.tmap_calls: Counter[str] = Counter()    # TMAP API 이름 → 응답을 받은 건수
+        self.tmap_calls: Counter[str] = Counter()
 
     def claude(self, label: str, usage: dict) -> float | None:
-        """호출 하나를 센다. 이 호출의 비용을 돌려준다 — 청구되지 않는 거부는 0, 단가를 모르는 모델이면 None."""
+        """거부나 형식 오류로 끝난 호출도 넣는다. 단가를 모르면 None 을 돌려준다."""
         cost = cost_usd(usage["model"], usage)
         self.claude_calls[label] += 1
         if cost is None:
@@ -81,6 +67,7 @@ class Spend:
         for api, n in self.tmap_calls.items():
             price = TMAP_PRICES.get(api, {})
             free, won = price.get("free_per_day"), price.get("won")
+            # 하루 무료 제공량 중 오늘 쓴 건수를 몰라 범위로 찍는다.
             if won is not None:
                 parts.append(f"{api} {n}건(하루 {free:,}건까지 무료, 넘은 건은 건당 {won}원 — 0원 ~ {n * won:,.2f}원)")
             elif free:
@@ -90,11 +77,11 @@ class Spend:
         return "TMAP " + " · ".join(parts)
 
     def line(self) -> str:
-        """한 줄로. 데모 서버가 요청마다 찍는다."""
+        """데모 서버가 요청마다 찍는다."""
         return " / ".join(x for x in (self.claude_line(), self.tmap_line()) if x) or "돈이 드는 호출 없음"
 
     def summary(self) -> str:
-        """실행이 끝날 때 찍는 여러 줄."""
+        """실행이 끝날 때 찍는다."""
         lines = [x for x in (self.claude_line(), self.tmap_line()) if x]
         if not lines:
             return "  이번 실행에서 나간 돈 — 없다. 돈이 드는 호출을 하지 않았다."
@@ -103,12 +90,7 @@ class Spend:
 
 @contextmanager
 def counting(meter: Spend | None):
-    """이 안에서 일어난 TMAP 호출을 meter 에 센다. meter 가 None 이면 세지 않는다.
-
-    ⭐ 호출마다 meter 를 넘기지 않고 '지금 세는 계량기' 를 둔다. TMAP 은 routes.call 한 곳에서 부르지만
-       장소 검색 · 대중교통 · 걷기 · 택시로 여러 함수를 거쳐 가고, 테스트는 routes.call 을 가짜로 바꿔 끼운다.
-       ContextVar 라서 데모 서버에 요청 두 개가 동시에 와도 각자의 계량기에 센다.
-    """
+    """meter 를 함수마다 넘기지 않으려고 ContextVar 에 둔다. 동시 요청도 각자 센다."""
     token = _current.set(meter)
     try:
         yield meter
@@ -117,7 +99,7 @@ def counting(meter: Spend | None):
 
 
 def count_tmap(api: str) -> None:
-    """routes.call 이 응답을 받으면 부른다. 세는 중이 아니면 아무것도 하지 않는다."""
+    """routes.call 이 응답을 받으면 부른다."""
     meter = _current.get()
     if meter is not None:
         meter.tmap(api)

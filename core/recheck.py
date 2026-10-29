@@ -1,15 +1,4 @@
-"""
-수정된 일정 전체를 다시 검사한다.
-
-판정 코어(verdict.py)는 한 일정의 결과만 계산한다. 여기서는 사용자가
-그 결과를 보고 입력을 고친 뒤, 수정 전과 후를 함께 기록한다.
-
-바뀐 스톱만 따로 보지 않고 judge 를 수정된 전체 일정에 다시 부른다.
-한 곳을 고치면 뒤 일정의 이동시간과 필수 조건이 함께 움직이기 때문이다.
-
-고친 일정이 사용자가 꼭 지킨다고 한 것(필수 조건 · 날짜에 묶인 예약 · 가려던 장소)을
-바꿨으면 needs_confirmation 에 따로 적는다 — 2차 피드백 2번.
-"""
+"""고친 일정 전체를 다시 판정한다. 한 곳을 고치면 뒤 일정도 함께 움직인다."""
 
 from __future__ import annotations
 
@@ -23,7 +12,7 @@ from verdict import EVENT_NAMES, judge  # noqa: E402
 
 
 def _diff_paths(before: Any, after: Any, path: str = "") -> list[str]:
-    """두 JSON 형태 값의 변경 경로를 사람이 읽기 쉽게 반환한다."""
+    """바뀐 칸의 경로를 stops[1].start 꼴로 모은다."""
     if isinstance(before, dict) and isinstance(after, dict):
         paths: list[str] = []
         for key in sorted(set(before) | set(after)):
@@ -48,7 +37,6 @@ def _diff_paths(before: Any, after: Any, path: str = "") -> list[str]:
 
 
 def _resolution_hints(result: dict) -> list[dict]:
-    """현재 결과에서 사용자가 보완할 항목만 모아 반환한다."""
     hints: list[dict] = []
     for check in result.get("checks", []):
         if check.get("status") not in {"fail", "unknown"}:
@@ -78,24 +66,18 @@ def _resolution_hints(result: dict) -> list[dict]:
 
 
 def _event(hc: dict) -> str:
-    """필수 조건을 화면에 쓰는 말로. 표에서 비운 칸은 None 이 아니라 '없음' 으로 적는다."""
+    """필수 일정을 화면에 쓰는 말로 바꾼다. 예: 열차 출발(18:00 서울역)"""
     return (f"{EVENT_NAMES.get(hc.get('type'), '필수 일정')}"
             f"({hc.get('time') or '시각 없음'} {hc.get('place') or '장소 없음'})")
 
 
 def _needs_confirmation(original: dict, revised: dict) -> list[dict]:
-    """
-    고친 일정이 사용자가 꼭 지킨다고 한 것을 바꿨는지 본다.
-
-    시각 · 체류시간 · 방문 순서는 고쳐도 되는 것이라 적지 않는다.
-    """
-    # ⭐ 판정이 나아졌다는 것만으로 수정을 받아들이지 않는다.
-    #    장소를 지우면 확인할 것이 줄어 판정이 나아지고, 날짜를 옮기면 예약한 열차도
-    #    새 날짜에 탈 수 있는 것처럼 판정된다. 둘 다 사용자가 원한 일정이 아닐 수 있다.
+    """꼭 지킨다던 것을 바꿨는지 본다. 시각과 체류, 방문 순서는 고쳐도 된다."""
+    # 판정이 나아진 것만으로 수정을 받아들이지 않는다. 장소를 빼기만 해도 판정은 나아진다.
     items: list[dict] = []
     constraints = original.get("hard_constraints") or []
 
-    # 날짜를 처음 채우거나 지운 것은 옮긴 것이 아니다. 지우면 판정 코어가 날짜부터 묻고, 다른 날짜를 넣으면 그때 묻는다
+    # 날짜를 처음 채우거나 지운 것은 옮긴 것으로 보지 않는다.
     if constraints and original.get("date") and revised.get("date") and original["date"] != revised["date"]:
         events = ", ".join(_event(h) for h in constraints)
         items.append({
@@ -117,8 +99,7 @@ def _needs_confirmation(original: dict, revised: dict) -> list[dict]:
         items.append({"kind": "HARD_CONSTRAINT_CHANGED", "target": h.get("id"), "detail": detail,
                       "ask_user": f"{_event(h)} 일정을 바꿔도 되나요?"})
 
-    # ⭐ 장소는 순서가 아니라 이름으로 짝을 맞춘다. 순서로 비교하면 방문 순서만
-    #    바꿔도 모든 칸의 장소가 바뀐 것처럼 보인다.
+    # 장소는 이름으로 짝을 맞춘다. 순서로 맞추면 순서만 바꿔도 장소가 바뀐 것으로 보인다.
     left = Counter(s.get("place") for s in revised.get("stops") or [])
     for s in original.get("stops") or []:
         place = s.get("place")
@@ -133,15 +114,7 @@ def _needs_confirmation(original: dict, revised: dict) -> list[dict]:
 
 def recheck_revision(original: dict, revised: dict, facts: dict, policy: dict,
                      revised_facts: dict | None = None) -> dict:
-    """
-    수정 전·후 일정을 모두 검사하고 비교 결과를 반환한다.
-
-    revised 전체를 judge 에 넘기므로 바뀐 장소뿐 아니라 날짜·체류시간·
-    이동시간·필수 조건이 전부 다시 검사된다.
-
-    revised_facts 는 고친 일정을 판정할 사실이다. 없으면 facts 를 같이 쓴다. 데모(app.py)는 고친 일정의
-    출발 시각으로 이동시간을 새로 받아 여기에 넣고, 원래 일정은 처음 검사와 같은 이동시간(facts)으로 다시 본다.
-    """
+    """revised_facts 에는 고친 출발 시각으로 새로 받은 이동시간이 들어 있다."""
     before = judge(original, facts, policy)
     after = judge(revised, facts if revised_facts is None else revised_facts, policy)
     before_verdict = before["summary"]["verdict"]

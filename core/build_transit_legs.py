@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-"""
-지하철 주행시간 계산 — 공공누리 1유형 데이터에서 구간별 하한선을 만든다.
-
-    python core/build_transit_legs.py          계산 결과 출력
-    python core/build_transit_legs.py --write  facts.json 의 legs 를 교체
-
-**이것은 하한선이다.** 이 데이터에 있는 것은 열차가 역을 출발해 다음 역에 도착하는
-표준 운행시간뿐이다. 없는 것:
-
-    장소 → 역 도보      (출입구 기준 보행 경로가 필요)
-    환승 이동시간       (역 내 도보)
-    열차 대기시간       (배차간격이 필요)
-
-따라서 이 값으로는 pass 를 낼 수 없다. 하한선이 이미 다음 일정까지 남은 시간을 넘으면
-지하철로는 늦는다는 것까지는 확정된다 — 빠진 값을 더하면 더 늦어질 뿐이기 때문이다.
-그래도 fail 은 아니다. 지하철의 하한선이지 모든 이동수단의 하한선은 아니라서 택시로는 될 수 있다.
-
-출처: 서울교통공사 역간거리 및 소요시간 (서울 열린데이터광장 OA-12034)
-      공공누리 1유형 — 출처표시 / 상업적 이용 및 변경 가능
-"""
+"""지하철 운행시간으로 구간 이동시간의 하한선을 만든다. 도보와 환승, 대기는 빠져 있다."""
 
 from __future__ import annotations
 
@@ -42,8 +23,7 @@ SOURCE = {
     "caveat": "열차가 출발하여 다음역에 도착하는 표준 운행시간. 열차사정에 따라 변동될 수 있다",
 }
 
-# 지원 장소에서 가장 가까운 역. 사람이 정한 값이고 출입구 기준은 아직 확인하지 않았다.
-# "경로도 대표 좌표를 기준으로 계산하는지 실제 출입구를 기준으로 계산하는지 정해야 한다" — 미결
+# 사람이 고른 가장 가까운 역이다. 출입구 기준으로는 아직 확인하지 않았다.
 NEAREST_STATION = {
     "경복궁": ("3", "경복궁"),
     "서울시립미술관 서소문본관": ("1", "시청"),
@@ -55,7 +35,7 @@ NEAREST_STATION = {
 
 
 def load_lines(path: Path) -> dict[str, list[tuple[str, int]]]:
-    """호선별 [(역명, 앞 역에서 오는 주행시간 초)] — CSV 순서가 노선 순서다."""
+    """호선별로 (역명, 앞 역에서 오는 초) 를 모은다. CSV 순서가 노선 순서다."""
     lines: dict[str, list[tuple[str, int]]] = defaultdict(list)
     with path.open(encoding="utf-8") as f:
         for row in csv.DictReader(f):
@@ -67,16 +47,6 @@ def load_lines(path: Path) -> dict[str, list[tuple[str, int]]]:
 
 
 def build_graph(lines: dict[str, list[tuple[str, int]]]):
-    """
-    노드는 (호선, 역명). 같은 호선 인접역은 주행시간으로 잇는다.
-    같은 역의 다른 호선은 환승 간선으로 잇되 **비용을 0 으로 둔다** —
-    환승 이동시간을 모르기 때문이다. 0 은 "공짜"가 아니라 "미확인"이라는 뜻이고,
-    그래서 결과가 하한선이 된다.
-    """
-    # ⭐ 환승 비용 0 은 "환승이 공짜" 라는 주장이 아니다. "모른다" 는 표시다.
-    #    모르는 값에 아무 숫자(예: 5분)를 넣으면 그 숫자가 판정을 만들어낸다.
-    #    0 을 넣으면 결과가 항상 실제보다 작아지므로 **하한선** 이 보장된다.
-    #    하한선은 한 방향으로만 쓸 수 있다 → verdict.py 의 하한선 비대칭 참조.
     graph: dict[tuple[str, str], list[tuple[tuple[str, str], int, str]]] = defaultdict(list)
     by_station: dict[str, list[tuple[str, str]]] = defaultdict(list)
 
@@ -90,6 +60,7 @@ def build_graph(lines: dict[str, list[tuple[str, int]]]):
                 graph[node].append((nxt, ride, "ride"))
                 graph[nxt].append((node, ride, "ride"))
 
+    # 환승 비용 0 은 공짜가 아니라 미확인이다. 그래서 결과가 하한선이 된다.
     for nodes in by_station.values():
         for a in nodes:
             for b in nodes:
@@ -99,7 +70,6 @@ def build_graph(lines: dict[str, list[tuple[str, int]]]):
 
 
 def shortest(graph, start, goal):
-    """주행시간 합이 최소인 경로. 환승 횟수도 같이 센다."""
     pq = [(0, 0, start, [start])]
     best: dict[tuple[str, str], int] = {}
     while pq:

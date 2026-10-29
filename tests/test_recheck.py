@@ -1,16 +1,4 @@
-"""
-수정 후 재검사 — 2차 피드백 2번.
-
-"이미 예약한 열차나 반드시 방문해야 할 장소가 있다면, 수정안이 날짜/장소를 바꾸기
-전에 사용자 확인을 받아야 한다."
-
-서비스는 수정안을 만들지 않고 사용자가 고친 일정을 다시 검사한다. 그래도 고친 일정이
-사용자가 꼭 지킨다고 한 것을 바꿨다면, 판정이 나아졌다는 것만으로 끝내면 안 된다.
-날짜를 옮기면 예약한 열차도 새 날짜에 탈 수 있는 것처럼 판정되고, 장소를 빼면
-확인할 것이 줄어 일정이 나아진 것처럼 보인다.
-
-반례마다 대조군을 둔다. 대조군이 없으면 모든 변경에 확인을 붙이는 구현도 통과한다.
-"""
+"""고친 일정을 다시 검사하고, 꼭 지킨다고 한 것을 바꾸면 확인을 받는다."""
 
 import copy
 
@@ -21,7 +9,6 @@ THURSDAY, FRIDAY = "2026-10-08", "2026-10-09"
 
 
 def palace_market_ktx():
-    """T04 와 같은 일정 — 경복궁 17:30, 광장시장 19:00, 20:30 서울역 KTX 는 꼭 타야 한다."""
     return {
         "date": THURSDAY,
         "stops": [{"place": PALACE, "start": "17:30", "dwell_minutes": 60},
@@ -37,22 +24,20 @@ def confirmations(original, revised, facts, policy):
 
 
 def test_recheck_judges_the_whole_revised_itinerary(facts, policy):
-    """시각 하나만 고쳐도 일정 전체를 다시 판정한다 — 지금도 되는 것."""
     original = palace_market_ktx()
     revised = copy.deepcopy(original)
     revised["stops"][0]["start"] = "16:00"
     result = recheck_revision(original, revised, facts, policy)
     assert result["rechecked_all"] is True
     assert result["changed_fields"] == ["stops[0].start"]
-    assert result["before"]["summary"]["verdict"] == "infeasible"  # 17:30 은 입장마감(17:00) 뒤
-    assert result["after"]["summary"]["verdict"] == "undetermined"  # 광장시장은 여전히 확인 못 한다
+    assert result["before"]["summary"]["verdict"] == "infeasible"  # 17:30 은 입장마감 17:00 뒤다.
+    assert result["after"]["summary"]["verdict"] == "undetermined"  # 광장시장은 여전히 확인 못 한다.
     assert len(result["after"]["checks"]) == len(result["before"]["checks"])
     assert len(result["after"]["hard_constraints"]) == 1
 
 
 def test_revised_facts_judge_only_the_revised_itinerary(facts, policy):
-    """고친 일정만 따로 받은 사실로 판정할 수 있다 — 데모(app.py)는 고친 출발 시각으로 이동시간을 새로 받는다.
-    원래 일정은 처음과 같은 사실로 다시 봐야 '수정 전' 판정이 처음 본 것과 같다."""
+    """원래 일정은 처음 사실로 봐야 수정 전 판정이 처음 본 것과 같다."""
     itinerary = {"date": THURSDAY, "stops": [
         {"place": "서울시립미술관 서소문본관", "start": "13:00", "dwell_minutes": 60},
         {"place": PALACE, "start": "15:00", "dwell_minutes": 120}]}
@@ -60,12 +45,12 @@ def test_revised_facts_judge_only_the_revised_itinerary(facts, policy):
     later["legs"]["서울시립미술관 서소문본관|경복궁"] = {"minutes": 20, "mode": "transit", "is_lower_bound": False,
                                                    "source": "synthetic_fixture", "method": "synthetic_fixture"}
     result = recheck_revision(itinerary, copy.deepcopy(itinerary), facts, policy, revised_facts=later)
-    assert result["before"]["summary"]["verdict"] == "undetermined"  # 저장해 둔 지하철 하한선뿐이다
+    assert result["before"]["summary"]["verdict"] == "undetermined"  # 저장해 둔 지하철 하한선뿐이다.
     assert result["after"]["summary"]["verdict"] == "feasible"
 
 
 def test_moving_date_with_train_needs_confirmation(facts, policy):
-    """날짜를 옮기면 KTX 도 새 날짜에 탈 수 있는 것처럼 판정된다. 원래 날짜로 예약했을 수 있다."""
+    """KTX 는 원래 날짜로 예약했을 수 있어 날짜를 옮기면 확인을 받는다."""
     original = palace_market_ktx()
     revised = copy.deepcopy(original)
     revised["date"] = FRIDAY
@@ -73,7 +58,7 @@ def test_moving_date_with_train_needs_confirmation(facts, policy):
 
 
 def test_filling_in_a_missing_date_is_not_a_move(facts, policy):
-    """날짜가 없던 일정에 날짜를 처음 채운 것은 옮긴 것이 아니다. 원래 날짜가 없으니 예약을 옮겼는지 물을 근거도 없다."""
+    """원래 날짜가 없으면 예약을 옮겼는지 물을 근거가 없다."""
     original = palace_market_ktx()
     original["date"] = None
     revised = copy.deepcopy(original)
@@ -82,7 +67,6 @@ def test_filling_in_a_missing_date_is_not_a_move(facts, policy):
 
 
 def test_cleared_train_time_reads_as_missing_not_none(facts, policy):
-    """표에서 열차 시각을 비우면 확인 문구에 None 이 아니라 '시각 없음' 이 나온다."""
     original = palace_market_ktx()
     revised = copy.deepcopy(original)
     revised["hard_constraints"][0]["time"] = None
@@ -91,7 +75,6 @@ def test_cleared_train_time_reads_as_missing_not_none(facts, policy):
 
 
 def test_moving_date_without_constraints_needs_no_confirmation(facts, policy):
-    """대조군 — 꼭 지킨다고 한 조건이 없으면 날짜를 옮긴 것은 사용자가 고친 그대로다."""
     original = {"date": THURSDAY, "stops": [{"place": PALACE, "start": "13:00", "dwell_minutes": 60}]}
     revised = copy.deepcopy(original)
     revised["date"] = FRIDAY
@@ -99,7 +82,7 @@ def test_moving_date_without_constraints_needs_no_confirmation(facts, policy):
 
 
 def test_changing_train_time_needs_confirmation(facts, policy):
-    """꼭 타야 한다고 한 열차의 시각이 바뀌었다. 판정이 나아져도 사용자가 말한 조건이 아니다."""
+    """판정이 나아져도 바뀐 열차 시각은 사용자가 말한 조건이 아니다."""
     original = palace_market_ktx()
     revised = copy.deepcopy(original)
     revised["hard_constraints"][0]["time"] = "21:30"
@@ -115,7 +98,7 @@ def test_dropping_train_needs_confirmation(facts, policy):
 
 
 def test_dropping_stop_needs_confirmation(facts, policy):
-    """광장시장을 빼면 확인 못 한 것이 줄어 판정이 나아진다. 장소를 지워서 푼 것이다."""
+    """광장시장을 빼면 확인 못 한 것이 줄어 판정이 나아 보인다."""
     original = palace_market_ktx()
     revised = copy.deepcopy(original)
     revised["stops"] = revised["stops"][:1]
@@ -123,7 +106,6 @@ def test_dropping_stop_needs_confirmation(facts, policy):
 
 
 def test_replacing_stop_needs_confirmation(facts, policy):
-    """경복궁을 창덕궁으로 바꾸면 가려던 곳이 바뀐다."""
     original = palace_market_ktx()
     revised = copy.deepcopy(original)
     revised["stops"][0]["place"] = CHANGDEOK
@@ -131,7 +113,7 @@ def test_replacing_stop_needs_confirmation(facts, policy):
 
 
 def test_retiming_and_reordering_need_no_confirmation(facts, policy):
-    """대조군 — 시각 · 체류시간 · 방문 순서는 사용자가 고쳐도 되는 것이다. 확인을 붙이지 않는다."""
+    """대조군: 시각 · 체류시간 · 순서는 사용자가 고쳐도 되는 것이다."""
     original = palace_market_ktx()
     revised = copy.deepcopy(original)
     revised["stops"] = [{"place": MARKET, "start": "15:00"},

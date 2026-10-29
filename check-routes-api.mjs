@@ -1,13 +1,5 @@
 #!/usr/bin/env node
-/**
- * Google Routes API 한국 지원 여부 확인
- *
- *   export GKEY="발급받은키"
- *   node check-routes-api.mjs
- *
- * 결과 JSON은 routes-api-check.json 으로 저장된다.
- * 그대로 노션 4-4 섹션 근거로 붙이면 된다.
- */
+/** Google Routes API 가 한국에서 수단별 경로를 주는지 확인한다. */
 
 import { writeFileSync } from "node:fs";
 
@@ -18,14 +10,14 @@ if (!KEY) {
 }
 
 const ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
-let CALLS = 0;  // 응답을 받은(HTTP 200) 호출 수 — 끝에 나간 돈을 찍는다
+let CALLS = 0;  // 응답을 받은 호출만 세어 끝에 나간 돈을 찍는다
 const REQUEST_TIMEOUT_MS = 20000;
 
-// 출발 시각: 내일 오전 10시 (KST). 대중교통 모드에 필요하다.
+// 대중교통은 출발 시각이 필요하다. 내일 오전 10시 KST 로 잡는다.
 const departureTime = (() => {
   const d = new Date();
   d.setDate(d.getDate() + 1);
-  d.setHours(1, 0, 0, 0); // UTC 01:00 == KST 10:00
+  d.setHours(1, 0, 0, 0); // UTC 01:00 이 KST 10:00 이다
   return d.toISOString().replace(/\.\d{3}/, "");
 })();
 
@@ -133,11 +125,10 @@ if (okModes.length === 3) {
 }
 console.log("결과 저장: routes-api-check.json");
 
-// ── 이번 실행에서 나간 돈 ─────────────────────────────────────────
-// Routes API Compute Routes Essentials — 1,000건에 $5, 매달 1만 건까지 무료. TRAFFIC_AWARE 같은 고급 기능을 쓰면 Pro 인데 쓰지 않는다
-// (https://developers.google.com/maps/billing-and-pricing/pricing — 2026-10-08 갱신본을 2026-10-14 확인). 무료 사용량은 한 달 전체에 걸리는데 이번 달에
-// 이미 몇 건을 썼는지는 Google Cloud 콘솔에만 있어서 범위로만 말한다. 응답을 받은(HTTP 200) 호출만 센다.
+// Compute Routes Essentials 는 1,000건에 $5, 매달 1만 건 무료다. TRAFFIC_AWARE 같은 기능은 Pro 라 쓰지 않는다.
+// 출처 https://developers.google.com/maps/billing-and-pricing/pricing (2026-10-08 갱신본, 2026-10-14 확인)
 const PER_CALL_USD = 5 / 1000;
 console.log("\n--- 이번 실행에서 나간 돈 ---");
+// 무료 사용량은 달 단위인데 이번 달에 쓴 양은 Google Cloud 콘솔에만 있어 범위로 찍는다.
 console.log(`Google Routes ${CALLS}건 — 매달 10,000건까지 무료, 넘은 건은 건당 $${PER_CALL_USD}`
             + ` ($0 ~ $${(CALLS * PER_CALL_USD).toFixed(3)})`);

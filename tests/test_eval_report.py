@@ -1,9 +1,4 @@
-"""
-평가 보고 — 2차 피드백 3번 "총점 하나보다 오류 유형별 결과, 잘못된 정상 판정, unknown 비율과 원인, 비용/지연".
-
-보고서는 기록만 읽는다. 여기서는 갈래를 나누는 규칙이 맞는지와, 판정 코드가 낼 수 있는 보류 이유를 보고서가
-빠짐없이 아는지를 본다.
-"""
+"""평가 보고의 오류 갈래 규칙과 보류 이유 목록이 맞는지 본다."""
 
 import re
 from pathlib import Path
@@ -35,13 +30,13 @@ def test_right_verdict_is_not_an_error_and_refusal_is_no_answer():
 
 
 def test_every_unknown_reason_the_judge_can_give_has_a_solver():
-    """판정 코드에 새 보류 이유가 생겼는데 보고서가 모르면 '누가 푸나' 칸이 비어 버린다."""
+    """보고서가 모르는 보류 이유가 생기면 누가 푸나 칸이 빈다."""
     reasons = set(re.findall(r'unknown_reason="([A-Z_]+)"', (CORE / "verdict.py").read_text(encoding="utf-8")))
     assert reasons and reasons <= set(SOLVER), reasons - set(SOLVER)
 
 
 def test_question_missing_only_when_the_user_must_answer():
-    """사용자가 풀어야 하는 보류에 물을 말이 없으면 잡는다. 데이터 쪽 보류는 물을 말이 없어도 된다."""
+    """사용자가 풀 보류만 물을 말이 없으면 잡고, 데이터 쪽 보류는 괜찮다."""
     assert no_question({"unknown_reason": "BUFFER_NOT_MET", "how_to_resolve": {"system": "…"}})
     assert not no_question({"unknown_reason": "BUFFER_NOT_MET", "how_to_resolve": {"user": "괜찮으신가요?"}})
     assert not no_question({"unknown_reason": "UNSUPPORTED_PLACE", "how_to_resolve": {"system": "…"}})

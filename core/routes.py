@@ -1,12 +1,4 @@
-"""
-TMAP 길찾기 — 판정할 때 일정의 구간마다 예상 이동시간을 받는다.
-
-    from routes import live_legs
-    legs, misses = live_legs(itinerary, key, facts, policy)   # 판정 코어에 넘길 구간, 받지 못한 구간과 이유
-
-장소 좌표도 판정할 때 TMAP 장소 검색으로 받는다(시설물 입구 좌표). 받은 값은 TMAP 약관상
-저장 후 24시간 넘게 쓸 수 없어서(docs/data-policy.md) 메모리에만 두고, 파일이나 기록에 남기지 않는다.
-"""
+"""TMAP 으로 구간마다 예상 이동시간을 받는다. 약관상 판정할 때만 쓰고 저장하지 않는다."""
 
 from __future__ import annotations
 
@@ -27,26 +19,24 @@ from verdict import HHMM, crossing_constraint, is_midday, judge, segment_key, wi
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
 PEDESTRIAN = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1"
-PREDICTION = "https://apis.openapi.sk.com/tmap/routes/prediction?version=1"  # 타임머신 자동차 길 안내
-# 돈을 셀 때 쓰는 이름(spend.TMAP_PRICES). 주소의 ? 앞으로 찾는다
+PREDICTION = "https://apis.openapi.sk.com/tmap/routes/prediction?version=1"
+# 비용을 셀 때 쓰는 이름이다. spend.TMAP_PRICES 의 키와 같아야 한다.
 API_NAMES = {POI.split("?")[0]: "장소 검색", TRANSIT: "대중교통", PEDESTRIAN.split("?")[0]: "보행자 길찾기",
              PREDICTION.split("?")[0]: "택시 예측(타임머신)"}
 TIMEOUT_S = 20
-TOO_CLOSE = 11  # 대중교통 API 의 "출발지와 도착지가 너무 가까움". HTTP 200 으로 온다
-RETRIES = 3     # 429(너무 빨리 부름)를 받았을 때 다시 묻는 횟수
-BACKOFF_S = 1   # Retry-After 가 없으면 1초 · 2초 · 4초 기다린다
-MAX_WAIT_S = 30  # Retry-After 가 아무리 길어도 이만큼만 기다린다. 넘으면 RATE_LIMITED 로 남는다
+TOO_CLOSE = 11  # 출발지와 도착지가 너무 가깝다는 status. HTTP 200 으로 온다
+RETRIES = 3
+BACKOFF_S = 1
+MAX_WAIT_S = 30
 sleep = time.sleep  # 테스트에서 바꿔 끼운다
 
-# TMAP 장소 검색에서 이름이 우리 이름과 다르게 나오는 곳. 2026-10-05 check-tmap-api.mjs 로 확인했다.
-#   서울시립미술관 서소문본관 — TMAP 이름은 "서울시립미술관"
-#   서울역 — TMAP 은 노선별로 나눈다. 열차 조건의 목적지라 KTX 정차역을 쓴다
+# TMAP 장소 검색에서 이름이 다르게 나오는 곳이다.
+# 서울역은 노선별로 나뉘어 있어 열차를 타는 KTX 정차역으로 맞춘다.
 TMAP_NAMES = {"서울시립미술관 서소문본관": "서울시립미술관", "서울역": "서울역[KTX정차역]"}
 
 
 class Miss(Exception):
-    """받지 못했다. reason — TIMEOUT · NETWORK_ERROR · RATE_LIMITED · HTTP_ERROR · UNPARSEABLE_RESPONSE
-    · NO_ROUTE · PLACE_NOT_FOUND"""
+    """TMAP 에서 값을 받지 못했다."""
 
     def __init__(self, reason: str, detail: str):
         super().__init__(f"{reason}: {detail}")
@@ -54,7 +44,7 @@ class Miss(Exception):
 
 
 def call(method: str, url: str, key: str, body: dict | None = None) -> dict:
-    """TMAP 을 한 번 부른다. 응답 JSON 을 돌려주거나 Miss 를 낸다. 결과가 없으면 본문이 비어서 온다."""
+    """TMAP 을 부른다. 받지 못하면 Miss 를 낸다."""
     req = urllib.request.Request(
         url, method=method, data=None if body is None else json.dumps(body).encode(),
         headers={"appKey": key, "Accept": "application/json", "Content-Type": "application/json"})
@@ -64,9 +54,7 @@ def call(method: str, url: str, key: str, body: dict | None = None) -> dict:
                 raw = res.read()
             break
         except urllib.error.HTTPError as e:
-            # ⭐ 429 는 요청이 틀린 게 아니라 너무 빨리 불렀다는 뜻이다. 2026-10-05 에 대중교통을 연달아
-            #    네 번 부르자 네 번째가 429 였다(하루 무료 한도 안). 기다릴 시간(Retry-After)을 주면
-            #    그만큼, 안 주면 1 · 2 · 4초 기다렸다 다시 묻는다. 그래도 막히면 RATE_LIMITED 로 남긴다.
+            # 429 는 한도 안에서도 연달아 부르면 온다. 기다렸다 다시 묻는다.
             if e.code == 429 and attempt < RETRIES:
                 sleep(min(_retry_after(e) or BACKOFF_S * 2 ** attempt, MAX_WAIT_S))
                 continue
@@ -74,16 +62,16 @@ def call(method: str, url: str, key: str, body: dict | None = None) -> dict:
         except (TimeoutError, socket.timeout) as e:
             raise Miss("TIMEOUT", f"{TIMEOUT_S}초 안에 응답하지 않았다") from e
         except urllib.error.URLError as e:
-            # 연결 단계의 시간 초과는 URLError 에 감싸여 온다
+            # 연결 단계의 시간 초과는 URLError 에 감싸여 온다.
             if isinstance(e.reason, (TimeoutError, socket.timeout)):
                 raise Miss("TIMEOUT", f"{TIMEOUT_S}초 안에 응답하지 않았다") from e
             raise Miss("NETWORK_ERROR", str(e.reason)) from e
         except (http.client.HTTPException, OSError) as e:
-            # 요청을 보낸 뒤 응답을 받다가 끊긴 것은 URLError 로 감싸지지 않고 그대로 온다
-            # (RemoteDisconnected · ConnectionResetError · IncompleteRead). 한 구간 때문에 검증 전체가 멈추면 안 된다
+            # 응답을 받다 끊기면 URLError 로 감싸지지 않고 그대로 온다.
             raise Miss("NETWORK_ERROR", f"{type(e).__name__}: {e}") from e
-    # 응답을 받은 호출만 센다. 429 로 다시 물은 것과 오류 응답이 청구되는지는 확인하지 못했다
+    # 응답을 받은 호출만 센다. 429 와 오류 응답이 청구되는지는 확인하지 못했다.
     count_tmap(API_NAMES.get(url.split("?")[0], url.split("?")[0]))
+    # 결과가 없으면 본문이 비어서 온다.
     if not raw.strip():
         return {}
     try:
@@ -93,7 +81,7 @@ def call(method: str, url: str, key: str, body: dict | None = None) -> dict:
 
 
 def _retry_after(e: urllib.error.HTTPError) -> float | None:
-    """429 응답이 알려 준 기다릴 시간(초). 없거나 날짜 형식이면 None."""
+    """Retry-After 가 날짜 형식이면 읽지 않고 None 을 돌려준다."""
     try:
         return float((e.headers or {}).get("Retry-After"))
     except (TypeError, ValueError):
@@ -101,12 +89,10 @@ def _retry_after(e: urllib.error.HTTPError) -> float | None:
 
 
 def place_entrance(name: str, key: str) -> tuple[float, float]:
-    """TMAP 장소 검색에서 이름이 같은 장소의 입구 좌표 (위도, 경도). 입구 좌표가 없으면 중심점을 쓴다."""
+    """입구 좌표를 (위도, 경도) 로 돌려준다. 입구가 없으면 중심점을 쓴다."""
     found = call("GET", POI.format(urllib.parse.quote(name)), key)
     pois = ((found.get("searchPoiInfo") or {}).get("pois") or {}).get("poi") or []
-    # ⭐ 이름이 같은 결과만 쓴다. "경복궁" 을 찾았는데 첫 결과가 "경복궁역" 이면 엉뚱한 곳까지의
-    #    길을 받게 된다. 띄어쓰기만 다른 것은 같은 이름으로 보고, TMAP 이름이 다른 곳은 TMAP_NAMES 로 맞춘다.
-    #    이름이 비슷하면 받아 주는 식으로 느슨하게 맞추지 않는다 — "서울시립미술관 주차장" 도 비슷하다.
+    # 이름이 같은 결과만 쓴다. "경복궁" 의 첫 결과가 "경복궁역" 일 수 있다.
     target = TMAP_NAMES.get(name, name)
     same = lambda s: (s or "").replace(" ", "") == target.replace(" ", "")
     hit = next((p for p in pois if same(p.get("name"))), None)
@@ -119,23 +105,21 @@ def place_entrance(name: str, key: str) -> tuple[float, float]:
 
 
 def estimate(seconds: float, mode: str, method: str) -> dict:
-    """판정 코어가 읽는 구간 모양. 하한선이 아니라 예상치다. 분은 올림한다 — 짧게 잡으면 늦는 일정을 통과시킨다."""
+    """분은 올림한다. 짧게 잡으면 늦는 일정을 통과시킨다."""
     return {"minutes": math.ceil(seconds / 60), "mode": mode, "is_lower_bound": False,
             "source": "api_runtime", "method": method, "checked_at": date.today().isoformat()}
 
 
 def leg(frm: str, frm_at: tuple[float, float], to: str, to_at: tuple[float, float],
         depart: datetime, key: str) -> dict:
-    """두 곳 사이 예상 이동시간. 대중교통으로 묻고, 너무 가깝다고 하면 걷기로 다시 묻는다."""
     xy = {"startX": str(frm_at[1]), "startY": str(frm_at[0]), "endX": str(to_at[1]), "endY": str(to_at[0])}
     res = call("POST", TRANSIT, key, {**xy, "count": 1, "lang": 0, "format": "json",
                                       "searchDttm": depart.strftime("%Y%m%d%H%M")})
     itineraries = ((res.get("metaData") or {}).get("plan") or {}).get("itineraries") or []
     if itineraries:
         return estimate(itineraries[0]["totalTime"], "transit", "tmap_transit")
-    # ⭐ HTTP 200 이어도 경로가 없을 수 있다. 너무 가까우면 대중교통 대신 걸어가는 시간을 묻는다.
-    #    이걸 "조회했다" 로 넘기면 이동시간 없이 판정하게 된다. status 가 result 아래에 오는지 맨 위에
-    #    오는지는 확인하지 못해서(10-02 에 status 11 만 봤다) 둘 다 읽는다.
+    # HTTP 200 이어도 경로가 없을 수 있다. 너무 가까우면 걷기로 다시 묻는다.
+    # status 가 result 안에 오는지 맨 위에 오는지 확인하지 못해 둘 다 읽는다.
     status = (res.get("result") or res).get("status")
     if str(status) != str(TOO_CLOSE):
         raise Miss("NO_ROUTE", f"대중교통 경로 없음 {json.dumps(res, ensure_ascii=False)[:200]}")
@@ -149,10 +133,9 @@ def leg(frm: str, frm_at: tuple[float, float], to: str, to_at: tuple[float, floa
 
 def taxi(frm: str, frm_at: tuple[float, float], to: str, to_at: tuple[float, float],
          depart: datetime, key: str) -> dict:
-    """두 곳 사이 택시 예상 시간과 요금. 계획한 출발 시각의 교통으로 예측한다(타임머신 자동차 길 안내)."""
+    """타임머신으로 계획한 출발 시각의 택시 시간과 요금을 받는다."""
     point = lambda name, p: {"name": name, "lon": str(p[1]), "lat": str(p[0])}
-    # ⭐ predictionType 은 이름과 반대로 읽는다. "arrival" 이 출발 시각을 넣고 도착을 예측한다.
-    #    "departure" 로 19:30 을 넣었더니 도착이 19:30 으로 왔다(2026-10-05, check-tmap-api.mjs).
+    # predictionType 은 이름과 반대로 arrival 이 출발 시각을 넣는 쪽이다.
     res = call("POST", PREDICTION, key, {"routesInfo": {
         "departure": point(frm, frm_at), "destination": point(to, to_at),
         "predictionType": "arrival", "predictionTime": depart.strftime("%Y-%m-%dT%H:%M:%S+0900")}})
@@ -163,46 +146,35 @@ def taxi(frm: str, frm_at: tuple[float, float], to: str, to_at: tuple[float, flo
 
 
 def _readable(stop: dict) -> bool:
-    """장소의 시작 시각이 HH:MM 으로 있나 — 판정 코어가 그 장소와 앞뒤 구간을 판정하는 조건과 같다."""
+    """시작 시각이 HH:MM 인지 본다. 판정 코어가 구간을 판정하는 조건과 같다."""
     return bool(re.fullmatch(HHMM, str(stop.get("start") or "")))
 
 
 def _departure(day: date, i: int, k: str, a: dict, b: dict, itinerary: dict, entry_times: dict, facts: dict,
                policy: dict) -> datetime | None:
-    """구간 a → b 를 TMAP 에 물을 출발 시각 — 판정 코어가 그 구간을 판정할 때 쓰는 출발 시각과 같다. 판정 코어가
-    이 구간을 판정하지 않으면 None 이다. facts 에는 앞 구간에서 받은 이동시간이 들어 있다."""
+    """판정 코어와 같은 출발 시각을 돌려준다. 판정하지 않는 구간이면 None 이다."""
     if "area" in (a.get("scope"), b.get("scope")):
-        return None  # 구역은 대표 지점으로 길을 찾지 않는다. 판정 코어도 이 구간을 판정하지 않는다
+        return None  # 구역이 낀 구간은 판정 코어도 판정하지 않는다
     hc_leg = k.startswith("HC")
-    # 시각이 빠진 장소의 앞뒤 구간은 판정 코어가 그 장소를 가장 이르게 들어가는 시각으로 판정할 수 있을 때만
-    # 묻는다(verdict 의 '시각이 빠진 장소의 시간대'). 앞 구간은 앞 장소를 나서는 시각이다
+    # 뒤 장소에 시각이 없으면 판정 코어가 그 시간대를 계산할 수 있을 때만 묻는다.
     if _readable(a) and (hc_leg or _readable(b) or window_candidate(itinerary, i + 1, facts, policy)):
         if not hc_leg and _readable(b) and crossing_constraint(itinerary.get("hard_constraints") or [], a, b):
-            return None  # 사이에 필수 일정이 낀 구간은 판정 코어가 계산하지 않는다(미확인)
+            return None  # 사이에 필수 일정이 낀 구간은 판정 코어가 계산하지 않는다
         entry_at = entry_times.get(i, a["start"])
         return (datetime.combine(day, datetime.strptime(entry_at, "%H:%M").time())
-                + timedelta(minutes=a.get("dwell_minutes") or 0))
-    # 뒤 구간은 가장 이르게 들어갔다가 나서는 시각이다. 앞 구간에서 받은 이동시간으로 계산한다
+                + timedelta(minutes=a.get("dwell_minutes") or 0))  # 체류를 모르면 판정 코어처럼 0분으로 본다
+    # 앞 장소에 시각이 없으면 가장 이르게 들어갔다 나서는 시각을 쓴다.
     if not hc_leg and _readable(b) and (leave := window_departure(itinerary, i, facts, policy)):
         return datetime.combine(day, datetime.strptime(leave, "%H:%M").time())
     return None
 
 
 def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dict, dict]:
-    """일정의 구간마다 예상 이동시간을 받는다. (판정 코어의 legs 에 덮어쓸 구간, 받지 못한 구간 → Miss)
-
-    출발 시각은 판정 코어가 계산한 입장 시각에 사용자가 말한 체류시간을 더한 것이다. 개장 전에
-    도착하면 개장까지 기다린 뒤 체류를 시작한다. 체류를 모르면 바로 나온다고 본다 — 판정 코어도
-    체류를 모르면 0분으로 보고, 0분으로도 늦을 때만 확정한다. 시각이 빠진 장소는 가장 이르게 들어가는
-    시각으로 본다(_departure). 구간을 일정 순서로 묻기 때문에 뒤 구간을 물을 때는 앞 구간 값이 있다.
-
-    대중교통 구간에는 같은 출발 시각의 택시를 대안(alternatives)으로 붙인다. 판정 코어가 대중교통으로
-    '된다' 가 안 나올 때 본다. 걸어갈 만큼 가까운 구간과 택시를 안 탄다고 한 일정에는 붙이지 않는다.
-    택시를 받지 못해도 대중교통 판정은 그대로 하고, 이유는 구간의 taxi_miss 에 남긴다.
-    """
+    """(판정 코어의 legs 에 덮어쓸 구간, 받지 못한 구간의 Miss) 를 돌려준다."""
     stops = itinerary["stops"]
     if not itinerary.get("date") or not stops:
-        return {}, {}  # 날짜나 장소가 없으면 판정 코어가 입력부터 묻는다. 길을 찾을 출발 시각도 없다
+        return {}, {}  # 판정 코어가 입력부터 묻는다
+    # 개장 전에 도착하면 개장부터 머무르므로 판정 코어가 계산한 입장 시각을 쓴다.
     judged = judge(itinerary, facts, policy)
     admission_checks = [c for c in judged.get("checks", [])
                         if c.get("type") == "ADMISSION_NOT_POSSIBLE"]
@@ -213,20 +185,20 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
             if evidence.get("entry_at"):
                 entry_times[i] = evidence["entry_at"]
 
-    # 구간마다 따로 붙인다(segment_key). 같은 장소 사이를 두 번 가도 출발 시각이 달라 값이 다르다
+    # 같은 장소 사이를 두 번 가도 출발 시각이 달라 구간마다 따로 받는다.
     pairs = [(i, segment_key(i, a["place"], b["place"]), a, b) for i, (a, b) in enumerate(zip(stops, stops[1:]))] + [
         (len(stops) - 1, segment_key(hc.get("id") or f"HC{n}", stops[-1]["place"], hc["place"]),
          stops[-1], {"place": hc["place"]})
         for n, hc in enumerate(itinerary.get("hard_constraints", []), 1)
-        if hc.get("time") and not is_midday(hc, stops)]  # 하루 중간의 필수 일정은 판정하지 않으니 묻지 않는다
+        if hc.get("time") and not is_midday(hc, stops)]  # 하루 중간의 필수 일정은 판정하지 않는다
     day = date.fromisoformat(itinerary["date"])
     at, legs, misses = {}, {}, {}
     for i, k, a, b in pairs:
-        # 앞 구간에서 받은 이동시간까지 넣어 묻는다 — 시각이 빠진 장소의 뒤 구간 출발 시각이 거기에 달렸다
+        # 시각이 빠진 장소 뒤 구간의 출발 시각은 앞 구간 이동시간에 달렸다.
         depart = _departure(day, i, k, a, b, itinerary, entry_times,
                             {**facts, "legs": {**facts["legs"], **legs}}, policy)
         if depart is None:
-            continue  # 판정 코어가 이 구간을 판정하지 않는다 — 호출을 쓰지 않는다
+            continue
         try:
             for name in (a["place"], b["place"]):
                 if name not in at:
@@ -236,12 +208,13 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
                         at[name] = e  # 못 찾은 장소는 다음 구간에서 다시 묻지 않는다
                 if isinstance(at[name], Miss):
                     raise at[name]
-            # 받은 날짜 · 출발 시각을 붙인다. 판정 코어는 이것이 판정과 같을 때만 이 값을 쓴다(verdict.leg_for)
+            # 구간은 받은 출발 시각에만 쓴다. 판정 코어가 depart_at 으로 맞춰 본다.
             legs[k] = {**leg(a["place"], at[a["place"]], b["place"], at[b["place"]], depart, key),
                        "depart_at": depart.strftime("%Y-%m-%dT%H:%M")}
         except Miss as e:
             misses[k] = e
             continue
+        # 택시는 대중교통으로 안 될 때 판정 코어가 보는 대안이다.
         if legs[k]["mode"] == "transit" and not itinerary.get("avoid_taxi"):
             try:
                 legs[k]["alternatives"] = [taxi(a["place"], at[a["place"]], b["place"], at[b["place"]],
