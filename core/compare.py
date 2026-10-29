@@ -402,7 +402,10 @@ class StubClient:
         calls = 0
 
         def create(self, **kw):
-            assert kw["messages"][0]["content"].strip(), "payload 가 비어 있다"
+            content = kw["messages"][0]["content"]
+            # 앞부분을 프롬프트 캐시에 올린 요청은 본문이 조각 목록이다.
+            text = content if isinstance(content, str) else "".join(block["text"] for block in content)
+            assert text.strip(), "payload 가 비어 있다"
             assert kw["system"][0]["text"].strip(), "system 프롬프트가 비어 있다"
             assert kw["output_config"]["format"]["schema"], "출력 스키마가 비어 있다"
             StubClient._Messages.calls += 1
