@@ -1,30 +1,10 @@
 #!/usr/bin/env node
 /** TMAP 길찾기 API 가 서울 구간에서 수단별 경로를 주는지 확인한다. */
 
-import readline from "node:readline";
+import { REQUEST_TIMEOUT_MS, askKey } from "./api-call.mjs";
 
-function askKey() {
-  if (process.env.TMAP_KEY) return Promise.resolve(process.env.TMAP_KEY.trim());
-  return new Promise(resolve => {
-    const prompt = "TMAP 앱 키 입력: ";
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    // 입력한 키가 화면에 보이지 않게 가린다.
-    let asked = false;
-    rl._writeToOutput = s => {
-      if (!asked) { process.stdout.write(prompt); asked = true; return; }
-      if (s.includes("\n")) process.stdout.write("\n");
-    };
-    rl.question(prompt, ans => { rl.close(); resolve(ans.trim()); });
-  });
-}
+const KEY = await askKey("TMAP 앱 키", process.env.TMAP_KEY);
 
-const KEY = await askKey();
-if (!KEY) {
-  console.error("키가 비어 있다.");
-  process.exit(1);
-}
-
-const REQUEST_TIMEOUT_MS = 20000;
 const POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword=";
 const TRANSIT = "https://apis.openapi.sk.com/transit/routes";
 const PEDESTRIAN = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1";

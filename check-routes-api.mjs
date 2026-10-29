@@ -3,6 +3,8 @@
 
 import { writeFileSync } from "node:fs";
 
+import { postJson, printGoogleSpend } from "./api-call.mjs";
+
 const KEY = process.env.GKEY;
 if (!KEY) {
   console.error("GKEY 환경변수가 없다.  export GKEY=\"...\"");
@@ -10,8 +12,6 @@ if (!KEY) {
 }
 
 const ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
-let CALLS = 0;  // 응답을 받은 호출만 세어 끝에 나간 돈을 찍는다
-const REQUEST_TIMEOUT_MS = 20000;
 
 // 대중교통은 출발 시각이 필요하다. 내일 오전 10시 KST 로 잡는다.
 const departureTime = (() => {
@@ -45,56 +45,13 @@ async function probe({ mode, from, to }) {
   if (mode === "TRANSIT") body.departureTime = departureTime;
   if (mode === "DRIVE") body.routingPreference = "TRAFFIC_UNAWARE";
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  let res;
-  try {
-    res = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": KEY,
-        "X-Goog-FieldMask": "routes.duration,routes.distanceMeters",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    const timedOut = error?.name === "AbortError";
-    return {
-      ok: false,
-      verdict: timedOut ? "TIMEOUT" : "NETWORK_ERROR",
-      detail: timedOut ? `${REQUEST_TIMEOUT_MS}ms 안에 응답하지 않음` : String(error?.message ?? error),
-      http: null,
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-  if (res.ok) CALLS += 1;
-
-  const raw = await res.text();
-  let json;
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    return { ok: false, verdict: "UNPARSEABLE_RESPONSE", detail: "응답이 JSON 형식이 아님", http: res.status, raw };
-  }
-
-  if (!res.ok) {
-    return { ok: false, verdict: "HTTP_ERROR", detail: json?.error?.message ?? raw.slice(0, 200), http: res.status, raw: json };
-  }
-  const route = json?.routes?.[0];
-  if (!route) {
-    return { ok: false, verdict: "NO_ROUTE", detail: "경로 없음 (미지원 가능성)", http: res.status };
-  }
+  const r = await postJson(ENDPOINT, { "X-Goog-Api-Key": KEY, "X-Goog-FieldMask": "routes.duration,routes.distanceMeters" },
+                           body);
+  if (!r.ok) return { ok: false, verdict: r.failure_type, detail: r.detail, http: r.http, raw: r.raw };
+  const route = r.json?.routes?.[0];
+  if (!route) return { ok: false, verdict: "NO_ROUTE", detail: "경로 없음 (미지원 가능성)", http: r.http };
   const sec = parseInt(String(route.duration).replace("s", ""), 10);
-  return {
-    ok: true,
-    verdict: "OK",
-    minutes: Math.round(sec / 60),
-    meters: route.distanceMeters,
-    http: res.status,
-  };
+  return { ok: true, verdict: "OK", minutes: Math.round(sec / 60), meters: route.distanceMeters, http: r.http };
 }
 
 const results = [];
@@ -127,8 +84,4 @@ console.log("결과 저장: routes-api-check.json");
 
 // Compute Routes Essentials 는 1,000건에 $5, 매달 1만 건 무료다. TRAFFIC_AWARE 같은 기능은 Pro 라 쓰지 않는다.
 // 출처 https://developers.google.com/maps/billing-and-pricing/pricing (2026-10-08 갱신본, 2026-10-14 확인)
-const PER_CALL_USD = 5 / 1000;
-console.log("\n--- 이번 실행에서 나간 돈 ---");
-// 무료 사용량은 달 단위인데 이번 달에 쓴 양은 Google Cloud 콘솔에만 있어 범위로 찍는다.
-console.log(`Google Routes ${CALLS}건 — 매달 10,000건까지 무료, 넘은 건은 건당 $${PER_CALL_USD}`
-            + ` ($0 ~ $${(CALLS * PER_CALL_USD).toFixed(3)})`);
+printGoogleSpend("Google Routes", 10000, 5 / 1000);

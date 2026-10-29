@@ -2,34 +2,10 @@
 /** Google Routes 로 구간별 대중교통 이동시간을 받아 스냅샷으로 남긴다. */
 
 import { writeFileSync } from "node:fs";
-import readline from "node:readline";
 
-function askKey() {
-  const fromArg = process.argv.find(a => a.startsWith("--key="));
-  if (fromArg) return Promise.resolve(fromArg.slice(6).trim());
+import { askKey, postJson, printGoogleSpend } from "./api-call.mjs";
 
-  return new Promise(resolve => {
-    const prompt = "Google API 키 입력: ";
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-      terminal: true,
-    });
-    // 입력한 키가 화면에 보이지 않게 가린다.
-    let asked = false;
-    rl._writeToOutput = s => {
-      if (!asked) { process.stdout.write(prompt); asked = true; return; }
-      if (s.includes("\n")) process.stdout.write("\n");
-    };
-    rl.question(prompt, ans => { rl.close(); resolve(ans.trim()); });
-  });
-}
-
-const KEY = await askKey();
-if (!KEY) {
-  console.error("키가 비어 있다.");
-  process.exit(1);
-}
+const KEY = await askKey("Google API 키", process.argv.find(a => a.startsWith("--key="))?.slice(6));
 
 // 좌표
 const P = {
@@ -62,8 +38,6 @@ const DEPARTURE = (() => {
 })();
 
 const ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
-let CALLS = 0;  // 응답을 받은 호출만 세어 끝에 나간 돈을 찍는다
-const REQUEST_TIMEOUT_MS = 20000;
 const FIELDS = [
   "routes.duration",
   "routes.distanceMeters",
@@ -88,67 +62,17 @@ const sec = v => parseInt(String(v ?? "0").replace("s", ""), 10) || 0;
 const min = s => Math.round(s / 60);
 
 async function call(leg) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  let res;
-  try {
-    res = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": KEY,
-        "X-Goog-FieldMask": FIELDS,
-      },
-      body: JSON.stringify({
-        origin:      { location: { latLng: P[leg.from] } },
-        destination: { location: { latLng: P[leg.to] } },
-        travelMode: "TRANSIT",  // 한국은 WALK 를 주지 않는다
-        departureTime: DEPARTURE,
-        languageCode: "ko",
-        units: "METRIC",
-      }),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    const timedOut = error?.name === "AbortError";
-    return {
-      ok: false,
-      failure_type: timedOut ? "TIMEOUT" : "NETWORK_ERROR",
-      reason: timedOut ? `${REQUEST_TIMEOUT_MS}ms 안에 응답하지 않음` : String(error?.message ?? error),
-      http: null,
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-  if (res.ok) CALLS += 1;
-
-  const raw = await res.text();
-  let json;
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    return {
-      ok: false,
-      failure_type: "UNPARSEABLE_RESPONSE",
-      reason: "응답이 JSON 형식이 아님",
-      http: res.status,
-      raw,
-    };
-  }
-
-  if (!res.ok) {
-    return {
-      ok: false,
-      failure_type: "HTTP_ERROR",
-      reason: json?.error?.message ?? raw.slice(0, 200),
-      http: res.status,
-      raw: json,
-    };
-  }
-  const route = json?.routes?.[0];
-  if (!route) {
-    return { ok: false, failure_type: "NO_RESULT", reason: "경로 없음", http: res.status, raw: json };
-  }
+  const r = await postJson(ENDPOINT, { "X-Goog-Api-Key": KEY, "X-Goog-FieldMask": FIELDS }, {
+    origin:      { location: { latLng: P[leg.from] } },
+    destination: { location: { latLng: P[leg.to] } },
+    travelMode: "TRANSIT",  // 한국은 WALK 를 주지 않는다
+    departureTime: DEPARTURE,
+    languageCode: "ko",
+    units: "METRIC",
+  });
+  if (!r.ok) return { ok: false, failure_type: r.failure_type, reason: r.detail, http: r.http };
+  const route = r.json?.routes?.[0];
+  if (!route) return { ok: false, failure_type: "NO_RESULT", reason: "경로 없음", http: r.http };
 
   const steps = route.legs?.[0]?.steps ?? [];
   const staticTotal = steps.reduce((a, s) => a + sec(s.staticDuration), 0);
@@ -158,14 +82,14 @@ async function call(leg) {
 
   return {
     ok: true,
-    http: res.status,
+    http: r.http,
     duration_min: min(total),  // 대기를 포함한 값이라 판정에 쓴다
     static_min: min(staticTotal),
     wait_min: min(total - staticTotal),  // 배차 대기 추정이다
     walk_step_min: min(walkOnly),
     transit_steps: steps.filter(s => s.travelMode === "TRANSIT").length,
     meters: route.distanceMeters,
-    raw: json,
+    raw: r.json,
   };
 }
 
@@ -243,8 +167,4 @@ console.log("저장: travel-times.json");
 
 // Compute Routes Essentials 는 1,000건에 $5, 매달 1만 건 무료다. TRAFFIC_AWARE 같은 기능은 Pro 라 쓰지 않는다.
 // 출처 https://developers.google.com/maps/billing-and-pricing/pricing (2026-10-08 갱신본, 2026-10-14 확인)
-const PER_CALL_USD = 5 / 1000;
-console.log("\n--- 이번 실행에서 나간 돈 ---");
-// 무료 사용량은 달 단위인데 이번 달에 쓴 양은 Google Cloud 콘솔에만 있어 범위로 찍는다.
-console.log(`Google Routes ${CALLS}건 — 매달 10,000건까지 무료, 넘은 건은 건당 $${PER_CALL_USD}`
-            + ` ($0 ~ $${(CALLS * PER_CALL_USD).toFixed(3)})`);
+printGoogleSpend("Google Routes", 10000, 5 / 1000);

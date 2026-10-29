@@ -3,6 +3,8 @@
 
 import { writeFileSync } from "node:fs";
 
+import { postJson, printGoogleSpend } from "./api-call.mjs";
+
 const KEY = process.env.GKEY;
 if (!KEY) {
   console.error('GKEY 환경변수가 없다.  $env:GKEY = "..."');
@@ -10,8 +12,6 @@ if (!KEY) {
 }
 
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchText";
-let CALLS = 0;  // 응답을 받은 호출만 세어 끝에 나간 돈을 찍는다
-const REQUEST_TIMEOUT_MS = 20000;
 
 // Places API 의 day 는 일요일이 0 이다.
 const DAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -43,59 +43,11 @@ const FIELD_MASK = [
 ].join(",");
 
 async function search(textQuery) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  let res;
-  try {
-    res = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": KEY,
-        "X-Goog-FieldMask": FIELD_MASK,
-      },
-      body: JSON.stringify({
-        textQuery,
-        languageCode: "ko",
-        regionCode: "KR",
-        maxResultCount: 1,
-      }),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    const timedOut = error?.name === "AbortError";
-    return {
-      error: timedOut ? `${REQUEST_TIMEOUT_MS}ms 안에 응답하지 않음` : String(error?.message ?? error),
-      failure_type: timedOut ? "TIMEOUT" : "NETWORK_ERROR",
-      http: null,
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-  if (res.ok) CALLS += 1;
-
-  const raw = await res.text();
-  let json;
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    return {
-      error: "응답이 JSON 형식이 아님",
-      failure_type: "UNPARSEABLE_RESPONSE",
-      http: res.status,
-      raw,
-    };
-  }
-
-  if (!res.ok) {
-    return {
-      error: json?.error?.message ?? raw.slice(0, 200),
-      failure_type: "HTTP_ERROR",
-      http: res.status,
-      raw: json,
-    };
-  }
-  return { place: json?.places?.[0] ?? null, failure_type: json?.places?.length ? null : "NO_RESULT", http: res.status, raw: json };
+  const r = await postJson(ENDPOINT, { "X-Goog-Api-Key": KEY, "X-Goog-FieldMask": FIELD_MASK },
+                           { textQuery, languageCode: "ko", regionCode: "KR", maxResultCount: 1 });
+  if (!r.ok) return { error: r.detail, failure_type: r.failure_type, http: r.http };
+  const places = r.json?.places;
+  return { place: places?.[0] ?? null, failure_type: places?.length ? null : "NO_RESULT", http: r.http };
 }
 
 function openDaysFrom(hours) {
@@ -210,8 +162,4 @@ console.log("\n결과 저장: places-api-check.json");
 
 // regularOpeningHours 를 요청하면 Text Search Enterprise 요금이다. 1,000건에 $35, 매달 1천 건 무료다.
 // 출처 https://developers.google.com/maps/billing-and-pricing/pricing (2026-10-08 갱신본, 2026-10-14 확인)
-const PER_CALL_USD = 35 / 1000;
-console.log("\n--- 이번 실행에서 나간 돈 ---");
-// 무료 사용량은 달 단위인데 이번 달에 쓴 양은 Google Cloud 콘솔에만 있어 범위로 찍는다.
-console.log(`Google Places ${CALLS}건 — 매달 1,000건까지 무료, 넘은 건은 건당 $${PER_CALL_USD}`
-            + ` ($0 ~ $${(CALLS * PER_CALL_USD).toFixed(3)})`);
+printGoogleSpend("Google Places", 1000, 35 / 1000);
