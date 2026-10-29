@@ -25,7 +25,7 @@ from recheck import recheck_revision  # noqa: E402
 from report import questions, report, timeline  # noqa: E402
 from routes import live_legs  # noqa: E402
 from spend import Spend, counting  # noqa: E402
-from verdict import FAIL, PASS, WHOLE_ITINERARY_INPUTS, input_checks, judge, weekday_of  # noqa: E402
+from verdict import FAIL, PASS, judge, weekday_of  # noqa: E402
 
 HERE = Path(__file__).parent
 load = lambda n: json.loads((HERE / n).read_text(encoding="utf-8"))  # noqa: E731
@@ -45,15 +45,6 @@ def first_legs(legs: dict) -> dict:
     today = date.today().isoformat()
     return {k: v for k, v in legs.items()
             if isinstance(v, dict) and v.get("source") == "api_runtime" and v.get("checked_at") == today}
-
-
-def needs_routes(itinerary: dict) -> bool:
-    """판정 코어가 구간까지 보는 일정인지 본다. 입력부터 묻는 일정에는 길찾기를 쓰지 않는다."""
-    # 표에서 고친 날짜나 시각이 깨져 있어도 길찾기 전에 여기서 멈춘다.
-    if any(c["unknown_reason"] in WHOLE_ITINERARY_INPUTS for c in input_checks(itinerary)):
-        return False
-    stated = itinerary.get("weekday_stated")
-    return not stated or stated == weekday_of(itinerary["date"])
 
 
 WEEKDAY_ORDER = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
@@ -121,7 +112,7 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
 
     def judged_legs(itinerary: dict, meter: Spend) -> tuple[dict, dict]:
         """TMAP 으로 받은 구간과 받지 못한 이유를 돌려준다."""
-        if not tmap_key or not needs_routes(itinerary):
+        if not tmap_key:
             return {}, {}
         with counting(meter):
             legs, misses = live_legs(itinerary, tmap_key, FACTS, POLICY)

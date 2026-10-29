@@ -14,7 +14,8 @@ import urllib.request
 from datetime import date, datetime, timedelta
 
 from spend import count_tmap
-from verdict import HHMM, crossing_constraint, is_midday, judge, segment_key, window_candidate, window_departure
+from verdict import (HHMM, WHOLE_ITINERARY_INPUTS, crossing_constraint, input_checks, is_midday, judge, segment_key,
+                     weekday_of, window_candidate, window_departure)
 
 POI = "https://apis.openapi.sk.com/tmap/pois?version=1&count=10&searchKeyword={}"
 TRANSIT = "https://apis.openapi.sk.com/transit/routes"
@@ -171,9 +172,12 @@ def _departure(day: date, i: int, k: str, a: dict, b: dict, itinerary: dict, ent
 
 def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dict, dict]:
     """(판정 코어의 legs 에 덮어쓸 구간, 받지 못한 구간의 Miss) 를 돌려준다."""
+    # 날짜나 장소가 없거나 요일이 어긋나면 판정 코어가 입력부터 묻고 구간은 보지 않는다.
+    stated = itinerary.get("weekday_stated")
+    if (any(c["unknown_reason"] in WHOLE_ITINERARY_INPUTS for c in input_checks(itinerary))
+            or (stated and stated != weekday_of(itinerary["date"]))):
+        return {}, {}
     stops = itinerary["stops"]
-    if not itinerary.get("date") or not stops:
-        return {}, {}  # 판정 코어가 입력부터 묻는다
     # 개장 전에 도착하면 개장부터 머무르므로 판정 코어가 계산한 입장 시각을 쓴다.
     judged = judge(itinerary, facts, policy)
     admission_checks = [c for c in judged.get("checks", [])

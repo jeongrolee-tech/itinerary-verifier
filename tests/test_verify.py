@@ -90,10 +90,21 @@ def test_miss_falls_back_to_stored_lower_bound(monkeypatch, facts, policy):
     assert "[결과]  보류" in out
 
 
-def test_no_date_asks_first_and_calls_no_tmap(monkeypatch, facts, policy):
+@pytest.mark.parametrize("change", [{"date": None, "date_source": "missing", "weekday_stated": None},
+                                    {"weekday_stated": "WED"}], ids=["no-date", "wrong-weekday"])
+def test_asks_first_and_calls_no_tmap(monkeypatch, facts, policy, change):
     sent = tmap(monkeypatch, 20)
-    out = run({**T01, "date": None, "date_source": "missing", "weekday_stated": None}, facts, policy)
+    out = run({**T01, **change}, facts, policy)
     assert sent == []
+    assert "[결과]  보류" in out
+
+
+def test_train_without_time_is_asked(monkeypatch, facts, policy):
+    tmap(monkeypatch, 20)
+    train = {"raw": "서울역에서 KTX 꼭 타야 해요", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": None,
+             "time_source": "missing"}
+    out = run({**T01, "hard_constraints": [train]}, facts, policy)
+    assert "[필수 일정] 시각 모름  서울역" in out
     assert "[결과]  보류" in out
 
 

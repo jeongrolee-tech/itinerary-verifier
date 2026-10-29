@@ -43,7 +43,7 @@ def verify(text: str, claude, tmap_key: str, facts: dict, policy: dict, today: s
         dwell = f"{s['dwell_minutes']}분" if "dwell_minutes" in s else "체류 미입력"
         lines.append(f"  {s.get('start', '--:--')}  {s['place']}  {dwell}")
     for hc in itinerary["hard_constraints"]:
-        lines.append(f"  [필수 일정] {hc['time']}  {hc['place']}  {EVENT_NAMES.get(hc['type'], hc['type'])}")
+        lines.append(f"  [필수 일정] {hc.get('time') or '시각 모름'}  {hc['place']}  {EVENT_NAMES.get(hc['type'], hc['type'])}")
     lines += [f"  메모: {n}" for n in ex.notes]
 
     if legs or misses:
