@@ -286,7 +286,6 @@ def station_legs(facts):
     facts["legs"]["덕수궁|용산역"] = estimate(20)
 
 
-@pytest.mark.xfail(strict=True, reason="4차 피드백 1: 필수 일정을 하나씩만 계산한다")
 def test_two_trains_at_once_are_not_passed(facts, policy):
     """서울역과 용산역에 각각 제때 닿아도 한 사람이 20:00 열차 둘을 다 탈 수는 없다."""
     station_legs(facts)

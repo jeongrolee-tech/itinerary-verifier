@@ -1299,7 +1299,7 @@ def _stop_name(seq, stop_inputs, i) -> str:
 
 
 def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date, assumptions) -> list[dict]:
-    hard = []
+    hard, from_last = [], []
     stops = [st for st in seq if st]
     for n, hc in enumerate(itinerary.get("hard_constraints", [])):
         # 장소나 시각이 빠져도 필수 일정은 결과에서 빼지 않고 남겨서 묻는다.
@@ -1308,6 +1308,7 @@ def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date, as
             hard.append({"id": hc["id"], "event": event_of(hc), "policy": {
                 "status": UNKNOWN, "unknown_reason": missing[0]["unknown_reason"], "severity": "blocking",
                 "detail": missing[0]["detail"], "how_to_resolve": missing[0]["how_to_resolve"]}})
+            from_last.append(hard[-1])  # 시각이나 장소를 몰라 어디에 낄지 모른다.
             continue
         hc_dep = _hard_constraint_assumption(n, hc, assumptions)
         if is_midday(hc, itinerary["stops"]):
@@ -1319,11 +1320,30 @@ def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date, as
                 "status": UNKNOWN, "unknown_reason": missing["unknown_reason"], "severity": "blocking",
                 "detail": "마지막 장소의 입력이 빠져 필수 일정에 제때 닿는지 판정하지 못한다",
                 "how_to_resolve": missing.get("how_to_resolve")}})
-            continue
-        h = evaluate_hard_constraint(hc, stops, facts, policy, visit_date, itinerary.get("avoid_taxi", False))
-        h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"] + hc_dep)
-        hard.append(h)
+        else:
+            h = evaluate_hard_constraint(hc, stops, facts, policy, visit_date, itinerary.get("avoid_taxi", False))
+            h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"] + hc_dep)
+            hard.append(h)
+        from_last.append(hard[-1])
+    # 하나씩은 마지막 장소에서 바로 가도 둘 이상을 한 사람이 다 지킬 수 있는지는 모른다.
+    if len(from_last) > 1:
+        for h in from_last:
+            h["policy"] = _not_together(h["policy"], len(from_last))
     return hard
+
+
+def _not_together(p: dict, n: int) -> dict:
+    """하나만 봐도 놓치는 위반은 그대로 두고, 따로 계산한 통과는 참고로 남긴다."""
+    if p["status"] == FAIL:
+        return p
+    notice = f"필수 일정이 {n}개라 서로 함께 지킬 수 있는지는 아직 검사하지 않아요. 직접 확인해 주세요"
+    if p["status"] != PASS:
+        return _add_notice(p, notice)
+    return _add_notice({
+        **p, "status": UNKNOWN, "unknown_reason": "MULTIPLE_HARD_CONSTRAINTS",
+        "detail": f"필수 일정이 {n}개다. 하나씩은 제때 닿지만 한 사람이 모두 지킬 수 있는지는 확인하지 못했다",
+        "confirmed": f"따로 보면 {p['detail']}", "not_confirmed": "필수 일정을 모두 함께 지킬 수 있는지",
+        "how_to_resolve": {"system": "필수 일정 여러 개를 잇는 검사 구현"}}, notice)
 
 
 def _hard_constraint_assumption(n: int, hc: dict, assumptions: list[dict]) -> list[dict]:
