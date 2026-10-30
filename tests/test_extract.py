@@ -133,9 +133,9 @@ def test_guessing_an_unknown_train_time_is_wrong(facts):
 
 
 def test_train_time_source_is_graded(facts):
-    """N04 의 8시 반은 뒤 문장이 정해 주는 말한 시각이라 추정으로 옮기면 틀린다."""
+    """N04 의 8시 반은 앞에 기댈 시각이 없어 추정이다. 뒤 문장을 보고 말한 시각으로 옮기면 틀린다."""
     case = by_id("N04")
-    hc = {**case["hard_constraints"][0], "time_source": "inferred"}
+    hc = {**case["hard_constraints"][0], "time_source": "explicit"}
     assert set(wrong(case, as_extracted(case, hard_constraints=[hc]), facts)) == {"hard_constraints"}
 
 

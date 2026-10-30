@@ -127,8 +127,8 @@
       "id": "N04-열차시각뒤문장",
       "set": "new",
       "labeled_by": "Claude 초안 + 사용자(⚑)",
-      "expect": "feasible",
-      "why": "'8시 반' 열차가 문장 맨 앞에 와 기댈 앞 시각은 없지만, '그 전에 오후 2시…' 로 20:30 이 정해진다고 본다(사용자 결정). 18:00 에 미술관을 나와 15분이면 18:15 도착, 권장 도착 20:15 전이다. 경복궁 → 미술관은 권장 여유 10분을 딱 맞게 채운다",
+      "expect": "undetermined",
+      "why": "'8시 반' 열차가 문장 맨 앞에 와 기댈 앞 시각이 없다. 뒤 문장 '그 전에 오후 2시…' 로 20:30 이라고 읽을 수는 있지만, 오전 · 오후는 앞에 나온 시각으로만 이어받는다는 추출 규칙(10월 7일)대로 추정한 시각으로 둔다(2026-10-30 사용자 결정. 10-23 에는 말한 시각으로 정했다. 4차 피드백: 규칙을 먼저 정하고 정답과 프롬프트를 맞춘다). 추정한 시각에 기대는 결과는 확정하지 않으니 KTX 는 미확인이고 20:30 이 맞는지 묻는다. 시각이 맞으면 18:00 에 미술관을 나와 15분이면 18:15 도착, 권장 도착 20:15 전이다. 경복궁 → 미술관은 권장 여유 10분을 딱 맞게 채운다",
       "raw": "12월 4일 금요일이에요. 8시 반에 서울역에서 KTX를 꼭 타야 해서, 그 전에 오후 2시에 경복궁 들어가서 두 시간 보고 4시 반에 서울시립미술관 서소문본관에서 한 시간 반 볼게요.",
       "date": "2026-12-04",
       "date_source": "inferred",
@@ -138,7 +138,7 @@
         {"place": "서울시립미술관 서소문본관", "start": "16:30", "dwell_minutes": 90}
       ],
       "hard_constraints": [
-        {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30", "time_source": "explicit",
+        {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30", "time_source": "inferred",
          "buffer_rule": "rail_boarding", "source": "user_stated", "raw": "8시 반에 서울역에서 KTX를 꼭 타야 해서"}
       ],
       "legs": {
@@ -156,7 +156,7 @@
         {"type": "ADMISSION_NOT_POSSIBLE", "target": "서울시립미술관 서소문본관", "status": "pass"},
         {"type": "DWELL_NOT_COMPLETABLE", "target": "서울시립미술관 서소문본관", "status": "pass"}
       ],
-      "expect_hard_constraints": [{"id": "HC1", "status": "pass"}]
+      "expect_hard_constraints": [{"id": "HC1", "status": "unknown"}]
     },
     {
       "id": "N05-택시안탐",
