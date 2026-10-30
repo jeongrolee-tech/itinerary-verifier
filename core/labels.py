@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from report import SEVERITY_NAMES, STATUS_NAMES, VERDICT_NAMES
-from verdict import UNKNOWN, support_scope
+from verdict import UNKNOWN, support_scope, verdict_of
 
 # 구조화 추출 채점 항목이다. 출처가 틀리면 물어야 할 값을 확정해 버려서 출처도 채점한다.
 EXTRACTION_FIELDS = {"date": "날짜·요일", "date_source": "연도 출처", "place": "장소", "start": "시각",
@@ -70,6 +70,37 @@ def check_mismatches(expected: list[dict], checks: list[dict]) -> list[dict]:
         if got is None or got["status"] != want["status"]:
             wrong.append({**want, "got": got and got["status"]})
     return wrong
+
+
+def hard_constraint_mismatches(case: dict, ans: dict) -> list[dict]:
+    """기대 필수 일정마다 상태를 맞춰 본다. 판정 코드는 id 로, LLM 은 마지막 장소에서 가는 이동 검사로 찾는다."""
+    # LLM 은 compare.RULES 11 대로 필수 일정을 '마지막 장소 → 필수 일정 장소' 이동 검사로 적는다.
+    places = {h["id"]: h.get("place") for h in case.get("hard_constraints", [])}
+    last = case["stops"][-1]["place"] if case.get("stops") else None
+    wrong = []
+    for want in case.get("expect_hard_constraints", []):
+        if "status" not in want:
+            continue
+        if "hard_constraints" in ans:
+            got = next((h["status"] for h in ans["hard_constraints"] if h["id"] == want["id"]), None)
+        else:
+            target = f"{last}→{places.get(want['id'])}"
+            got = next((c["status"] for c in ans["checks"] if c["type"] == "INSUFFICIENT_TRAVEL_TIME"
+                        and c["target"].replace(" ", "") == target.replace(" ", "")), None)
+        if got != want["status"]:
+            wrong.append({**want, "got": got})
+    return wrong
+
+
+def grade_answer(case: dict, ans: dict) -> dict:
+    """비교 실험의 답 하나를 채점한다. 검사의 이유 글은 정답에 없어 채점하지 않는다."""
+    statuses = [c["status"] for c in ans["checks"]] + [h["status"] for h in ans.get("hard_constraints", [])]
+    return {"verdict_ok": ans["verdict"] == case["expect"],
+            "checks_expected": len(case.get("expect_checks", [])),
+            "checks_wrong": check_mismatches(case.get("expect_checks", []), ans["checks"]),
+            "hard_constraints_expected": sum("status" in w for w in case.get("expect_hard_constraints", [])),
+            "hard_constraints_wrong": hard_constraint_mismatches(case, ans),
+            "consistent": verdict_of(statuses) == ans["verdict"] if ans["verdict"] in VERDICT_NAMES else None}
 
 
 def grade_extraction(case: dict, got: dict, facts: dict) -> dict[str, list[str]]:

@@ -142,19 +142,24 @@ def build(run: dict, ext: dict, cmp: dict) -> str:
     md += ["## 3. 검사별 채점", "",
            "전체 판정이 맞아도 검사가 틀릴 수 있다. 정답의 기대 검사(`expect_checks`)마다 상태를 맞춰 보고, "
            "검사 상태와 전체 판정이 서로 맞물리는지(위반이 있으면 불가능, 없고 미확인이 있으면 보류) 본다. "
-           "필수 일정은 판정 코드만 따로 낸다 — LLM 방식은 마지막 장소에서 가는 이동 검사로 적는다.", ""]
+           "필수 일정도 같은 기준으로 채점한다 — 판정 코드는 필수 일정 결과(id)로, LLM 방식은 규칙 11대로 "
+           "'마지막 장소 → 필수 일정 장소' 이동 검사로 찾는다. 검사의 이유 글은 정답에 없어 채점하지 않는다.", ""]
     md += table(["", *(ARM_NAMES.get(a, a) for a in arms)],
                 [["검사별 정확도", *(m[a]["check_accuracy"] for a in arms)],
+                 ["필수 일정 정확도", *(m[a].get("hard_constraint_accuracy", "-") for a in arms)],
                  ["기대 검사를 답하지 않음 (개)", *(m[a]["checks_missing"] for a in arms)],
                  ["검사와 전체 판정이 어긋남 (건)", *(m[a]["verdict_inconsistent"] for a in arms)]])
     md += ["", "어느 문제였나 — 전체 판정은 맞았는데 검사가 틀린 문제와, 검사와 전체 판정이 어긋난 문제", ""]
     for arm in arms:
         right_but = [short(r["id"]) for r in rows if r["graded"][arm]["verdict_ok"] and r["graded"][arm]["checks_wrong"]]
         odd = [short(r["id"]) for r in rows if r["graded"][arm]["consistent"] is False]
+        hc_wrong = [short(r["id"]) for r in rows if r["graded"][arm].get("hard_constraints_wrong")]
         if right_but:
             md.append(f"- {ARM_NAMES.get(arm, arm)} — 판정은 맞고 검사가 틀림: " + " · ".join(right_but))
         if odd:
             md.append(f"- {ARM_NAMES.get(arm, arm)} — 검사와 전체 판정이 어긋남: " + " · ".join(odd))
+        if hc_wrong:
+            md.append(f"- {ARM_NAMES.get(arm, arm)} — 필수 일정이 틀림: " + " · ".join(hc_wrong))
     md.append("")
 
     # 4. 판정 코드의 보류 비율과 원인

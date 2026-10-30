@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).parent))
-from labels import case_facts, check_mismatches, stale_reason  # noqa: E402
+from labels import case_facts, grade_answer, stale_reason  # noqa: E402
 from model_info import DEFAULT_MODEL, PRICES, effort_for  # noqa: E402
 from report import ARM_NAMES, VERDICT_NAMES, pad, width  # noqa: E402
 from runmeta import describe, fingerprint, library_versions, record_name, reference_date, run_meta  # noqa: E402
 from spend import Spend  # noqa: E402
-from verdict import judge, verdict_of  # noqa: E402
+from verdict import judge  # noqa: E402
 
 ANSWER_NAMES = {**VERDICT_NAMES, "refused": "거부", "invalid": "형식 오류"}
 
@@ -309,17 +309,6 @@ def answer(key: str) -> dict:
     return stored[key] if key in stored else fetched[key]
 
 
-# 채점
-def graded(case: dict, ans: dict) -> dict:
-    """전체 판정이 맞아도 검사가 틀릴 수 있어 검사도 따로 채점한다."""
-    wrong = check_mismatches(case.get("expect_checks", []), ans["checks"])
-    # 판정 코드는 필수 일정 상태까지 넣어 전체 판정을 낸다.
-    statuses = [c["status"] for c in ans["checks"]] + [h["status"] for h in ans.get("hard_constraints", [])]
-    return {"verdict_ok": ans["verdict"] == case["expect"],
-            "checks_expected": len(case.get("expect_checks", [])), "checks_wrong": wrong,
-            "consistent": verdict_of(statuses) == ans["verdict"] if ans["verdict"] in VERDICT_NAMES else None}
-
-
 # 지표
 def metrics(scored: list[dict]) -> dict:
     """모두 보류로 내면 틀린 확신이 0 이 되므로 답을 준 비율도 같이 본다."""
@@ -335,10 +324,13 @@ def metrics(scored: list[dict]) -> dict:
 
     tp = sum(1 for r in flagged if want(r) == "infeasible")
     expected = sum(r["checks_expected"] for r in scored)
+    hc_expected = sum(r["hard_constraints_expected"] for r in scored)
     return {
         "n": n,
         "verdict_accuracy": round(sum(1 for r in scored if got(r) == want(r)) / n, 3),
         "check_accuracy": round(1 - sum(len(r["checks_wrong"]) for r in scored) / expected, 3) if expected else None,
+        "hard_constraint_accuracy": round(1 - sum(len(r["hard_constraints_wrong"]) for r in scored) / hc_expected, 3)
+        if hc_expected else None,
         "checks_missing": sum(1 for r in scored for w in r["checks_wrong"] if w["got"] is None),
         "verdict_inconsistent": sum(1 for r in scored if r["consistent"] is False),
         "precision_on_infeasible": round(tp / len(flagged), 3) if flagged else None,
@@ -369,8 +361,9 @@ def repeat_runs(n: int) -> None:
             answers = []
             for r in range(n):
                 result, _ = got[f"{i}|{arm}|{r}"]
-                g = graded(case, result)
+                g = grade_answer(case, result)
                 answers.append({"verdict": result["verdict"], "checks_wrong": g["checks_wrong"],
+                                "hard_constraints_wrong": g["hard_constraints_wrong"],
                                 "consistent": g["consistent"], "result": result})
             verdicts = Counter(a["verdict"] for a in answers)
             rows.append({"id": case["id"], "arm": arm, "expect": case["expect"], "verdicts": dict(verdicts),
@@ -506,7 +499,7 @@ for case, case_f, reqs, keys in plan:
         rec["arms"][arm] = hit["result"]
         used.setdefault(arm, []).append(hit)
 
-    rec["graded"] = {arm: graded(case, ans) for arm, ans in rec["arms"].items()}
+    rec["graded"] = {arm: grade_answer(case, ans) for arm, ans in rec["arms"].items()}
     rows.append(rec)
     print(f"  {pad(case['id'], 26)}" + "  ".join(
         f"{ARM_NAMES.get(a, a)} {ANSWER_NAMES.get(rec['arms'][a]['verdict'], rec['arms'][a]['verdict'])}"
@@ -530,6 +523,7 @@ if scorable:
     LABELS = [
         ("verdict_accuracy", "전체 정확도"),
         ("check_accuracy", "검사별 정확도 — 기대 검사 중 상태가 맞은 비율"),
+        ("hard_constraint_accuracy", "필수 일정 정확도 — 기대 필수 일정 중 상태가 맞은 비율"),
         ("checks_missing", "기대 검사를 답하지 않음 (개)"),
         ("verdict_inconsistent", "검사와 전체 판정이 어긋남 (건)"),
         ("precision_on_infeasible", "정밀도 — 불가능이라고 한 것 중 맞은 비율"),
