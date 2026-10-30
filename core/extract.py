@@ -112,7 +112,8 @@ class ItineraryStop(BaseModel):
 
 
 class ItineraryConstraint(BaseModel):
-    id: str | None = None
+    # 수정 전후의 같은 조건을 이 id 로 짝짓는다. 서버가 새로 붙이면 다른 조건끼리 짝지어진다.
+    id: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     type: Literal["TRAIN_DEPARTURE", "FLIGHT_DEPARTURE", "ARRIVE_BY", "OTHER"]
     place: str | None = None
     time: Clock | None = None
@@ -147,6 +148,13 @@ class Itinerary(BaseModel):
     def _date_matches_source(self) -> Itinerary:
         if (self.date is None) != (self.date_source == "missing"):
             raise ValueError(f"date 가 {self.date} 인데 date_source 가 {self.date_source} 다")
+        return self
+
+    @model_validator(mode="after")
+    def _constraint_ids_unique(self) -> Itinerary:
+        ids = [h.id for h in self.hard_constraints]
+        if len(ids) != len(set(ids)):
+            raise ValueError(f"필수 일정 id 가 겹친다: {ids}")
         return self
 
 

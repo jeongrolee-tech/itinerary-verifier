@@ -358,20 +358,17 @@ def deoksu_train(**hc):
                               "time_source": "explicit", **hc}]}
 
 
-@pytest.mark.xfail(strict=True, reason="4차 피드백 3: original 의 필수 일정 id 가 없으면 500")
 def test_constraint_without_id_is_a_bad_request():
     res = demo().post("/api/recheck", json={"original": deoksu_train(), "revised": deoksu_train(id="HC1")})
     assert res.status_code == 422
 
 
-@pytest.mark.xfail(strict=True, reason="4차 피드백 3: 같은 id 가 둘이면 수정 전후를 잘못 짝짓는다")
 def test_duplicate_constraint_ids_are_a_bad_request():
     itinerary = deoksu_train(id="HC1")
     itinerary["hard_constraints"].append({**itinerary["hard_constraints"][0], "place": "용산역"})
     assert demo().post("/api/recheck", json={"original": itinerary, "revised": itinerary}).status_code == 422
 
 
-@pytest.mark.xfail(strict=True, reason="4차 피드백 3: HC 로 시작하지 않는 id 에서 500")
 def test_constraint_id_can_be_any_label(tmap):
     tmap(transit(15 * 60), places={"덕수궁": poi(("덕수궁", 37.566, 126.975)),
                                    "서울역": poi(("서울역[KTX정차역]", 37.555, 126.971))})

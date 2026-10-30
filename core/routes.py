@@ -151,12 +151,11 @@ def _readable(stop: dict) -> bool:
     return bool(re.fullmatch(HHMM, str(stop.get("start") or "")))
 
 
-def _departure(day: date, i: int, k: str, a: dict, b: dict, itinerary: dict, entry_times: dict, facts: dict,
+def _departure(day: date, i: int, hc_leg: bool, a: dict, b: dict, itinerary: dict, entry_times: dict, facts: dict,
                policy: dict) -> datetime | None:
     """판정 코어와 같은 출발 시각을 돌려준다. 판정하지 않는 구간이면 None 이다."""
     if "area" in (a.get("scope"), b.get("scope")):
         return None  # 구역이 낀 구간은 판정 코어도 판정하지 않는다
-    hc_leg = k.startswith("HC")
     # 뒤 장소에 시각이 없으면 판정 코어가 그 시간대를 계산할 수 있을 때만 묻는다.
     if _readable(a) and (hc_leg or _readable(b) or window_candidate(itinerary, i + 1, facts, policy)):
         if not hc_leg and _readable(b) and crossing_constraint(itinerary.get("hard_constraints") or [], a, b):
@@ -190,16 +189,17 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
                 entry_times[i] = evidence["entry_at"]
 
     # 같은 장소 사이를 두 번 가도 출발 시각이 달라 구간마다 따로 받는다.
-    pairs = [(i, segment_key(i, a["place"], b["place"]), a, b) for i, (a, b) in enumerate(zip(stops, stops[1:]))] + [
-        (len(stops) - 1, segment_key(hc.get("id") or f"HC{n}", stops[-1]["place"], hc["place"]),
-         stops[-1], {"place": hc["place"]})
-        for n, hc in enumerate(itinerary.get("hard_constraints", []), 1)
+    # 필수 일정 구간인지는 id 모양이 아니라 여기서 정한다. id 는 사용자가 지은 이름일 수 있다.
+    pairs = [(i, segment_key(i, a["place"], b["place"]), a, b, False)
+             for i, (a, b) in enumerate(zip(stops, stops[1:]))] + [
+        (len(stops) - 1, segment_key(hc["id"], stops[-1]["place"], hc["place"]), stops[-1], {"place": hc["place"]}, True)
+        for hc in itinerary.get("hard_constraints", [])
         if hc.get("time") and hc.get("place") and not is_midday(hc, stops)]  # 장소가 없거나 하루 중간이면 판정하지 않는다
     day = date.fromisoformat(itinerary["date"])
     at, legs, misses = {}, {}, {}
-    for i, k, a, b in pairs:
+    for i, k, a, b, hc_leg in pairs:
         # 시각이 빠진 장소 뒤 구간의 출발 시각은 앞 구간 이동시간에 달렸다.
-        depart = _departure(day, i, k, a, b, itinerary, entry_times,
+        depart = _departure(day, i, hc_leg, a, b, itinerary, entry_times,
                             {**facts, "legs": {**facts["legs"], **legs}}, policy)
         if depart is None:
             continue

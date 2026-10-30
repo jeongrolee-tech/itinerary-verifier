@@ -34,8 +34,8 @@ FACTS, POLICY = load("facts.json"), load("policy.json")
 
 def normalized(revised: dict) -> dict:
     """화면에서 고친 일정을 판정 코어 모양으로 맞춘다."""
-    hcs = [{"id": f"HC{i}", "source": "user_stated", **hc, "buffer_rule": BUFFER_RULES.get(hc.get("type"))}
-           for i, hc in enumerate(revised.get("hard_constraints") or [], 1)]
+    hcs = [{"source": "user_stated", **hc, "buffer_rule": BUFFER_RULES.get(hc.get("type"))}
+           for hc in revised.get("hard_constraints") or []]
     return {**revised, "hard_constraints": hcs}
 
 
