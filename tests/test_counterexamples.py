@@ -254,6 +254,14 @@ def test_outside_only_stop_is_not_held_to_its_hours(facts, policy):
     assert result["summary"]["verdict"] == "feasible"
 
 
+def test_time_spent_outside_counts_for_the_next_move(facts, policy):
+    """밖에서만 머물러도 10:00 부터 60분이면 11:00 에 나선다. 10:30 덕수궁에는 이동 0분이어도 늦는다."""
+    facts["legs"][f"{PALACE}|덕수궁"] = estimate(20)
+    itinerary = outside_palace(True)
+    itinerary["stops"][1]["start"] = "10:30"
+    assert travel(judge(itinerary, facts, policy), PALACE, "덕수궁")["status"] == FAIL
+
+
 def test_closed_place_is_still_a_violation_when_entering(facts, policy):
     """대조군: 밖에서만이라고 하지 않았으면 휴무 위반이다."""
     facts["legs"][f"{PALACE}|덕수궁"] = estimate(20)
