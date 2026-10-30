@@ -38,6 +38,14 @@ class Stop(BaseModel):
         description="사용자가 그 장소에 들어가지 않고 앞이나 주변에서만 머문다고 했으면 true. 말하지 않았으면 false"
     )
 
+    # 빈 이름은 to_itinerary 에서야 막혀 돈을 낸 응답을 잃는다.
+    @field_validator("place")
+    @classmethod
+    def _place_named(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("장소명이 비어 있다")
+        return value
+
     # 시각과 출처가 어긋나면 사용자가 말한 값인지 판정 코어가 잘못 읽는다.
     @model_validator(mode="after")
     def _start_matches_source(self) -> Stop:

@@ -163,8 +163,9 @@ def test_empty_text_is_refused():
     assert res.status_code == 422 and res.json()["detail"] == "일정을 적어 주세요"
 
 
-def test_malformed_extraction_is_refused():
-    bad = {**PALACE, "stops": [{**PALACE["stops"][0], "start": "4:30 PM"}]}
+@pytest.mark.parametrize("change", [{"start": "4:30 PM"}, {"place": " "}], ids=["bad-time", "blank-place"])
+def test_malformed_extraction_is_refused(change):
+    bad = {**PALACE, "stops": [{**PALACE["stops"][0], **change}]}
     res = demo(Claude(bad)).post("/api/check", json={"text": TEXT})
     assert res.status_code == 422 and res.json()["detail"].startswith("일정을 추출하지 못했습니다")
 
