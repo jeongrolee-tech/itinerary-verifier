@@ -194,7 +194,7 @@ def live_legs(itinerary: dict, key: str, facts: dict, policy: dict) -> tuple[dic
         (len(stops) - 1, segment_key(hc.get("id") or f"HC{n}", stops[-1]["place"], hc["place"]),
          stops[-1], {"place": hc["place"]})
         for n, hc in enumerate(itinerary.get("hard_constraints", []), 1)
-        if hc.get("time") and not is_midday(hc, stops)]  # 하루 중간의 필수 일정은 판정하지 않는다
+        if hc.get("time") and hc.get("place") and not is_midday(hc, stops)]  # 장소가 없거나 하루 중간이면 판정하지 않는다
     day = date.fromisoformat(itinerary["date"])
     at, legs, misses = {}, {}, {}
     for i, k, a, b in pairs:

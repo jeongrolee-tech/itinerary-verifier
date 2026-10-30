@@ -1298,7 +1298,7 @@ def crossing_constraint(hard_constraints: list[dict], a: dict, b: dict) -> dict 
 
 
 def _across_constraint(frm: dict, to: dict, hc: dict) -> dict:
-    name = f"{EVENT_NAMES.get(hc['type'], '필수 일정')}({hc['time']} {hc['place']})"
+    name = f"{EVENT_NAMES.get(hc['type'], '필수 일정')}({hc['time']} {hc.get('place') or '장소 모름'})"
     return check("INSUFFICIENT_TRAVEL_TIME", f"{frm['name']} → {to['name']}", UNKNOWN,
                  unknown_reason="MIDDAY_HARD_CONSTRAINT",
                  detail=f"사이에 {name}이 있어 이 구간만으로는 실제 이동을 알 수 없다",

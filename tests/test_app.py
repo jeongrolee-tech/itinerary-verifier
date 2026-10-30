@@ -141,6 +141,16 @@ def test_unreadable_time_is_a_bad_request(tmap):
     assert res.status_code == 422 and fake.sent == []
 
 
+@pytest.mark.parametrize("time", ["14:00", "20:30"], ids=["between-stops", "end-of-day"])
+def test_must_keep_without_a_place_is_asked(tmap, time):
+    """표에서 장소를 비운 필수 일정은 서버를 멈추지 않고 장소를 묻는다."""
+    tmap(transit(20 * 60))
+    hc = {"id": "HC1", "type": "OTHER", "time": time, "time_source": "explicit"}
+    again = recheck(demo(tmap_key="key"), ORIGINAL, {**ORIGINAL, "hard_constraints": [hc]})
+    assert again["verdict_after"] == "undetermined"
+    assert "필수 일정의 장소와 시각을 알려주세요" in again["questions"]
+
+
 def test_recheck_works_without_keys():
     """키 없이 켜면 추출은 503 이지만 표로 고친 일정은 다시 검사한다."""
     c = demo()
