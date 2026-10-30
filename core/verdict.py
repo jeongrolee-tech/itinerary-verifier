@@ -1059,7 +1059,7 @@ def _prepare_stop(i: int, s: dict, facts: dict, policy: dict, assumptions: list[
         dwell = {"value": value, "source": "system_default", "assumption_id": aid}
     return {"index": i, "name": s["place"], "place": place, "start": s["start"], "entry": s["start"],
             "start_dep": start_dep, "scope": scope, "support": support, "dwell": dwell,
-            "outside_only": bool(s.get("outside_only"))}
+            "outside_only": bool(s.get("outside_only")), "entry_dep": []}
 
 
 def _place_checks(stops, visit_date, facts, policy, date_dep) -> list[dict]:
@@ -1077,6 +1077,8 @@ def _place_checks(stops, visit_date, facts, policy, date_dep) -> list[dict]:
         # 체류와 다음 이동은 개장이나 회차에 맞춘 실제 입장 시각부터 센다.
         ev = a.get("evidence") or a.get("reference") or {}
         st["entry"], st["entry_kind"] = ev.get("entry_at", st["start"]), ev.get("entry_kind", "개장")
+        # 개장이나 회차로 옮긴 입장 시각은 그날 시간표에서 나와 날짜를 추정했으면 그 시각도 추정이다.
+        st["entry_dep"] = date_dep if st["entry"] != st["start"] else []
         d = unconfirmed(check_dwell(st["name"], st["place"], visit_date, st["entry"], st["dwell"],
                                     a, policy, facts["holidays"]),
                         date_dep + st["start_dep"])
@@ -1165,18 +1167,23 @@ def _windowed(i, itinerary, seq, stop_inputs, facts, policy, date_dep, fallback)
     nxt = seq[i + 1] if i + 1 < len(seq) else None
 
     def at(minute, dep):
+        """dep 를 주면 추정한 날짜에 기댄 결과를 확정하지 않는다."""
         st = _prepare_stop(i, {**s, "start": to_hhmm(minute), "start_source": "explicit"}, facts, policy, [])
         place = _place_checks([st], visit_date, facts, policy, dep)
-        return (st, place, prev and check_travel(prev, st, facts, policy, visit_date, avoid_taxi),
-                nxt and check_travel(st, nxt, facts, policy, visit_date, avoid_taxi))
+        if i == 0:
+            st["entry_dep"] = list(dep)  # 첫 장소의 시각은 그날 문 여는 시각이다.
+        move = (lambda a, b: travel_between(a, b, facts, policy, visit_date, avoid_taxi)) if dep else \
+            (lambda a, b: check_travel(a, b, facts, policy, visit_date, avoid_taxi))
+        return st, place, prev and move(prev, st), nxt and move(st, nxt)
 
     st, place, before, after = at(arrive, [])
     if place[0]["status"] == FAIL:
         return None  # 쉬는 날은 시각과 상관없어 휴무 위반인 fallback 을 쓴다.
     if all(c["status"] == PASS for c in [*place, before, after] if c):
-        if date_dep:  # 추정한 날짜로는 장소 검사를 확정하지 않는다.
-            place = at(arrive, date_dep)[1]
-        place[1] = _with_window(place[1], st, prev, nxt, after, visit_date, facts, policy)
+        checked = after
+        if date_dep:
+            _, place, before, after = at(arrive, date_dep)
+        place[1] = _with_window(place[1], st, prev, nxt, checked, visit_date, facts, policy)
         return {"place": place, "before": before, "after": after}
     return _no_window(s["place"], prev, arrive, at, fallback, date_dep)
 
@@ -1251,6 +1258,28 @@ def _in_itinerary_order(seq, stop_inputs, untimed, place_checks) -> list[dict]:
     return out
 
 
+def _unique(assumptions: list[dict]) -> list[dict]:
+    return list({a["id"]: a for a in assumptions}.values())
+
+
+def _dated(compute, frm: dict, to_moved: list[dict]) -> tuple[dict, list[dict]]:
+    """frm 에서 계산한 결과와, 그 결과가 기댄 추정 날짜 가정을 돌려준다."""
+    result, moved = compute(frm), frm["entry_dep"] + to_moved
+    # 말한 시각과 체류만으로도 늦으면 날짜와 상관없는 위반이다.
+    if result["status"] == FAIL and frm["entry_dep"] and not to_moved:
+        stated = compute({**frm, "entry": frm["start"]})
+        if stated["status"] == FAIL:
+            return stated, []
+    return result, moved
+
+
+def travel_between(frm, to, facts, policy, visit_date, avoid_taxi) -> dict:
+    """추정한 시각이나, 추정한 날짜의 시간표로 옮긴 입장 시각에 기댄 결과는 확정하지 않는다."""
+    result, moved = _dated(lambda st: check_travel(st, to, facts, policy, visit_date, avoid_taxi),
+                           frm, to["entry_dep"])
+    return unconfirmed(result, _unique(frm["start_dep"] + to["start_dep"] + moved))
+
+
 def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi, hard_constraints, windows) -> list[dict]:
     """한쪽 장소가 빠진 구간은 windows 결과를 쓰거나 그 장소의 입력 질문으로 묻는다."""
     checks = []
@@ -1262,9 +1291,7 @@ def _travel_checks(seq, stop_inputs, facts, policy, visit_date, avoid_taxi, hard
         elif st and seq[i + 1] and (hc := crossing_constraint(hard_constraints, st, seq[i + 1])):
             checks.append(_across_constraint(st, seq[i + 1], hc))
         elif st and seq[i + 1]:
-            checks.append(unconfirmed(
-                check_travel(st, seq[i + 1], facts, policy, visit_date, avoid_taxi),
-                st["start_dep"] + seq[i + 1]["start_dep"]))
+            checks.append(travel_between(st, seq[i + 1], facts, policy, visit_date, avoid_taxi))
         elif (w := windows.get(i + 1)) and w["before"]:
             checks.append(w["before"])
         elif (w := windows.get(i)) and w["after"]:
@@ -1321,9 +1348,11 @@ def _hard_constraints(itinerary, seq, stop_inputs, facts, policy, visit_date, as
                 "detail": "마지막 장소의 입력이 빠져 필수 일정에 제때 닿는지 판정하지 못한다",
                 "how_to_resolve": missing.get("how_to_resolve")}})
         else:
-            h = evaluate_hard_constraint(hc, stops, facts, policy, visit_date, itinerary.get("avoid_taxi", False))
-            h["policy"] = unconfirmed(h["policy"], stops[-1]["start_dep"] + hc_dep)
-            hard.append(h)
+            last, avoid_taxi = stops[-1], itinerary.get("avoid_taxi", False)
+            p, moved = _dated(lambda st: evaluate_hard_constraint(hc, [st], facts, policy, visit_date,
+                                                                  avoid_taxi)["policy"], last, [])
+            hard.append({"id": hc["id"], "event": event_of(hc),
+                         "policy": unconfirmed(p, _unique(last["start_dep"] + hc_dep + moved))})
         from_last.append(hard[-1])
     # 하나씩은 마지막 장소에서 바로 가도 둘 이상을 한 사람이 다 지킬 수 있는지는 모른다.
     if len(from_last) > 1:

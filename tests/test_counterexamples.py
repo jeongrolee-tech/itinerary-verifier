@@ -321,7 +321,6 @@ def jongmyo_then_deoksu(date_source, jongmyo_dwell=50):
         {"place": "덕수궁", "start": "10:30", "dwell_minutes": 30}]}
 
 
-@pytest.mark.xfail(strict=True, reason="4차 피드백 2: 추정 날짜로 정한 회차를 다음 이동에서 확정값으로 쓴다")
 def test_tour_time_from_an_inferred_date_is_not_a_fact(facts, policy):
     """날짜가 추정이면 10:20 회차도 추정이라 10:20 + 50분 = 11:10 출발로 위반을 확정하지 않는다."""
     facts["legs"]["종묘|덕수궁"] = estimate(10)
@@ -335,12 +334,21 @@ def test_tour_time_from_a_stated_date_is_a_fact(facts, policy):
     assert travel(judge(jongmyo_then_deoksu("explicit"), facts, policy), "종묘", "덕수궁")["status"] == FAIL
 
 
-@pytest.mark.xfail(strict=True, reason="4차 피드백 2: 날짜와 상관없는 충돌을 날짜에 기댄 시각으로 설명한다")
 def test_clash_without_the_date_stays_a_violation(facts, policy):
     """대조군: 09:30 에 70분이면 회차와 상관없이 10:40 에 나와 10:30 에 늦는다. 설명도 10:40 으로 한다."""
     facts["legs"]["종묘|덕수궁"] = estimate(10)
     c = travel(judge(jongmyo_then_deoksu("inferred", 70), facts, policy), "종묘", "덕수궁")
     assert c["status"] == FAIL and "10:40" in c["detail"]
+
+
+@pytest.mark.parametrize("train, status", [("10:50", UNKNOWN), ("10:15", FAIL)], ids=["by-tour-time", "by-stated-time"])
+def test_train_after_a_tour_on_an_inferred_date(facts, policy, train, status):
+    """종묘가 마지막이면 10:20 회차 + 50분 = 11:10 출발이다. 10:50 열차는 추정한 회차로만 늦고, 10:15 열차는
+    말한 09:30 + 50분 = 10:20 에 나와도 늦는다."""
+    facts["legs"]["종묘|서울역"] = estimate(15)
+    itinerary = {**jongmyo_then_deoksu("inferred"), "hard_constraints": [ktx(train)]}
+    itinerary["stops"] = itinerary["stops"][:1]
+    assert judge(itinerary, facts, policy)["hard_constraints"][0]["policy"]["status"] == status
 
 
 def deoksu_train(**hc):
