@@ -199,6 +199,12 @@ def itinerary_for(case: dict) -> dict:
             "hard_constraints": case.get("hard_constraints", []), "avoid_taxi": case.get("avoid_taxi", False)}
 
 
+def same_as_run(case: dict, case_f: dict) -> bool:
+    """itinerary_for 가 빼는 날짜 출처 · 말한 요일이 판정을 바꾸지 않는지 본다."""
+    a, b = judge(case, case_f, policy), judge(itinerary_for(case), case_f, policy)
+    return a["summary"] == b["summary"] and [c["status"] for c in a["checks"]] == [c["status"] for c in b["checks"]]
+
+
 def facts_for_llm(f: dict) -> dict:
     """code 방식과 같은 사실 데이터 전체다. 입력이 같아야 판정 방식 차이만 남는다."""
     return {k: v for k, v in f.items() if k != "snapshot_history"}
@@ -435,6 +441,9 @@ if need_llm:
 plan = []
 for case in cases:
     case_f = case_facts(case, facts)
+    if not same_as_run(case, case_f):
+        raise SystemExit(f"  ❌ {case['id']} — 비교 실험이 넘기지 않는 날짜 출처 · 말한 요일이 판정을 바꾼다. "
+                         "itinerary_for 에 두 칸을 넣고 LLM 응답을 다시 받아야 한다(돈이 든다)")
     reqs = llm_requests(case) if need_llm else {}
     plan.append((case, case_f, reqs, {arm: request_key(**req) for arm, req in reqs.items()}))
 
