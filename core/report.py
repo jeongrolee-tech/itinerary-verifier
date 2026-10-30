@@ -18,7 +18,7 @@ CHECK_NAMES = {
 # 화면에 쓰는 말이다. 코드와 데이터에는 영어 값이 그대로 남는다.
 VERDICT_NAMES = {"feasible": "가능", "infeasible": "불가능", "undetermined": "보류"}
 STATUS_NAMES = {PASS: "통과", FAIL: "위반", UNKNOWN: "미확인", NA: "해당 없음"}
-SEVERITY_NAMES = {"blocking": "치명", "warning": "주의"}
+SEVERITY_NAMES = {"blocking": "치명"}
 SET_NAMES = {"dev": "연습용", "holdout": "시험용", "new": "새 평가"}
 ARM_NAMES = {"llm_naive": "LLM에 그냥 물음", "llm_only": "LLM에 '모르면 모른다' 지시",
              "llm_with_facts": "LLM에 사실 데이터 줌", "code": "판정 코드"}

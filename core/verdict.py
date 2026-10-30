@@ -57,7 +57,7 @@ def check(type_: str, target: str, status: str, **extra: Any) -> dict:
         "type": type_,
         "target": target,
         "status": status,
-        "severity": extra.pop("severity", "blocking") if status == FAIL else None,
+        "severity": "blocking" if status == FAIL else None,
         **extra,
     }
 
