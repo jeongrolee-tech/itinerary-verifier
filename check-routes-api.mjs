@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 /** Google Routes API 가 한국에서 수단별 경로를 주는지 확인한다. */
 
-import { writeFileSync } from "node:fs";
-
 import { postJson, printGoogleSpend } from "./api-call.mjs";
 
 const KEY = process.env.GKEY;
@@ -47,7 +45,7 @@ async function probe({ mode, from, to }) {
 
   const r = await postJson(ENDPOINT, { "X-Goog-Api-Key": KEY, "X-Goog-FieldMask": "routes.duration,routes.distanceMeters" },
                            body);
-  if (!r.ok) return { ok: false, verdict: r.failure_type, detail: r.detail, http: r.http, raw: r.raw };
+  if (!r.ok) return { ok: false, verdict: r.failure_type, detail: r.detail, http: r.http };
   const route = r.json?.routes?.[0];
   if (!route) return { ok: false, verdict: "NO_ROUTE", detail: "경로 없음 (미지원 가능성)", http: r.http };
   const sec = parseInt(String(route.duration).replace("s", ""), 10);
@@ -66,9 +64,6 @@ for (const c of CASES) {
   }
 }
 
-const out = { checked_at: new Date().toISOString(), departureTime, results };
-writeFileSync("routes-api-check.json", JSON.stringify(out, null, 2));
-
 console.log("\n--- 판정 ---");
 const okModes = results.filter(r => r.ok).map(r => r.mode);
 if (okModes.length === 3) {
@@ -80,7 +75,6 @@ if (okModes.length === 3) {
 } else {
   console.log(`지원: ${okModes.join(", ")} / 미지원: ${results.filter(r => !r.ok).map(r => r.mode).join(", ")}`);
 }
-console.log("결과 저장: routes-api-check.json");
 
 // Compute Routes Essentials 는 1,000건에 $5, 매달 1만 건 무료다. TRAFFIC_AWARE 같은 기능은 Pro 라 쓰지 않는다.
 // 출처 https://developers.google.com/maps/billing-and-pricing/pricing (2026-10-08 갱신본, 2026-10-14 확인)

@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 /** Google Places 영업시간이 채워져 있는지, 휴무일이 공식 출처와 맞는지 확인한다. */
 
-import { writeFileSync } from "node:fs";
-
 import { postJson, printGoogleSpend } from "./api-call.mjs";
 
 const KEY = process.env.GKEY;
@@ -33,21 +31,13 @@ const TARGETS = [
   { query: "북촌한옥마을",             expectedClosedDay: null, note: "상시개방 — 영업시간 개념 없음" },
 ];
 
-const FIELD_MASK = [
-  "places.id",
-  "places.displayName",
-  "places.formattedAddress",
-  "places.location",
-  "places.businessStatus",
-  "places.regularOpeningHours",
-].join(",");
+const FIELD_MASK = "places.displayName,places.regularOpeningHours";
 
 async function search(textQuery) {
   const r = await postJson(ENDPOINT, { "X-Goog-Api-Key": KEY, "X-Goog-FieldMask": FIELD_MASK },
                            { textQuery, languageCode: "ko", regionCode: "KR", maxResultCount: 1 });
   if (!r.ok) return { error: r.detail, failure_type: r.failure_type, http: r.http };
-  const places = r.json?.places;
-  return { place: places?.[0] ?? null, failure_type: places?.length ? null : "NO_RESULT", http: r.http };
+  return { place: r.json?.places?.[0] ?? null };
 }
 
 function openDaysFrom(hours) {
@@ -68,12 +58,12 @@ for (const t of TARGETS) {
 
   if (error) {
     console.log(`⚠️  ${t.query.padEnd(20)} [${failure_type}, ${http ?? "no HTTP"}] ${error}`);
-    results.push({ ...t, status: "ERROR", failure_type, error, http });
+    results.push({ status: "ERROR" });
     continue;
   }
   if (!place) {
     console.log(`❌ ${t.query.padEnd(20)} 검색 결과 없음`);
-    results.push({ ...t, status: "NOT_FOUND", failure_type: "NO_RESULT", http });
+    results.push({ status: "NOT_FOUND" });
     continue;
   }
 
@@ -82,46 +72,31 @@ for (const t of TARGETS) {
 
   if (!hours) {
     console.log(`⬜ ${t.query.padEnd(20)} → ${name}  |  regularOpeningHours 없음`);
-    results.push({
-      ...t, status: "NO_HOURS", place_id: place.id, matched_name: name,
-      business_status: place.businessStatus ?? null,
-    });
+    results.push({ status: "NO_HOURS" });
     continue;
   }
 
   const open = openDaysFrom(hours);
-  const record = {
-    ...t,
-    status: "HAS_HOURS",
-    place_id: place.id,
-    matched_name: name,
-    address: place.formattedAddress,
-    business_status: place.businessStatus ?? null,
-    weekday_descriptions: hours.weekdayDescriptions ?? null,
-    periods_count: hours.periods?.length ?? 0,
-  };
-
+  let accuracy;
   if (t.expectedClosedDay === null) {
     console.log(`✅ ${t.query.padEnd(20)} → ${name}  |  영업시간 있음 (정답 미확보)`);
-    record.accuracy = "UNVERIFIED";
+    accuracy = "UNVERIFIED";
   } else if (open === "ALWAYS_OPEN") {
     console.log(`❗ ${t.query.padEnd(20)} → ${name}  |  24시간으로 표기됨 / 실제 ${DAY_KO[t.expectedClosedDay]}요일 휴무`);
-    record.accuracy = "MISMATCH";
-    record.mismatch_reason = "구글은 상시영업, 공식은 정기휴일 있음";
+    accuracy = "MISMATCH";
   } else {
     const googleClosed = [...Array(7).keys()].filter(d => !open.has(d));
     const ok = googleClosed.length === 1 && googleClosed[0] === t.expectedClosedDay;
-    record.google_closed_days = googleClosed.map(d => DAY_KO[d]);
-    record.expected_closed_day = DAY_KO[t.expectedClosedDay];
-    record.accuracy = ok ? "MATCH" : "MISMATCH";
+    accuracy = ok ? "MATCH" : "MISMATCH";
     const mark = ok ? "✅" : "❗";
     const detail = ok
       ? `${DAY_KO[t.expectedClosedDay]}요일 휴무 일치`
-      : `구글 휴무=[${record.google_closed_days.join(",") || "없음"}] / 공식=${DAY_KO[t.expectedClosedDay]}`;
+      : `구글 휴무=[${googleClosed.map(d => DAY_KO[d]).join(",") || "없음"}] / 공식=${DAY_KO[t.expectedClosedDay]}`;
     console.log(`${mark} ${t.query.padEnd(20)} → ${name}  |  ${detail}`);
   }
-
-  results.push(record);
+  // 약관상 파일로 남길 수 없어 요일별 영업시간 글은 화면에서 본다.
+  for (const line of hours.weekdayDescriptions ?? []) console.log(`     ${line}`);
+  results.push({ status: "HAS_HOURS", accuracy });
 }
 
 const total = results.length;
@@ -152,13 +127,7 @@ if (verified.length && matched < verified.length) {
 console.log("\n※ 구글 regularOpeningHours 는 단일 스케줄이다.");
 console.log("   경복궁처럼 계절별로 운영시간이 바뀌는 곳, 그리고 대체공휴일에 따라");
 console.log("   휴무일이 이동하는 규칙은 구조적으로 표현되지 않는다.");
-console.log("   weekday_descriptions 를 직접 눈으로 확인할 것.");
-
-writeFileSync(
-  "places-api-check.json",
-  JSON.stringify({ checked_at: new Date().toISOString(), summary: { total, hasHours, verified: verified.length, matched }, results }, null, 2)
-);
-console.log("\n결과 저장: places-api-check.json");
+console.log("   위에 찍은 요일별 영업시간을 직접 눈으로 확인할 것.");
 
 // regularOpeningHours 를 요청하면 Text Search Enterprise 요금이다. 1,000건에 $35, 매달 1천 건 무료다.
 // 출처 https://developers.google.com/maps/billing-and-pricing/pricing (2026-10-08 갱신본, 2026-10-14 확인)

@@ -6,7 +6,7 @@
 
 **입력 조건** Routes API `computeRoutes`, `TRANSIT` 모드, 출발 시각 고정.
 스크립트의 `LEGS` 는 7구간이다.
-호출 스크립트는 [`fetch-travel-times.mjs`](../../fetch-travel-times.mjs).
+호출 스크립트는 `fetch-travel-times.mjs` 였다. 응답을 파일로 남겨 약관에 어긋나서 지웠고, 코드는 커밋 `0e1222a` 에 있다.
 
 > **응답 값(소요시간·거리·steps)은 이 레포에 저장하지 않는다.** 근거는
 > [`docs/data-policy.md`](../data-policy.md) — Routes API 약관 §19.3 은 lat/lng 만 30일 허용한다.
