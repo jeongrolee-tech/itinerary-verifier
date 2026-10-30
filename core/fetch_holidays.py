@@ -18,16 +18,6 @@ YEAR = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 2026
 ENDPOINT = "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo"
 
 
-def ask_key() -> str:
-    for a in sys.argv:
-        if a.startswith("--key="):
-            return a[6:].strip()
-    try:
-        return getpass("공공데이터포털 서비스키 입력: ").strip()
-    except Exception:
-        return input("공공데이터포털 서비스키 입력: ").strip()
-
-
 def build_url(key: str, month: int) -> str:
     # 포털 키는 이미 인코딩된 것과 원문 두 가지라 % 가 있으면 그대로 붙인다.
     # 잘못 붙이면 SERVICE_KEY_IS_NOT_REGISTERED_ERROR 가 난다.
@@ -63,7 +53,7 @@ def items_of(payload: dict) -> list[dict]:
     return item if isinstance(item, list) else [item]
 
 
-key = ask_key()
+key = getpass("공공데이터포털 서비스키 입력: ").strip()
 if not key:
     raise SystemExit("키가 비어 있다.")
 

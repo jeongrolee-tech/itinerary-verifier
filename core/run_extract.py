@@ -53,12 +53,7 @@ LINE = "═" * 78
 def ask_key() -> str:
     import os
     from getpass import getpass
-    for a in args:
-        if a.startswith("--key="):
-            return a[6:].strip()
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return os.environ["ANTHROPIC_API_KEY"]
-    return getpass("Anthropic API 키 입력: ").strip()
+    return os.environ.get("ANTHROPIC_API_KEY") or getpass("Anthropic API 키 입력: ").strip()
 
 
 RUN_ID = f"extract-{datetime.now().strftime('%Y%m%d-%H%M%S')}"

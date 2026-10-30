@@ -459,8 +459,7 @@ elif need_llm:
 
         import anthropic
 
-        key = next((a[6:].strip() for a in args if a.startswith("--key=")), None) \
-            or os.environ.get("ANTHROPIC_API_KEY") or getpass("Anthropic API 키 입력: ").strip()
+        key = os.environ.get("ANTHROPIC_API_KEY") or getpass("Anthropic API 키 입력: ").strip()
         if not key:
             raise SystemExit("키가 비어 있다.")
         client = anthropic.Anthropic(api_key=key)
