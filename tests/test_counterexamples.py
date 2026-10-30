@@ -3,7 +3,7 @@
 import pytest
 
 import routes
-from helpers import MUSEUM, PALACE, THURSDAY, Claude, demo, estimate, ktx, place_checks, travel, with_taxi
+from helpers import MUSEUM, PALACE, THURSDAY, Claude, demo, estimate, ktx, place_checks, poi, transit, travel, with_taxi
 from report import render, report, timeline
 from routes import live_legs
 from verdict import FAIL, NA, PASS, UNKNOWN, judge
@@ -272,3 +272,103 @@ def test_extraction_keeps_outside_only():
     assert res.status_code == 200, res.text
     assert res.json()["itinerary"]["stops"][0]["outside_only"] is True
     assert res.json()["result"]["summary"]["verdict"] != "infeasible"
+
+
+# 8. 4차 피드백 반례
+
+def two_trains(date="2026-11-18"):
+    return {"date": date, "stops": [{"place": "덕수궁", "start": "16:00", "dwell_minutes": 60}],
+            "hard_constraints": [ktx("20:00"), ktx("20:00", id="HC2", place="용산역")]}
+
+
+def station_legs(facts):
+    facts["legs"]["덕수궁|서울역"] = estimate(15)
+    facts["legs"]["덕수궁|용산역"] = estimate(20)
+
+
+@pytest.mark.xfail(strict=True, reason="4차 피드백 1: 필수 일정을 하나씩만 계산한다")
+def test_two_trains_at_once_are_not_passed(facts, policy):
+    """서울역과 용산역에 각각 제때 닿아도 한 사람이 20:00 열차 둘을 다 탈 수는 없다."""
+    station_legs(facts)
+    result = judge(two_trains(), facts, policy)
+    assert [h["id"] for h in result["hard_constraints"]] == ["HC1", "HC2"]
+    assert [h["policy"]["status"] for h in result["hard_constraints"]] == [UNKNOWN, UNKNOWN]
+    assert result["summary"]["verdict"] == "undetermined"
+
+
+def test_two_trains_keep_a_confirmed_closure(facts, policy):
+    """대조군: 화요일 경복궁 휴궁처럼 다른 장소의 확정 위반은 그대로 불가능이다."""
+    station_legs(facts)
+    facts["legs"][f"{PALACE}|덕수궁"] = estimate(10)
+    itinerary = two_trains(TUESDAY)
+    itinerary["stops"].insert(0, {"place": PALACE, "start": "14:00", "dwell_minutes": 60})
+    assert judge(itinerary, facts, policy)["summary"]["verdict"] == "infeasible"
+
+
+def test_a_train_missed_without_travel_stays_a_violation(facts, policy):
+    """대조군: 17:00 에 나오면 17:00 서울역 열차는 이동 0분이어도 놓친다. 둘을 함께 탈 수 있는지와 상관없다."""
+    station_legs(facts)
+    itinerary = two_trains()
+    itinerary["hard_constraints"][0]["time"] = "17:00"
+    result = judge(itinerary, facts, policy)
+    assert result["hard_constraints"][0]["policy"]["status"] == FAIL
+    assert result["summary"]["verdict"] == "infeasible"
+
+
+def jongmyo_then_deoksu(date_source, jongmyo_dwell=50):
+    """11월 19일은 목요일이라 종묘는 회차로만 들어간다. 09:30 에 닿으면 10:20 회차다."""
+    return {"date": "2026-11-19", "date_source": date_source, "stops": [
+        {"place": "종묘", "start": "09:30", "dwell_minutes": jongmyo_dwell},
+        {"place": "덕수궁", "start": "10:30", "dwell_minutes": 30}]}
+
+
+@pytest.mark.xfail(strict=True, reason="4차 피드백 2: 추정 날짜로 정한 회차를 다음 이동에서 확정값으로 쓴다")
+def test_tour_time_from_an_inferred_date_is_not_a_fact(facts, policy):
+    """날짜가 추정이면 10:20 회차도 추정이라 10:20 + 50분 = 11:10 출발로 위반을 확정하지 않는다."""
+    facts["legs"]["종묘|덕수궁"] = estimate(10)
+    c = travel(judge(jongmyo_then_deoksu("inferred"), facts, policy), "종묘", "덕수궁")
+    assert c["status"] == UNKNOWN and c["unknown_reason"] == "INFERRED_INPUT"
+
+
+def test_tour_time_from_a_stated_date_is_a_fact(facts, policy):
+    """대조군: 날짜를 말했으면 11:10 에 나와 10:30 덕수궁에 이동 0분이어도 늦는다."""
+    facts["legs"]["종묘|덕수궁"] = estimate(10)
+    assert travel(judge(jongmyo_then_deoksu("explicit"), facts, policy), "종묘", "덕수궁")["status"] == FAIL
+
+
+@pytest.mark.xfail(strict=True, reason="4차 피드백 2: 날짜와 상관없는 충돌을 날짜에 기댄 시각으로 설명한다")
+def test_clash_without_the_date_stays_a_violation(facts, policy):
+    """대조군: 09:30 에 70분이면 회차와 상관없이 10:40 에 나와 10:30 에 늦는다. 설명도 10:40 으로 한다."""
+    facts["legs"]["종묘|덕수궁"] = estimate(10)
+    c = travel(judge(jongmyo_then_deoksu("inferred", 70), facts, policy), "종묘", "덕수궁")
+    assert c["status"] == FAIL and "10:40" in c["detail"]
+
+
+def deoksu_train(**hc):
+    return {"date": "2026-11-18", "date_source": "explicit", "stops": [
+        {"place": "덕수궁", "start": "16:00", "start_source": "explicit", "dwell_minutes": 60}],
+        "hard_constraints": [{"type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:00",
+                              "time_source": "explicit", **hc}]}
+
+
+@pytest.mark.xfail(strict=True, reason="4차 피드백 3: original 의 필수 일정 id 가 없으면 500")
+def test_constraint_without_id_is_a_bad_request():
+    res = demo().post("/api/recheck", json={"original": deoksu_train(), "revised": deoksu_train(id="HC1")})
+    assert res.status_code == 422
+
+
+@pytest.mark.xfail(strict=True, reason="4차 피드백 3: 같은 id 가 둘이면 수정 전후를 잘못 짝짓는다")
+def test_duplicate_constraint_ids_are_a_bad_request():
+    itinerary = deoksu_train(id="HC1")
+    itinerary["hard_constraints"].append({**itinerary["hard_constraints"][0], "place": "용산역"})
+    assert demo().post("/api/recheck", json={"original": itinerary, "revised": itinerary}).status_code == 422
+
+
+@pytest.mark.xfail(strict=True, reason="4차 피드백 3: HC 로 시작하지 않는 id 에서 500")
+def test_constraint_id_can_be_any_label(tmap):
+    tmap(transit(15 * 60), places={"덕수궁": poi(("덕수궁", 37.566, 126.975)),
+                                   "서울역": poi(("서울역[KTX정차역]", 37.555, 126.971))})
+    itinerary = deoksu_train(id="train-1")
+    res = demo(tmap_key="key").post("/api/recheck", json={"original": itinerary, "revised": itinerary})
+    assert res.status_code == 200, res.text
+    assert res.json()["result"]["hard_constraints"][0]["id"] == "train-1"

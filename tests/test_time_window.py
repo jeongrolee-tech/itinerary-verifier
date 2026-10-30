@@ -33,28 +33,34 @@ def asked_time(result, name):
 
 # 시간대가 있는 경우
 
+@pytest.mark.xfail(strict=True, reason="4차 피드백: 11:30 에 확인한 뒤 이동시간으로 13:35 까지 안내한다")
 def test_gap_is_found_and_told(facts, policy):
-    """T36: 11:00 + 20 + 10 = 11:30 부터, 15:30 − 10 − 15 − 90 = 13:35 까지다."""
+    """T36: 11:00 + 20 + 10 = 11:30 에 들어가면 다 된다. 뒤 이동은 11:30 입장 기준만 확인해 그 시각만 알린다."""
     add_legs(facts)
     result = judge(three_palaces(), facts, policy)
     c = place_checks(result, "창덕궁")
     assert [c[t]["status"] for t in PLACE_CHECKS] == [PASS, PASS, PASS]
     assert [m["status"] for m in moves(result)] == [PASS, PASS]
-    assert "창덕궁에는 11:30~13:35 사이에 들어가면 돼요" in c["ADMISSION_NOT_POSSIBLE"].get("notice", "")
+    notice = c["ADMISSION_NOT_POSSIBLE"].get("notice", "")
+    assert "창덕궁에는 11:30에 들어가면 돼요" in notice and "13:35" not in notice
     assert questions(result) == []
     assert result["summary"]["verdict"] == "feasible"
 
 
 @pytest.mark.parametrize("date, stops, name, told", [
-    # 앞 장소가 없으면 09:00 개장부터, 13:00 − 10 − 15 − 90 = 11:05 까지다.
-    (WEDNESDAY, [{"place": "창덕궁", "dwell_minutes": 90}, {"place": "경복궁", "start": "13:00", "dwell_minutes": 60}],
-     "창덕궁", "창덕궁에는 09:00~11:05 사이에 들어가면 돼요"),
-    # 뒤 장소가 없으면 17:30 폐장 전에 90분을 마치도록 16:00 까지다.
-    (WEDNESDAY, [{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60}, {"place": "창덕궁", "dwell_minutes": 90}],
-     "창덕궁", "창덕궁에는 11:30~16:00 사이에 들어가면 돼요"),
+    # 앞 장소가 없으면 09:00 개장에 들어갈 때의 뒤 이동만 확인했다.
+    pytest.param(WEDNESDAY, [{"place": "창덕궁", "dwell_minutes": 90},
+                             {"place": "경복궁", "start": "13:00", "dwell_minutes": 60}],
+                 "창덕궁", "창덕궁에는 09:00에 들어가면 돼요", id="first-stop",
+                 marks=pytest.mark.xfail(strict=True, reason="4차 피드백: 확인하지 않은 11:05 까지 안내한다")),
+    # 뒤 장소가 없으면 끝이 폐장 같은 사실로만 정해진다. 17:30 폐장 전에 90분을 마치도록 16:00 까지다.
+    pytest.param(WEDNESDAY, [{"place": "덕수궁", "start": "10:00", "dwell_minutes": 60},
+                             {"place": "창덕궁", "dwell_minutes": 90}],
+                 "창덕궁", "창덕궁에는 11:30~16:00 사이에 들어가면 돼요", id="last-stop"),
     # 입장마감 17:00 정각은 공식 안내가 말하지 않아 그 전까지로 알린다.
-    (THURSDAY, [{"place": "경복궁", "dwell_minutes": 60}], "경복궁", "경복궁에는 09:00부터 17:00 전에 들어가면 돼요"),
-], ids=["first-stop", "last-stop", "only-stop"])
+    pytest.param(THURSDAY, [{"place": "경복궁", "dwell_minutes": 60}], "경복궁",
+                 "경복궁에는 09:00부터 17:00 전에 들어가면 돼요", id="only-stop"),
+])
 def test_window_is_bounded_by_the_next_stop_or_the_hours(facts, policy, date, stops, name, told):
     add_legs(facts)
     result = judge({"date": date, "stops": stops}, facts, policy)
@@ -62,11 +68,12 @@ def test_window_is_bounded_by_the_next_stop_or_the_hours(facts, policy, date, st
     assert result["summary"]["verdict"] == "feasible"
 
 
-def test_timeline_shows_the_window(facts, policy):
+@pytest.mark.xfail(strict=True, reason="4차 피드백: 시각 칸에 확인하지 않은 범위를 적는다")
+def test_timeline_shows_the_checked_entry(facts, policy):
     add_legs(facts)
     itinerary = three_palaces()
     (row,) = [r for r in timeline(itinerary, judge(itinerary, facts, policy)) if r["title"] == "창덕궁"]
-    assert row["time"] == "11:30~13:35"
+    assert row["time"] == "11:30"
 
 
 # 시간대가 없는 경우
