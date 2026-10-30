@@ -166,7 +166,8 @@ def create_app(claude=None, tmap_key: str | None = None, today: str | None = Non
     def recheck(body: RecheckIn) -> dict:
         """고친 일정 전체를 다시 판정한다."""
         # 수정 전 판정이 처음과 같도록 원래 일정은 처음 받은 이동시간으로 판정한다.
-        original, revised = as_dict(body.original), normalized(as_dict(body.revised))
+        # 두 일정을 같은 모양으로 맞춰야 바꾸지 않은 칸이 바뀐 칸으로 잡히지 않는다.
+        original, revised = normalized(as_dict(body.original)), normalized(as_dict(body.revised))
         meter = Spend()
         try:
             legs, misses = judged_legs(revised, meter)

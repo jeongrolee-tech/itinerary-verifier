@@ -151,6 +151,13 @@ def test_must_keep_without_a_place_is_asked(tmap, time):
     assert "필수 일정의 장소와 시각을 알려주세요" in again["questions"]
 
 
+def test_unchanged_train_is_not_reported_as_changed():
+    """API 로 온 처음 일정에 권장 여유 기준이 없어도 두 일정을 같은 모양으로 맞춰 비교한다."""
+    hc = {"id": "HC1", "type": "TRAIN_DEPARTURE", "place": "서울역", "time": "20:30", "time_source": "explicit"}
+    itinerary = {**ORIGINAL, "hard_constraints": [hc]}
+    assert recheck(demo(), itinerary, itinerary)["changed_fields"] == []
+
+
 def test_recheck_works_without_keys():
     """키 없이 켜면 추출은 503 이지만 표로 고친 일정은 다시 검사한다."""
     c = demo()
