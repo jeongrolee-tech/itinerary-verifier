@@ -304,7 +304,7 @@ function timelineRow(row, result) {
   for (const x of row.lines) if (x.notice) details.push(el("div", { class: "tl-line", text: "안내 · " + x.notice }));
   if (!row.lines.length) details.push(el("div", { class: "tl-line", text: "아직 검사하지 않았습니다 — 빠진 입력부터 묻습니다" }));
   const status = row.status || "none";
-  // 시각을 말하지 않은 장소는 11:30~13:35 같은 시간대가 와서 두 줄로 쓴다.
+  // 시각을 말하지 않은 마지막 장소는 11:30~16:00 같은 시간대가 와서 두 줄로 쓴다.
   const time = row.kind === "travel" ? "↓" : row.time || "";
   return el("div", { class: "tl-row " + row.kind },
     el("div", { class: "tl-time" + (time.includes("~") ? " window" : ""), text: time.replace("~", "~\n") }),

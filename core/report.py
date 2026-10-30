@@ -111,6 +111,8 @@ def _window_time(window: dict | None) -> str | None:
     """시각을 말하지 않은 장소의 시각 칸이다. 판정 코드가 계산한 시간대를 쓴다."""
     if not window:
         return None
+    if not window["to"]:
+        return window["from"]
     return f"{window['from']}~{window['to']}" + (" 전" if window["before"] else "")
 
 

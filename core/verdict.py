@@ -1180,28 +1180,30 @@ def _windowed(i, itinerary, seq, stop_inputs, facts, policy, date_dep, fallback)
     if place[0]["status"] == FAIL:
         return None  # 쉬는 날은 시각과 상관없어 휴무 위반인 fallback 을 쓴다.
     if all(c["status"] == PASS for c in [*place, before, after] if c):
-        checked = after
         if date_dep:
             _, place, before, after = at(arrive, date_dep)
-        place[1] = _with_window(place[1], st, prev, nxt, checked, visit_date, facts, policy)
+        place[1] = _with_window(place[1], st, prev, nxt, visit_date, facts)
         return {"place": place, "before": before, "after": after}
     return _no_window(s["place"], prev, arrive, at, fallback, date_dep)
 
 
-def _with_window(admission, st, prev, nxt, after, visit_date, facts, policy) -> dict:
-    """시간대 끝은 입장마감, 폐장 전 체류 완료, 다음 장소에 맞출 시각 중 가장 이른 것이다."""
+def _with_window(admission, st, prev, nxt, visit_date, facts) -> dict:
+    """확인한 입장 시각을 알린다. 끝이 입장마감 · 폐장으로만 정해질 때만 시간대로 알린다."""
+    how = f"{prev['name']}에서 나와 바로 가는 것으로" if prev else "문 여는 시각부터"
+    told = f"들어갈 시각을 말하지 않아서 {how} 계산했어요"
+    if nxt:
+        # 뒤 이동시간은 이 시각에 나설 때만 확인했다. 늦게 나서면 달라질 수 있다.
+        admission = _add_notice(admission, f"{st['name']}에는 {st['entry']}에 들어가면 돼요. {told}. "
+                                           "다른 시각에 들어가려면 표에 그 시각을 넣고 다시 검사해 주세요")
+        admission["window"] = {"from": st["entry"], "to": None, "before": False}
+        return admission
     h, dwell = hours_for(st["place"], visit_date, facts["holidays"]), st["dwell"]["value"]
     limit = h.get("last_admission") or h["close"]
     bounds = [(to_min(limit), bool(h.get("last_admission")) and not h.get("last_admission_rule")),
               (to_min(h["close"]) - dwell, False)]
-    if nxt:  # 이동시간은 가장 이른 입장 기준이라 늦게 나서면 달라질 수 있다.
-        travel = after["evidence"]["travel_minutes"]
-        bounds.append((to_min(nxt["entry"]) - policy["buffer_minutes"]["transit_leg"] - travel - dwell, False))
     latest, before = min(bounds, key=lambda b: (b[0], not b[1]))  # 같은 시각이면 '그 전'이 더 엄하다.
     span = f"{st['entry']}부터 {to_hhmm(latest)} 전에" if before else f"{st['entry']}~{to_hhmm(latest)} 사이에"
-    how = f"{prev['name']}에서 나와 바로 가는 것으로" if prev else "문 여는 시각부터"
-    admission = _add_notice(admission, f"{st['name']}에는 {span} 들어가면 돼요. "
-                                       f"들어갈 시각을 말하지 않아서 {how} 계산했어요")
+    admission = _add_notice(admission, f"{st['name']}에는 {span} 들어가면 돼요. {told}")
     admission["window"] = {"from": st["entry"], "to": to_hhmm(latest), "before": before}
     return admission
 
