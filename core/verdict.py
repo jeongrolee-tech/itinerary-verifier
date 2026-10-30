@@ -697,21 +697,21 @@ def _travel_without_dwell(label, frm, to, leg, mode_name, target, by, base, arri
                  reference=evidence)
 
 
-def _late_travel(label, to, leg, mode_name, detail, evidence) -> dict:
+def _late(leg, mode_name, detail, goal, fix) -> dict:
+    """다음 장소와 필수 일정이 같이 쓴다."""
     # 예상 이동시간은 가장 빠른 값이 아니라서 늦어도 위반을 확정하지 않는다.
     if leg.get("is_lower_bound"):
-        return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
-                     unknown_reason="LATE_BY_LOWER_BOUND",
-                     detail=f"{mode_name}로 가면 {detail}. "
-                            f"택시 등 다른 수단으로 갈 수 있는지는 확인하지 못했다",
-                     how_to_resolve={"user": f"{mode_name}로는 {to['name']}에 늦어요. "
-                                             f"시작을 늦추거나 더 일찍 출발할 수 있나요?"},
-                     reference=evidence)
+        return {"unknown_reason": "LATE_BY_LOWER_BOUND",
+                "detail": f"{mode_name}로 가면 {detail}. 택시 등 다른 수단으로 갈 수 있는지는 확인하지 못했다",
+                "how_to_resolve": {"user": f"{mode_name}로는 {goal}에 늦어요. {fix}"}}
+    return {"unknown_reason": "LATE_BY_ESTIMATE",
+            "detail": f"{detail} — {mode_name} 예상 이동시간({leg['minutes']}분) 기준이라 확정하지 않는다",
+            "how_to_resolve": {"user": f"{goal}에 늦을 가능성이 높아요. {fix}"}}
+
+
+def _late_travel(label, to, leg, mode_name, detail, evidence) -> dict:
     return check("INSUFFICIENT_TRAVEL_TIME", label, UNKNOWN,
-                 unknown_reason="LATE_BY_ESTIMATE",
-                 detail=f"{detail} — {mode_name} 예상 이동시간({leg['minutes']}분) 기준이라 확정하지 않는다",
-                 how_to_resolve={"user": f"{to['name']}에 늦을 가능성이 높아요. "
-                                         f"시작을 늦추거나 더 일찍 출발할 수 있나요?"},
+                 **_late(leg, mode_name, detail, to["name"], "시작을 늦추거나 더 일찍 출발할 수 있나요?"),
                  reference=evidence)
 
 
@@ -889,23 +889,9 @@ def _hc_without_dwell(policy_eval, last, leg, mode_name, base, est, required, de
 
 
 def _hc_late(policy_eval, leg, mode_name, deadline, detail) -> dict:
-    # _late_travel 과 같다. 위반은 확정하지 않고 severity 는 blocking 그대로 둔다.
-    if leg.get("is_lower_bound"):
-        policy_eval.update(
-            status=UNKNOWN,
-            unknown_reason="LATE_BY_LOWER_BOUND",
-            detail=f"{mode_name}로 가면 {detail}. 택시 등 다른 수단으로 갈 수 있는지는 확인하지 못했다",
-            how_to_resolve={"user": f"{mode_name}로는 {deadline.name}에 늦어요. 더 일찍 출발할 수 있나요?"},
-            not_confirmed="다른 이동수단으로 갔을 때의 도착 시각",
-        )
-    else:
-        policy_eval.update(
-            status=UNKNOWN,
-            unknown_reason="LATE_BY_ESTIMATE",
-            detail=f"{detail} — {mode_name} 예상 이동시간({leg['minutes']}분) 기준이라 확정하지 않는다",
-            how_to_resolve={"user": f"{deadline.name}에 늦을 가능성이 높아요. 더 일찍 출발할 수 있나요?"},
-            not_confirmed="실제 이동시간",
-        )
+    policy_eval.update(status=UNKNOWN, **_late(leg, mode_name, detail, deadline.name, "더 일찍 출발할 수 있나요?"),
+                       not_confirmed="다른 이동수단으로 갔을 때의 도착 시각" if leg.get("is_lower_bound")
+                       else "실제 이동시간")
     return policy_eval
 
 
