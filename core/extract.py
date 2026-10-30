@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, StringConstraints, field_validator, model
 
 from llm import ask
 from model_info import DEFAULT_MODEL
-from verdict import HHMM
+from verdict import BUFFER_RULES, HHMM
 
 Source = Literal["explicit", "inferred", "missing"]
 Weekday = Literal["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
@@ -218,11 +218,6 @@ def extract(text: str, client: anthropic.Anthropic | None = None,
             effort: str | None = "low") -> tuple[Extraction, dict]:
     """모델이 거부하면 llm.Refusal 이 난다."""
     return ask(client or anthropic.Anthropic(), **request(text, model, today=today, effort=effort))
-
-
-# flight_boarding 은 기준을 확보하지 못해 policy 에 없다. 그래서 pass 가 나오지 않는다.
-BUFFER_RULES = {"TRAIN_DEPARTURE": "rail_boarding", "FLIGHT_DEPARTURE": "flight_boarding",
-                "ARRIVE_BY": "transit_leg", "OTHER": "transit_leg"}
 
 
 def to_itinerary(ex: Extraction) -> dict:

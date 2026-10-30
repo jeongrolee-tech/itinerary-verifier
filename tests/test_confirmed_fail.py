@@ -2,9 +2,8 @@
 
 import pytest
 
-from extract import BUFFER_RULES
 from helpers import MARKET, MUSEUM, PALACE, THURSDAY, check, estimate, ktx, train, travel
-from verdict import FAIL, PASS, UNKNOWN, judge
+from verdict import BUFFER_RULES, FAIL, PASS, UNKNOWN, judge
 
 
 def closed_day(result, name):
@@ -317,10 +316,14 @@ def test_leaving_at_deadline_is_not_late_for_arrive_by(facts, policy):
     assert train(judge(market_until("19:00", "ARRIVE_BY"), facts, policy))["status"] != FAIL
 
 
-def test_flight_is_never_passed_without_a_boarding_rule(facts, policy):
-    """19:20 에 공항에 닿아도 탑승 수속 기준이 없어 pass 를 내지 않는다."""
+@pytest.mark.parametrize("given", [True, False], ids=["rule-given", "rule-left-out"])
+def test_flight_is_never_passed_without_a_boarding_rule(facts, policy, given):
+    """19:20 에 공항에 닿아도 탑승 수속 기준이 없어 pass 를 내지 않는다. buffer_rule 칸을 빼도 같다."""
     to_airport(facts)
-    p = train(judge(market_until("21:00", "FLIGHT_DEPARTURE"), facts, policy))
+    it = market_until("21:00", "FLIGHT_DEPARTURE")
+    if not given:
+        del it["hard_constraints"][0]["buffer_rule"]
+    p = train(judge(it, facts, policy))
     assert p["status"] == UNKNOWN and p["unknown_reason"] == "NO_BUFFER_RULE"
     assert p["severity"] == "blocking"
 

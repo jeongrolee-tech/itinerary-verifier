@@ -19,13 +19,13 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware  # noqa: E402
 from fastapi.responses import FileResponse  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
-from extract import BUFFER_RULES, Itinerary, as_dict, extract, to_itinerary  # noqa: E402
+from extract import Itinerary, as_dict, extract, to_itinerary  # noqa: E402
 from llm import InvalidOutput, Refusal  # noqa: E402
 from recheck import recheck_revision  # noqa: E402
 from report import questions, report, timeline  # noqa: E402
 from routes import live_legs  # noqa: E402
 from spend import Spend, counting  # noqa: E402
-from verdict import FAIL, PASS, WEEKDAYS, judge, weekday_of  # noqa: E402
+from verdict import BUFFER_RULES, FAIL, PASS, WEEKDAYS, judge, weekday_of  # noqa: E402
 
 HERE = Path(__file__).parent
 load = lambda n: json.loads((HERE / n).read_text(encoding="utf-8"))  # noqa: E731

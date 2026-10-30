@@ -518,6 +518,9 @@ def departure(st: dict) -> str:
 MODE_NAMES = {"metro": "지하철", "transit": "대중교통", "walk": "도보", "taxi": "택시"}
 EVENT_NAMES = {"TRAIN_DEPARTURE": "열차 출발", "FLIGHT_DEPARTURE": "항공편 출발",
                "ARRIVE_BY": "도착 기한", "OTHER": "필수 일정"}
+# flight_boarding 은 기준을 확보하지 못해 policy 에 없다. 그래서 pass 가 나오지 않는다.
+BUFFER_RULES = {"TRAIN_DEPARTURE": "rail_boarding", "FLIGHT_DEPARTURE": "flight_boarding",
+                "ARRIVE_BY": "transit_leg", "OTHER": "transit_leg"}
 
 
 # 대중교통으로 안 되면 택시 대안을 본다. 택시로 닿으면 통과하고 택시로 가야 한다고 알린다.
@@ -749,7 +752,7 @@ def event_of(hc: dict) -> dict:
 
 def _hc_policy(hc, last, leg, policy, visit_date) -> dict:
     # 항공편처럼 정책에 기준이 없으면 None 이다.
-    buffer = policy["buffer_minutes"].get(hc.get("buffer_rule", "rail_boarding"))
+    buffer = policy["buffer_minutes"].get(hc.get("buffer_rule") or BUFFER_RULES.get(hc["type"]))
     required = None if buffer is None else to_min(hc["time"]) - buffer
 
     policy_eval = {
