@@ -1,18 +1,18 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20261028-174205",
+  "run_id": "run-20261030-170607",
   "version": "core-0.2",
-  "ran_at": "2026-10-28T08:42:05.780586+00:00",
+  "ran_at": "2026-10-30T08:06:07.076910+00:00",
   "facts_snapshot": "facts-2026-10-20",
   "holidays_verified": true,
   "suite": "tests.json",
   "labeled_at": "2026-10-14",
   "conditions": {
-    "code_commit": "de33aa971de709d49dddc4cffe9423d555206072",
+    "code_commit": "8c4c0230b7d4318e778afdefafe33e2945ae1292",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "tests.json": "13845980b4c0",
+      "tests.json": "a68e3c37c748",
       "facts.json": "5e2bb7b1fde0",
       "policy.json": "1e3605504d71"
     }
@@ -24,7 +24,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -316,7 +316,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -3369,7 +3369,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -4618,7 +4618,7 @@
       "expect": "feasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.5,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -6421,7 +6421,7 @@
       "expect": "feasible",
       "match": true,
       "problems": [],
-      "elapsed_ms": 1.0,
+      "elapsed_ms": 0.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": {
@@ -6549,10 +6549,10 @@
             "checked_at": "2026-09-22",
             "valid_until": "2026-12-31"
           },
-          "notice": "창덕궁에는 11:30~13:35 사이에 들어가면 돼요. 들어갈 시각을 말하지 않아서 덕수궁에서 나와 바로 가는 것으로 계산했어요",
+          "notice": "창덕궁에는 11:30에 들어가면 돼요. 들어갈 시각을 말하지 않아서 덕수궁에서 나와 바로 가는 것으로 계산했어요. 다른 시각에 들어가려면 표에 그 시각을 넣고 다시 검사해 주세요",
           "window": {
             "from": "11:30",
-            "to": "13:35",
+            "to": null,
             "before": false
           },
           "id": "chk-005"

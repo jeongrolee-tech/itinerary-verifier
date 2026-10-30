@@ -1,7 +1,7 @@
 {
   "_역할": "비교 실험 기록. arm 별 판정과 지표 5종, 비용·지연을 남긴다. compare.py 가 덮어쓴다.",
-  "run_id": "cmp-20261028-170150",
-  "ran_at": "2026-10-28T08:09:06.950659+00:00",
+  "run_id": "cmp-20261030-170609",
+  "ran_at": "2026-10-30T08:06:10.078624+00:00",
   "facts_snapshot": "facts-2026-10-20",
   "model": "claude-opus-5-5",
   "effort": "low",
@@ -12,11 +12,11 @@
     "cache_read": 0.2
   },
   "conditions": {
-    "code_commit": "de33aa971de709d49dddc4cffe9423d555206072",
+    "code_commit": "8c4c0230b7d4318e778afdefafe33e2945ae1292",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "tests.json": "13845980b4c0",
+      "tests.json": "a68e3c37c748",
       "facts.json": "5e2bb7b1fde0",
       "policy.json": "1e3605504d71"
     },
@@ -41,20 +41,21 @@
   "scored": 37,
   "total": 37,
   "responses": {
-    "new": 45,
-    "reused": 66,
+    "new": 0,
+    "reused": 111,
     "received_in": [
       "cmp-20261012-193020",
       "cmp-20261014-120503",
       "cmp-20261028-170150"
     ],
-    "spent_usd": 0.6881
+    "spent_usd": 0.0
   },
   "metrics": {
     "llm_naive": {
       "n": 37,
       "verdict_accuracy": 0.486,
       "check_accuracy": 0.629,
+      "hard_constraint_accuracy": 0.4,
       "checks_missing": 4,
       "verdict_inconsistent": 1,
       "precision_on_infeasible": 0.909,
@@ -76,6 +77,7 @@
       "n": 37,
       "verdict_accuracy": 0.459,
       "check_accuracy": 0.171,
+      "hard_constraint_accuracy": 0.6,
       "checks_missing": 4,
       "verdict_inconsistent": 0,
       "precision_on_infeasible": 1.0,
@@ -97,6 +99,7 @@
       "n": 37,
       "verdict_accuracy": 1.0,
       "check_accuracy": 1.0,
+      "hard_constraint_accuracy": 1.0,
       "checks_missing": 0,
       "verdict_inconsistent": 0,
       "precision_on_infeasible": 1.0,
@@ -118,6 +121,7 @@
       "n": 37,
       "verdict_accuracy": 1.0,
       "check_accuracy": 1.0,
+      "hard_constraint_accuracy": 1.0,
       "checks_missing": 0,
       "verdict_inconsistent": 0,
       "precision_on_infeasible": 1.0,
@@ -359,6 +363,8 @@
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -372,6 +378,8 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -391,12 +399,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -523,12 +535,16 @@
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -542,12 +558,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -754,6 +774,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -767,6 +789,8 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": false
         },
         "llm_only": {
@@ -780,12 +804,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -1027,6 +1055,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -1037,6 +1067,15 @@
               "type": "INSUFFICIENT_TRAVEL_TIME",
               "target": "경복궁 → 광장시장",
               "status": "unknown",
+              "got": "pass"
+            }
+          ],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [
+            {
+              "id": "HC1",
+              "status": "unknown",
+              "severity": "blocking",
               "got": "pass"
             }
           ],
@@ -1059,12 +1098,16 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -1271,6 +1314,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -1284,6 +1329,8 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -1303,12 +1350,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -1441,12 +1492,16 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -1466,12 +1521,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -1604,12 +1663,16 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -1629,12 +1692,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -1761,6 +1828,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -1774,6 +1843,8 @@
               "got": "not_applicable"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -1787,12 +1858,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -1925,12 +2000,16 @@
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -1944,12 +2023,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -2076,12 +2159,16 @@
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -2107,12 +2194,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -2319,6 +2410,8 @@
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -2332,18 +2425,24 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -2550,6 +2649,8 @@
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -2563,18 +2664,24 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 1,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -2707,6 +2814,8 @@
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -2720,6 +2829,8 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -2739,12 +2850,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -2871,6 +2986,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -2890,18 +3007,24 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -3034,6 +3157,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -3047,6 +3172,8 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -3066,12 +3193,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -3554,12 +3685,16 @@
           "verdict_ok": true,
           "checks_expected": 5,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 5,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -3597,12 +3732,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 5,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -4177,6 +4316,8 @@
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -4190,6 +4331,8 @@
               "got": "not_applicable"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -4209,12 +4352,16 @@
               "got": "not_applicable"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -4347,12 +4494,16 @@
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -4378,12 +4529,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -4516,6 +4671,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -4535,6 +4692,8 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -4554,12 +4713,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -4692,6 +4855,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -4711,18 +4876,24 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -4855,6 +5026,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -4874,6 +5047,8 @@
               "got": "not_applicable"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -4893,12 +5068,16 @@
               "got": "not_applicable"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -5031,6 +5210,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -5044,6 +5225,8 @@
               "got": "fail"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -5057,12 +5240,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -5269,12 +5456,16 @@
           "verdict_ok": true,
           "checks_expected": 4,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 4,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -5306,12 +5497,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 4,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -5506,6 +5701,8 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -5525,6 +5722,8 @@
               "got": null
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -5538,12 +5737,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -5750,6 +5953,8 @@
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -5769,6 +5974,8 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -5788,12 +5995,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -5937,12 +6148,16 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -5962,12 +6177,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -6123,12 +6342,23 @@
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": false,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [
+            {
+              "id": "HC1",
+              "status": "unknown",
+              "severity": "blocking",
+              "got": "pass"
+            }
+          ],
           "consistent": true
         },
         "llm_only": {
@@ -6148,12 +6378,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 2,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -6348,6 +6582,8 @@
           "verdict_ok": true,
           "checks_expected": 5,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -6373,6 +6609,8 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -6410,12 +6648,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 5,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -6622,6 +6864,8 @@
           "verdict_ok": true,
           "checks_expected": 5,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -6641,6 +6885,8 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -6666,12 +6912,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 5,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -6970,6 +7220,8 @@
           "verdict_ok": true,
           "checks_expected": 4,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -6989,6 +7241,8 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -7020,12 +7274,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 4,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -7416,12 +7674,16 @@
           "verdict_ok": true,
           "checks_expected": 6,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 6,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -7465,12 +7727,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 6,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -7953,6 +8219,8 @@
           "verdict_ok": true,
           "checks_expected": 8,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -7972,6 +8240,8 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -8015,12 +8285,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 8,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -8366,12 +8640,16 @@
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -8397,12 +8675,22 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [
+            {
+              "id": "HC1",
+              "status": "pass",
+              "got": "unknown"
+            }
+          ],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 3,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -8701,6 +8989,8 @@
           "verdict_ok": true,
           "checks_expected": 11,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -8732,6 +9022,8 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -8787,12 +9079,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 11,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -9242,6 +9538,8 @@
           "verdict_ok": true,
           "checks_expected": 15,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -9325,6 +9623,14 @@
               "target": "서울시립미술관 서소문본관",
               "status": "pass",
               "got": "unknown"
+            }
+          ],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [
+            {
+              "id": "HC1",
+              "status": "unknown",
+              "got": null
             }
           ],
           "consistent": true
@@ -9424,12 +9730,22 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [
+            {
+              "id": "HC1",
+              "status": "unknown",
+              "got": null
+            }
+          ],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 15,
           "checks_wrong": [],
+          "hard_constraints_expected": 1,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -9728,12 +10044,16 @@
           "verdict_ok": true,
           "checks_expected": 11,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
           "verdict_ok": true,
           "checks_expected": 11,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -9807,12 +10127,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 11,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }
@@ -10111,6 +10435,8 @@
           "verdict_ok": true,
           "checks_expected": 11,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_naive": {
@@ -10136,6 +10462,8 @@
               "got": "pass"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_only": {
@@ -10191,12 +10519,16 @@
               "got": "unknown"
             }
           ],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         },
         "llm_with_facts": {
           "verdict_ok": true,
           "checks_expected": 11,
           "checks_wrong": [],
+          "hard_constraints_expected": 0,
+          "hard_constraints_wrong": [],
           "consistent": true
         }
       }

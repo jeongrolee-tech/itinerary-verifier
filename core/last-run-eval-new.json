@@ -1,18 +1,18 @@
 {
   "_역할": "판정 실행 기록. 최종 판정만이 아니라 케이스별 추출값·적용한 기본값·검사별 상태와 근거를 남긴다. 실패 원인을 되짚기 위한 파일이며 run.py 가 덮어쓴다.",
-  "run_id": "run-20261028-174205",
+  "run_id": "run-20261030-170607",
   "version": "core-0.2",
-  "ran_at": "2026-10-28T08:42:05.914329+00:00",
+  "ran_at": "2026-10-30T08:06:07.235019+00:00",
   "facts_snapshot": "facts-2026-10-20",
   "holidays_verified": true,
   "suite": "eval-new.json",
   "labeled_at": "2026-10-23",
   "conditions": {
-    "code_commit": "de33aa971de709d49dddc4cffe9423d555206072",
+    "code_commit": "8c4c0230b7d4318e778afdefafe33e2945ae1292",
     "uncommitted": [],
     "reproducible": true,
     "fingerprints": {
-      "eval-new.json": "4a1b51d7ed2d",
+      "eval-new.json": "967e00984ff3",
       "facts.json": "5e2bb7b1fde0",
       "policy.json": "1e3605504d71"
     }
@@ -736,7 +736,7 @@
     {
       "id": "N04-열차시각뒤문장",
       "set": "new",
-      "expect": "feasible",
+      "expect": "undetermined",
       "match": true,
       "problems": [],
       "elapsed_ms": 0.0,
@@ -749,12 +749,12 @@
       "weekday_stated": "FRI",
       "is_holiday": false,
       "summary": {
-        "verdict": "feasible",
-        "message": "확인한 정보와 검사 범위 내에서 위반이 발견되지 않았습니다",
+        "verdict": "undetermined",
+        "message": "위반은 발견되지 않았지만 1개 항목을 확인하지 못했습니다",
         "counts": {
-          "pass": 8,
+          "pass": 7,
           "fail": 0,
-          "unknown": 0,
+          "unknown": 1,
           "not_applicable": 1
         }
       },
@@ -767,6 +767,15 @@
           "rule": "extract.inferred_date",
           "reason": "입력에 연도가 없어 구조화 추출 단계에서 가장 가까운 미래 날짜로 해석했다",
           "ask_user": "방문 날짜가 맞는지 확인해 주세요"
+        },
+        {
+          "id": "A2",
+          "field": "hard_constraints[0].time",
+          "value": "20:30",
+          "source": "llm_inferred",
+          "rule": "extract.inferred_hard_constraint_time",
+          "reason": "입력의 문맥에서 필수 일정 시각을 추정했다",
+          "ask_user": "서울역 열차 출발 시각이 20:30이 맞나요?"
         }
       ],
       "checks": [
@@ -926,8 +935,15 @@
             "margin_vs_event": 135,
             "margin_vs_required": 120,
             "is_lower_bound": false,
-            "status": "pass",
-            "detail": "대중교통 15분에 권장 여유 15분을 더해도 열차 출발(20:30) 전에 닿는다"
+            "status": "unknown",
+            "detail": "추정한 입력으로 보면 통과로 나온다 — 대중교통 15분에 권장 여유 15분을 더해도 열차 출발(20:30) 전에 닿는다. 추정한 값이 맞는지 확인하기 전에는 확정하지 않는다",
+            "unknown_reason": "INFERRED_INPUT",
+            "depends_on_assumptions": [
+              "A2"
+            ],
+            "how_to_resolve": {
+              "user": "서울역 열차 출발 시각이 20:30이 맞나요?"
+            }
           }
         }
       ]
@@ -938,7 +954,7 @@
       "expect": "undetermined",
       "match": true,
       "problems": [],
-      "elapsed_ms": 0.0,
+      "elapsed_ms": 1.0,
       "label_current": true,
       "stale_reason": null,
       "expect_applied": null,
